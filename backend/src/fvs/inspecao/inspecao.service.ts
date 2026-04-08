@@ -348,9 +348,11 @@ export class InspecaoService {
 
     // Parameterized filter for servico (optional)
     const servicoParams: unknown[] = [fichaId, tenantId];
-    const servicoExtra = filtros?.servicoId
-      ? (() => { servicoParams.push(filtros.servicoId); return `AND fs.servico_id = $${servicoParams.length}`; })()
-      : '';
+    let servicoExtra = '';
+    if (filtros?.servicoId) {
+      servicoParams.push(filtros.servicoId);
+      servicoExtra = `AND fs.servico_id = $${servicoParams.length}`;
+    }
 
     const servicos = await this.prisma.$queryRawUnsafe<{ id: number; nome: string }[]>(
       `SELECT s.id, s.nome
@@ -363,9 +365,11 @@ export class InspecaoService {
 
     // Parameterized filter for pavimento (optional)
     const localParams: unknown[] = [fichaId, tenantId];
-    const pavimentoExtra = filtros?.pavimentoId
-      ? (() => { localParams.push(filtros.pavimentoId); return `AND ol.pavimento_id = $${localParams.length}`; })()
-      : '';
+    let pavimentoExtra = '';
+    if (filtros?.pavimentoId) {
+      localParams.push(filtros.pavimentoId);
+      pavimentoExtra = `AND ol.pavimento_id = $${localParams.length}`;
+    }
 
     const locais = await this.prisma.$queryRawUnsafe<{ id: number; nome: string; pavimento_id: number | null }[]>(
       `SELECT DISTINCT ol.id, ol.nome, ol.pavimento_id

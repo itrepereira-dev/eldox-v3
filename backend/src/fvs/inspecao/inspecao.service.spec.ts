@@ -176,5 +176,35 @@ describe('InspecaoService', () => {
       const result = await svc.getGrade(TENANT_ID, 1);
       expect(result.celulas[1][10]).toBe('pendente');
     });
+
+    it('excecao alone = aprovado', async () => {
+      mockPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce([FICHA_EM_INSPECAO])
+        .mockResolvedValueOnce([{ id: 1, nome: 'Alvenaria' }])
+        .mockResolvedValueOnce([{ id: 10, nome: 'Ap 101', pavimento_id: 1 }])
+        .mockResolvedValueOnce([{ servico_id: 1, obra_local_id: 10, status: 'excecao' }]);
+
+      const result = await svc.getGrade(TENANT_ID, 1);
+      expect(result.celulas[1][10]).toBe('aprovado');
+    });
+
+    it('NC mixed com conforme → nc vence (prioridade NC)', async () => {
+      mockPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce([FICHA_EM_INSPECAO])
+        .mockResolvedValueOnce([{ id: 1, nome: 'Alvenaria' }])
+        .mockResolvedValueOnce([{ id: 10, nome: 'Ap 101', pavimento_id: 1 }])
+        .mockResolvedValueOnce([
+          { servico_id: 1, obra_local_id: 10, status: 'conforme' },
+          { servico_id: 1, obra_local_id: 10, status: 'nao_conforme' },
+        ]);
+
+      const result = await svc.getGrade(TENANT_ID, 1);
+      expect(result.celulas[1][10]).toBe('nc');
+    });
+
+    it('lança NotFoundException se ficha não existe', async () => {
+      mockPrisma.$queryRawUnsafe.mockResolvedValueOnce([]);
+      await expect(svc.getGrade(TENANT_ID, 999)).rejects.toBeInstanceOf(NotFoundException);
+    });
   });
 });
