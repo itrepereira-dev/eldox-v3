@@ -79,6 +79,97 @@ export interface ImportResult {
   total: number;
 }
 
+// ─── Inspeção Sprint 2 ────────────────────────────────────────────────────────
+
+export type RegimeFicha = 'pbqph' | 'norma_tecnica' | 'livre';
+export type StatusFicha = 'rascunho' | 'em_inspecao' | 'concluida';
+export type StatusRegistro = 'nao_avaliado' | 'conforme' | 'nao_conforme' | 'excecao';
+export type StatusGrade = 'nao_avaliado' | 'aprovado' | 'nc' | 'pendente';
+
+export interface FichaFvs {
+  id: number;
+  tenant_id: number;
+  obra_id: number;
+  nome: string;
+  regime: RegimeFicha;
+  status: StatusFicha;
+  criado_por: number;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+  progresso?: number;
+}
+
+export interface FichaDetalhada extends FichaFvs {
+  servicos: FichaServico[];
+  progresso: number;
+}
+
+export interface FichaServico {
+  id: number;
+  ficha_id: number;
+  servico_id: number;
+  servico_nome: string;
+  ordem: number;
+  itens_excluidos: number[] | null;
+  locais: FichaServicoLocal[];
+}
+
+export interface FichaServicoLocal {
+  id: number;
+  ficha_servico_id: number;
+  obra_local_id: number;
+  local_nome: string;
+  equipe_responsavel: string | null;
+}
+
+export interface FvsGrade {
+  servicos: { id: number; nome: string }[];
+  locais: { id: number; nome: string; pavimento_id: number | null }[];
+  celulas: Record<number, Record<number, StatusGrade>>;
+}
+
+export interface FvsRegistro {
+  id: number;
+  ficha_id: number;
+  servico_id: number;
+  item_id: number;
+  obra_local_id: number;
+  status: StatusRegistro;
+  observacao: string | null;
+  inspecionado_por: number | null;
+  inspecionado_em: string | null;
+  item_descricao: string;
+  item_criticidade: 'critico' | 'maior' | 'menor';
+  item_criterio_aceite: string | null;
+  evidencias_count: number;
+  equipe_responsavel: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FvsEvidencia {
+  id: number;
+  registro_id: number;
+  ged_versao_id: number;
+  nome_original: string;
+  created_at: string;
+  url?: string;
+}
+
+export interface CreateFichaPayload {
+  obraId: number;
+  nome: string;
+  regime: RegimeFicha;
+  servicos: { servicoId: number; localIds: number[]; itensExcluidos?: number[] }[];
+}
+
+export interface PaginatedFichas {
+  data: FichaFvs[];
+  total: number;
+  page: number;
+}
+
 // ─── Service ─────────────────────────────────────────────────────────────────
 
 export const fvsService = {
@@ -152,5 +243,69 @@ export const fvsService = {
   },
   async deleteItem(id: number): Promise<void> {
     await api.delete(`/fvs/itens/${id}`);
+  },
+
+  // ─── Fichas ────────────────────────────────────────────────────────────────────
+  async createFicha(payload: CreateFichaPayload): Promise<FichaFvs> {
+    const { data } = await api.post('/fvs/fichas', payload);
+    return data;
+  },
+  async getFichas(params?: { obraId?: number; page?: number; limit?: number }): Promise<PaginatedFichas> {
+    const { data } = await api.get('/fvs/fichas', { params });
+    return data;
+  },
+  async getFicha(id: number): Promise<FichaDetalhada> {
+    const { data } = await api.get(`/fvs/fichas/${id}`);
+    return data;
+  },
+  async patchFicha(id: number, payload: { nome?: string; status?: StatusFicha }): Promise<FichaFvs> {
+    const { data } = await api.patch(`/fvs/fichas/${id}`, payload);
+    return data;
+  },
+  async deleteFicha(id: number): Promise<void> {
+    await api.delete(`/fvs/fichas/${id}`);
+  },
+
+  // ─── Grade ─────────────────────────────────────────────────────────────────────
+  async getGrade(fichaId: number, params?: { pavimentoId?: number; servicoId?: number }): Promise<FvsGrade> {
+    const { data } = await api.get(`/fvs/fichas/${fichaId}/grade`, { params });
+    return data;
+  },
+
+  // ─── Registros ─────────────────────────────────────────────────────────────────
+  async getRegistros(fichaId: number, servicoId: number, localId: number): Promise<FvsRegistro[]> {
+    const { data } = await api.get(`/fvs/fichas/${fichaId}/registros`, {
+      params: { servicoId, localId },
+    });
+    return data;
+  },
+  async putRegistro(
+    fichaId: number,
+    payload: { servicoId: number; itemId: number; localId: number; status: StatusRegistro; observacao?: string },
+  ): Promise<FvsRegistro> {
+    const { data } = await api.put(`/fvs/fichas/${fichaId}/registros`, payload);
+    return data;
+  },
+
+  // ─── Local (equipe) ────────────────────────────────────────────────────────────
+  async patchLocal(fichaId: number, localId: number, payload: { equipeResponsavel?: string | null }): Promise<void> {
+    await api.patch(`/fvs/fichas/${fichaId}/locais/${localId}`, payload);
+  },
+
+  // ─── Evidências ────────────────────────────────────────────────────────────────
+  async getEvidencias(registroId: number): Promise<FvsEvidencia[]> {
+    const { data } = await api.get(`/fvs/registros/${registroId}/evidencias`);
+    return data;
+  },
+  async createEvidencia(registroId: number, file: File): Promise<FvsEvidencia> {
+    const form = new FormData();
+    form.append('arquivo', file);
+    const { data } = await api.post(`/fvs/registros/${registroId}/evidencias`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data;
+  },
+  async deleteEvidencia(id: number): Promise<void> {
+    await api.delete(`/fvs/evidencias/${id}`);
   },
 };
