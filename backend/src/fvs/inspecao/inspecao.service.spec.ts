@@ -19,12 +19,8 @@ const mockPrisma = {
   $transaction: jest.fn(),
 };
 
-const mockGed = {
-  upload: jest.fn(),
-};
-
 function makeService(): InspecaoService {
-  return new (InspecaoService as any)(mockPrisma, mockGed);
+  return new (InspecaoService as any)(mockPrisma);
 }
 
 describe('InspecaoService', () => {
@@ -91,6 +87,7 @@ describe('InspecaoService', () => {
     });
 
     it('transição rascunho→em_inspecao válida', async () => {
+      mockPrisma.$transaction.mockImplementation(async (fn: any) => fn(mockPrisma));
       mockPrisma.$queryRawUnsafe
         .mockResolvedValueOnce([FICHA_RASCUNHO])             // buscar ficha
         .mockResolvedValueOnce([FICHA_EM_INSPECAO]);         // UPDATE retorno

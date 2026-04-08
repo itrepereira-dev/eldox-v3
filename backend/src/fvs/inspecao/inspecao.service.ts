@@ -7,7 +7,6 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { GedService } from '../../ged/ged.service';
 import type {
   FichaFvs, FichaFvsComProgresso, FichaDetalhada, FvsGrade,
   FvsRegistro, FvsEvidencia, StatusFicha, StatusGrade,
@@ -30,7 +29,6 @@ export class InspecaoService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly ged: GedService,
   ) {}
 
   // ── Helper: buscar ficha com validação de tenant ────────────────────────────
@@ -121,25 +119,46 @@ export class InspecaoService {
     limit = 20,
   ): Promise<{ data: FichaFvsComProgresso[]; total: number; page: number }> {
     const offset = (page - 1) * limit;
-    const whereExtra = obraId ? `AND f.obra_id = ${Number(obraId)}` : '';
 
-    const rows = await this.prisma.$queryRawUnsafe<(FichaFvsComProgresso & { total_count: string })[]>(
-      `SELECT f.*,
-              COUNT(*) OVER() AS total_count,
-              COALESCE(
-                ROUND(
-                  100.0 * COUNT(r.id) FILTER (WHERE r.status <> 'nao_avaliado') /
-                  NULLIF(COUNT(r.id), 0)
-                )::int, 0
-              ) AS progresso
-       FROM fvs_fichas f
-       LEFT JOIN fvs_registros r ON r.ficha_id = f.id AND r.tenant_id = f.tenant_id
-       WHERE f.tenant_id = $1 AND f.deleted_at IS NULL ${whereExtra}
-       GROUP BY f.id
-       ORDER BY f.created_at DESC
-       LIMIT $2 OFFSET $3`,
-      tenantId, limit, offset,
-    );
+    let rows: (FichaFvsComProgresso & { total_count: string })[];
+
+    if (obraId !== undefined) {
+      rows = await this.prisma.$queryRawUnsafe<(FichaFvsComProgresso & { total_count: string })[]>(
+        `SELECT f.*,
+                COUNT(*) OVER() AS total_count,
+                COALESCE(
+                  ROUND(
+                    100.0 * COUNT(r.id) FILTER (WHERE r.status <> 'nao_avaliado') /
+                    NULLIF(COUNT(r.id), 0)
+                  )::int, 0
+                ) AS progresso
+         FROM fvs_fichas f
+         LEFT JOIN fvs_registros r ON r.ficha_id = f.id AND r.tenant_id = f.tenant_id
+         WHERE f.tenant_id = $1 AND f.obra_id = $2 AND f.deleted_at IS NULL
+         GROUP BY f.id
+         ORDER BY f.created_at DESC
+         LIMIT $3 OFFSET $4`,
+        tenantId, obraId, limit, offset,
+      );
+    } else {
+      rows = await this.prisma.$queryRawUnsafe<(FichaFvsComProgresso & { total_count: string })[]>(
+        `SELECT f.*,
+                COUNT(*) OVER() AS total_count,
+                COALESCE(
+                  ROUND(
+                    100.0 * COUNT(r.id) FILTER (WHERE r.status <> 'nao_avaliado') /
+                    NULLIF(COUNT(r.id), 0)
+                  )::int, 0
+                ) AS progresso
+         FROM fvs_fichas f
+         LEFT JOIN fvs_registros r ON r.ficha_id = f.id AND r.tenant_id = f.tenant_id
+         WHERE f.tenant_id = $1 AND f.deleted_at IS NULL
+         GROUP BY f.id
+         ORDER BY f.created_at DESC
+         LIMIT $2 OFFSET $3`,
+        tenantId, limit, offset,
+      );
+    }
 
     const total = rows.length ? Number(rows[0].total_count) : 0;
     return { data: rows, total, page };
@@ -204,28 +223,33 @@ export class InspecaoService {
       }
     }
 
-    const sets: string[] = [];
-    const vals: unknown[] = [];
-    let i = 1;
-    if (dto.nome   !== undefined) { sets.push(`nome = $${i++}`);   vals.push(dto.nome); }
-    if (dto.status !== undefined) { sets.push(`status = $${i++}`); vals.push(dto.status); }
-    sets.push(`updated_at = NOW()`);
-    vals.push(fichaId);
-    vals.push(tenantId);
+    return this.prisma.$transaction(async (tx) => {
+      const sets: string[] = [];
+      const vals: unknown[] = [];
+      let i = 1;
+      if (dto.nome   !== undefined) { sets.push(`nome = $${i++}`);   vals.push(dto.nome); }
+      if (dto.status !== undefined) { sets.push(`status = $${i++}`); vals.push(dto.status); }
+      sets.push(`updated_at = NOW()`);
+      const idIdx = i++;
+      const tenantIdx = i++;
+      vals.push(fichaId, tenantId);
 
-    const rows = await this.prisma.$queryRawUnsafe<FichaFvs[]>(
-      `UPDATE fvs_fichas SET ${sets.join(', ')} WHERE id = $${i++} AND tenant_id = $${i++} RETURNING *`,
-      ...vals,
-    );
+      const rows = await tx.$queryRawUnsafe<FichaFvs[]>(
+        `UPDATE fvs_fichas SET ${sets.join(', ')} WHERE id = $${idIdx} AND tenant_id = $${tenantIdx} RETURNING *`,
+        ...vals,
+      );
 
-    if (dto.status && dto.status !== ficha.status && ficha.regime === 'pbqph') {
-      await this.gravarAuditLog(this.prisma, {
-        tenantId, fichaId, usuarioId: userId,
-        acao: 'alteracao_status', statusDe: ficha.status, statusPara: dto.status, ip,
-      });
-    }
+      if (!rows.length) throw new NotFoundException(`Ficha ${fichaId} não encontrada após update`);
 
-    return rows[0];
+      if (dto.status && dto.status !== ficha.status && ficha.regime === 'pbqph') {
+        await this.gravarAuditLog(tx, {
+          tenantId, fichaId, usuarioId: userId,
+          acao: 'alteracao_status', statusDe: ficha.status, statusPara: dto.status, ip,
+        });
+      }
+
+      return rows[0];
+    });
   }
 
   // ── deleteFicha ─────────────────────────────────────────────────────────────
@@ -300,6 +324,7 @@ export class InspecaoService {
     if (ficha.status !== 'rascunho') {
       throw new ConflictException('Serviços só podem ser removidos com ficha em rascunho');
     }
+    // fvs_ficha_servico_locais é apagado por CASCADE (ver migration fvs_inspecao)
     await this.prisma.$executeRawUnsafe(
       `DELETE FROM fvs_ficha_servicos WHERE ficha_id = $1 AND servico_id = $2 AND tenant_id = $3`,
       fichaId, servicoId, tenantId,
