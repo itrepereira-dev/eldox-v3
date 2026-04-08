@@ -1,0 +1,155 @@
+/* ═══════════════════════════════════════════════════════
+   ELDOX DESIGN SYSTEM — CSS TOKENS
+   Fonte principal: Montserrat (400 / 500 / 600 / 700)
+   Fonte mono:      Geist Mono (400 / 500)
+   ═══════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap');
+
+/* ── DARK (padrão) ─────────────────────────────────── */
+:root,
+[data-theme="dark"] {
+  /* Backgrounds */
+  --bg-void:    #0d1117;
+  --bg-base:    #0d1117;
+  --bg-surface: #161b22;
+  --bg-raised:  #1c2128;
+  --bg-hover:   #1c2128;
+  --bg-overlay: rgba(0, 0, 0, 0.7);
+
+  /* Accent */
+  --accent:       #2f81f7;
+  --accent-hover: #388bfd;
+  --accent-dim:   rgba(47, 129, 247, 0.18);
+
+  /* Bordas */
+  --border:        #30363d;
+  --border-bright: #30363d;
+  --border-dim:    #21262d;
+
+  /* Texto */
+  --text-high:  #e6edf3;
+  --text-mid:   #e6edf3;
+  --text-low:   #7d8590;
+  --text-faint: #484f58;
+  /* Aliases numéricos (usados nas páginas de obras) */
+  --text-100: #e6edf3;
+  --text-60:  #7d8590;
+  --text-40:  #484f58;
+
+  /* Status — OK (verde) */
+  --ok:         #3fb950;
+  --ok-bg:      #1a3a2a;
+  --ok-border:  rgba(63, 185, 80, 0.28);
+  --ok-text:    #3fb950;
+
+  /* Status — Run / Info (azul) */
+  --run:        #58a6ff;
+  --run-bg:     #1a2a3a;
+  --run-border: rgba(88, 166, 255, 0.28);
+  --run-text:   #58a6ff;
+
+  /* Status — Warn (âmbar) */
+  --warn:        #d29922;
+  --warn-bg:     #3a2e1a;
+  --warn-border: rgba(210, 153, 34, 0.28);
+  --warn-text:   #d29922;
+
+  /* Status — NC / Error (vermelho) */
+  --nc:        #f85149;
+  --nc-bg:     #3a1a1a;
+  --nc-border: rgba(248, 81, 73, 0.28);
+  --nc-text:   #f85149;
+
+  /* Status — Off / Disabled */
+  --off:        #7d8590;
+  --off-bg:     rgba(125, 133, 144, 0.08);
+  --off-border: rgba(125, 133, 144, 0.20);
+  --off-text:   #7d8590;
+
+  /* Sombras */
+  --shadow-xs:    0 1px 2px rgba(0,0,0,.30);
+  --shadow-sm:    0 2px 8px rgba(0,0,0,.25);
+  --shadow-md:    0 4px 16px rgba(0,0,0,.30);
+  --shadow-lg:    0 8px 32px rgba(0,0,0,.40);
+  --shadow-hover: 0 2px 12px rgba(47,129,247,.15);
+  --shadow-glow:  0 0 24px rgba(47,129,247,.12);
+
+  /* Glass */
+  --glass-bg:   rgba(13, 17, 23, 0.80);
+  --glass-blur: blur(16px);
+
+  /* Gradientes */
+  --gradient-accent:  linear-gradient(135deg, #2f81f7 0%, #1f6feb 100%);
+  --gradient-surface: linear-gradient(180deg, var(--bg-surface) 0%, var(--bg-raised) 100%);
+
+  /* Layout */
+  --sidebar-w: 240px;
+  --topbar-h:  56px;
+
+  /* Transições */
+  --transition-fast:   0.15s ease;
+  --transition-normal: 0.25s ease;
+}
+
+/* ── LIGHT ─────────────────────────────────────────── */
+[data-theme="light"] {
+  --bg-void:    #f0f3f6;
+  --bg-base:    #f6f8fa;
+  --bg-surface: #ffffff;
+  --bg-raised:  #f6f8fa;
+  --bg-hover:   #eaeef2;
+  --bg-overlay: rgba(0, 0, 0, 0.40);
+
+  --accent:       #0969da;
+  --accent-hover: #0550ae;
+  --accent-dim:   rgba(9, 105, 218, 0.10);
+
+  --border:        #d0d7de;
+  --border-bright: #afb8c1;
+  --border-dim:    #d8dee4;
+
+  --text-high:  #0d1117;
+  --text-mid:   #24292f;
+  --text-low:   #3d444d;
+  --text-faint: #57606a;
+  /* Aliases numéricos */
+  --text-100: #0d1117;
+  --text-60:  #3d444d;
+  --text-40:  #57606a;
+
+  --ok:         #1a7f37;
+  --ok-bg:      #dafbe1;
+  --ok-border:  rgba(26, 127, 55, 0.20);
+  --ok-text:    #1a7f37;
+
+  --run:        #0969da;
+  --run-bg:     #ddf4ff;
+  --run-border: rgba(9, 105, 218, 0.20);
+  --run-text:   #0969da;
+
+  --warn:        #9a6700;
+  --warn-bg:     #fff8c5;
+  --warn-border: rgba(154, 103, 0, 0.20);
+  --warn-text:   #9a6700;
+
+  --nc:        #cf222e;
+  --nc-bg:     #ffebe9;
+  --nc-border: rgba(207, 34, 46, 0.20);
+  --nc-text:   #cf222e;
+
+  --off:        #656d76;
+  --off-bg:     rgba(101, 109, 118, 0.08);
+  --off-border: rgba(101, 109, 118, 0.20);
+  --off-text:   #656d76;
+
+  --shadow-xs: 0 1px 2px rgba(0,0,0,.05);
+  --shadow-sm: 0 2px 8px rgba(0,0,0,.06);
+  --shadow-md: 0 4px 16px rgba(0,0,0,.08);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,.12);
+  --shadow-hover: 0 2px 12px rgba(9,105,218,.10);
+  --shadow-glow:  0 0 24px rgba(9,105,218,.08);
+
+  --glass-bg:   rgba(255, 255, 255, 0.85);
+  --gradient-surface: linear-gradient(180deg, #ffffff 0%, #f6f8fa 100%);
+}

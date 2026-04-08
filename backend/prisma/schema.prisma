@@ -1,0 +1,257 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────────────────
+// PLANOS
+// ─────────────────────────────────────────
+
+model Plano {
+  id        Int      @id @default(autoincrement())
+  nome      String   @unique // starter | pro | corporativo
+  limites   Json     // { obras: 5, usuarios: 10, storage_gb: 10 }
+  criadoEm  DateTime @default(now())
+
+  tenants   Tenant[]
+}
+
+// ─────────────────────────────────────────
+// TENANTS
+// ─────────────────────────────────────────
+
+model Tenant {
+  id         Int       @id @default(autoincrement())
+  nome       String
+  slug       String    @unique
+  planoId    Int
+  plano      Plano     @relation(fields: [planoId], references: [id])
+  ativo      Boolean   @default(true)
+  criadoEm   DateTime  @default(now())
+  deletadoEm DateTime?
+
+  usuarios  Usuario[]
+  obras     Obra[]
+}
+
+// ─────────────────────────────────────────
+// USUÁRIOS
+// ─────────────────────────────────────────
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN_TENANT
+  ENGENHEIRO
+  TECNICO
+  VISITANTE
+  LABORATORIO
+}
+
+model Usuario {
+  id         Int       @id @default(autoincrement())
+  tenantId   Int
+  tenant     Tenant    @relation(fields: [tenantId], references: [id])
+  nome       String
+  email      String
+  senhaHash  String
+  role       Role      @default(TECNICO)
+  ativo      Boolean   @default(true)
+  criadoEm  DateTime  @default(now())
+  deletadoEm DateTime?
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+}
+
+// ─────────────────────────────────────────
+// OBRAS — TIPOS DE OBRA (parametrizado)
+// ─────────────────────────────────────────
+
+model ObraTipo {
+  id          Int      @id @default(autoincrement())
+  tenantId    Int      // 0 = tipo de sistema (compartilhado, imutável por tenants)
+  nome        String   // "Residencial Vertical", "Galpão Industrial"
+  slug        String   // "residencial_vertical", "galpao"
+  descricao   String?
+  totalNiveis Int      @default(3) // 1 a 6
+  ativo       Boolean  @default(true)
+  criadoEm   DateTime @default(now())
+  deletadoEm DateTime?
+
+  niveis ObraTipoNivel[]
+  campos ObraTipoCampo[]
+  obras  Obra[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId])
+}
+
+model ObraTipoNivel {
+  id             Int      @id @default(autoincrement())
+  obraTipoId     Int
+  obraTipo       ObraTipo @relation(fields: [obraTipoId], references: [id])
+  numero         Int      // 1 a 6
+  labelSingular  String   // "Torre", "Pavimento", "Apartamento"
+  labelPlural    String   // "Torres", "Pavimentos", "Apartamentos"
+  geracaoEmMassa Boolean  @default(false) // pode gerar locais em lote?
+  prefixoPadrao  String?  // "AP", "SL", null
+  criadoEm      DateTime @default(now())
+
+  @@unique([obraTipoId, numero])
+}
+
+model ObraTipoCampo {
+  id          Int      @id @default(autoincrement())
+  obraTipoId  Int
+  obraTipo    ObraTipo @relation(fields: [obraTipoId], references: [id])
+  nivel       Int      // nível onde este campo aparece (1-6, ou 0 = obra inteira)
+  chave       String   // "area_m2", "tipologia", "km_referencia"
+  label       String   // "Área (m²)", "Tipologia"
+  tipo        String   // "string" | "number" | "boolean" | "enum" | "date"
+  opcoes      Json?    // para tipo "enum": ["Studio","1Q","2Q","3Q"]
+  obrigatorio Boolean  @default(false)
+  criadoEm   DateTime @default(now())
+
+  @@unique([obraTipoId, nivel, chave])
+}
+
+// ─────────────────────────────────────────
+// OBRAS — INSTÂNCIA
+// ─────────────────────────────────────────
+
+enum ModoQualidade {
+  SIMPLES
+  PBQPH
+}
+
+enum StatusObra {
+  PLANEJAMENTO
+  EM_EXECUCAO
+  PARALISADA
+  CONCLUIDA
+  ENTREGUE
+}
+
+model Obra {
+  id            Int           @id @default(autoincrement())
+  tenantId      Int
+  tenant        Tenant        @relation(fields: [tenantId], references: [id])
+  obraTipoId    Int
+  obraTipo      ObraTipo      @relation(fields: [obraTipoId], references: [id])
+  nome          String
+  codigo        String?       // gerado: OBR-2026-001
+  modoQualidade ModoQualidade @default(SIMPLES)
+  status        StatusObra    @default(PLANEJAMENTO)
+
+  // Localização
+  endereco  String?
+  cidade    String?
+  estado    String?   // UF (2 chars)
+  cep       String?
+  latitude  Decimal?  @db.Decimal(10, 7)
+  longitude Decimal?  @db.Decimal(10, 7)
+
+  // Datas
+  dataInicioPrevista DateTime?
+  dataFimPrevista    DateTime?
+  dataInicioReal     DateTime?
+  dataFimReal        DateTime?
+
+  // Dados extras validados contra ObraTipoCampo nível 0
+  dadosExtras Json?
+
+  ativo        Boolean   @default(true)
+  criadoEm    DateTime  @default(now())
+  atualizadoEm DateTime  @updatedAt
+  deletadoEm  DateTime?
+
+  locais        ObraLocal[]
+  niveisConfig  ObraNivelConfig[]
+  qualityConfig ObraQualityConfig?
+
+  @@index([tenantId])
+  @@index([tenantId, deletadoEm])
+  @@index([tenantId, status])
+}
+
+// ─────────────────────────────────────────
+// OBRAS — HIERARQUIA DE LOCAIS (árvore recursiva)
+// ─────────────────────────────────────────
+
+enum StatusLocal {
+  PENDENTE
+  EM_EXECUCAO
+  CONCLUIDO
+  ENTREGUE
+  SUSPENSO
+}
+
+model ObraLocal {
+  id           Int         @id @default(autoincrement())
+  tenantId     Int         // desnormalizado para RLS
+  obraId       Int
+  obra         Obra        @relation(fields: [obraId], references: [id])
+  parentId     Int?        // null = raiz (nível 1)
+  parent       ObraLocal?  @relation("LocalHierarquia", fields: [parentId], references: [id])
+  filhos       ObraLocal[] @relation("LocalHierarquia")
+  nivel        Int         // 1 a 6
+  nome         String      // "Torre A", "3º Pavimento", "Apto 301"
+  codigo       String      // gerado: OBR-001-T01-P03-A301 (rastreável e auditável)
+  nomeCompleto String      // caminho completo: "Torre A > 3º Pavimento > Apto 301"
+  status       StatusLocal @default(PENDENTE)
+  ordem        Int         @default(0) // ordenação visual
+
+  // FK para GED (quando módulo for implementado — Sprint 3)
+  plantaBaixaId Int?
+
+  // Cronograma por bloco/torre (nível 2)
+  dataInicioPrevista DateTime?
+  dataFimPrevista    DateTime?
+
+  // Dados extras validados contra ObraTipoCampo do nível
+  dadosExtras Json?
+
+  criadoEm    DateTime  @default(now())
+  atualizadoEm DateTime  @updatedAt
+  deletadoEm  DateTime?
+
+  @@index([tenantId])
+  @@index([tenantId, obraId])
+  @@index([tenantId, obraId, nivel])
+  @@index([parentId])
+}
+
+// ─────────────────────────────────────────
+// OBRAS — OVERRIDE DE LABELS POR OBRA
+// ─────────────────────────────────────────
+
+model ObraNivelConfig {
+  id            Int      @id @default(autoincrement())
+  obraId        Int
+  obra          Obra     @relation(fields: [obraId], references: [id])
+  nivel         Int      // 1 a 6
+  labelSingular String   // ex: "Lote" em vez de "Unidade"
+  labelPlural   String
+  criadoEm     DateTime @default(now())
+
+  @@unique([obraId, nivel])
+}
+
+// ─────────────────────────────────────────
+// OBRAS — CONFIGURAÇÃO DE QUALIDADE POR OBRA
+// ─────────────────────────────────────────
+
+model ObraQualityConfig {
+  id                    Int           @id @default(autoincrement())
+  obraId                Int           @unique
+  obra                  Obra          @relation(fields: [obraId], references: [id])
+  modoQualidade         ModoQualidade @default(SIMPLES)
+  slaAprovacaoHoras     Int           @default(48) // SLA para aprovação de FVS
+  exigeAssinaturaFVS    Boolean       @default(false)
+  exigeAssinaturaDiario Boolean       @default(false)
+  criadoEm             DateTime      @default(now())
+  atualizadoEm         DateTime      @updatedAt
+}

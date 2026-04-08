@@ -1,0 +1,121 @@
+import { NavLink } from 'react-router-dom'
+import { cn } from '@/lib/cn'
+import { useAppShell } from './useAppShell'
+import type { BadgeVariant } from '@/components/ui'
+
+interface NavItemProps {
+  to: string
+  icon: React.ReactNode
+  label: string
+  badge?: { variant: BadgeVariant; count: number }
+  accent?: boolean
+  pulse?: boolean
+  onClick?: () => void
+}
+
+const badgeBg: Record<BadgeVariant, string> = {
+  ok:   'bg-[var(--ok)]',
+  run:  'bg-[var(--run)]',
+  warn: 'bg-[var(--warn)]',
+  nc:   'bg-[var(--nc)]',
+  off:  'bg-[var(--off)]',
+}
+
+export function NavItem({ to, icon, label, badge, accent, pulse, onClick }: NavItemProps) {
+  const { collapsed } = useAppShell()
+
+  return (
+    <NavLink
+      to={to}
+      onClick={onClick}
+      title={collapsed ? label : undefined}
+      className={({ isActive }) =>
+        cn(
+          'group flex items-center gap-2.5 px-3 py-2 mx-2 rounded-sm',
+          'text-[13px] font-medium transition-all duration-[150ms]',
+          'border-l-2 border-transparent',
+          'text-[var(--text-low)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-high)]',
+          isActive && [
+            'bg-[var(--accent-dim)] text-[var(--accent)]',
+            'border-l-[var(--accent)] font-semibold',
+          ],
+          accent && !isActive && 'text-[var(--accent)]',
+          collapsed && 'justify-center px-0 mx-1',
+        )
+      }
+    >
+      {/* ícone */}
+      <span
+        className={cn(
+          'flex-shrink-0 w-[18px] h-[18px] flex items-center justify-center',
+          'transition-transform duration-[150ms] group-hover:scale-110',
+        )}
+      >
+        {icon}
+      </span>
+
+      {/* label + badge (ocultos quando collapsed) */}
+      {!collapsed && (
+        <>
+          <span className="flex-1 truncate">{label}</span>
+
+          {badge && (
+            <span
+              className={cn(
+                'ml-auto min-w-[18px] h-[18px] px-1',
+                'flex items-center justify-center',
+                'rounded-full text-[10px] font-bold text-white font-mono',
+                badgeBg[badge.variant],
+              )}
+            >
+              {badge.count}
+            </span>
+          )}
+
+          {pulse && (
+            <span className="ml-auto w-2 h-2 rounded-full bg-[var(--accent)] animate-badge-pulse" />
+          )}
+        </>
+      )}
+
+      {/* badge visível no modo colapsado como dot */}
+      {collapsed && badge && (
+        <span
+          className={cn(
+            'absolute top-1 right-1 w-2 h-2 rounded-full',
+            badgeBg[badge.variant],
+          )}
+        />
+      )}
+    </NavLink>
+  )
+}
+
+/* ── NavSection ─────────────────────────────────────── */
+export function NavSection({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
+  const { collapsed } = useAppShell()
+
+  return (
+    <div className="mb-1">
+      {!collapsed && (
+        <p
+          className={cn(
+            'px-5 pt-3 pb-1',
+            'text-[10px] font-semibold uppercase tracking-[0.08em]',
+            'text-[var(--text-faint)] font-mono select-none',
+          )}
+        >
+          {label}
+        </p>
+      )}
+      {collapsed && <div className="my-2 mx-3 h-px bg-[var(--border-dim)]" />}
+      <div className="flex flex-col gap-px">{children}</div>
+    </div>
+  )
+}
