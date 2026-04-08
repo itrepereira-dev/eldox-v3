@@ -88,10 +88,11 @@ CREATE INDEX idx_fvs_ficha_servicos_tenant ON fvs_ficha_servicos(tenant_id);
 -- 3. Locais vinculados a cada serviço na ficha
 --    (quais ObraLocais serão inspecionados por serviço)
 CREATE TABLE fvs_ficha_servico_locais (
-  id            SERIAL PRIMARY KEY,
-  tenant_id     INT NOT NULL,
-  ficha_servico_id INT NOT NULL REFERENCES fvs_ficha_servicos(id) ON DELETE CASCADE,
-  obra_local_id INT NOT NULL REFERENCES "ObraLocal"(id),
+  id                  SERIAL PRIMARY KEY,
+  tenant_id           INT NOT NULL,
+  ficha_servico_id    INT NOT NULL REFERENCES fvs_ficha_servicos(id) ON DELETE CASCADE,
+  obra_local_id       INT NOT NULL REFERENCES "ObraLocal"(id),
+  equipe_responsavel  VARCHAR(200) NULL,  -- equipe/empresa que executou o serviço neste local
   UNIQUE(ficha_servico_id, obra_local_id)
 );
 CREATE INDEX idx_fvs_ficha_servico_locais_tenant ON fvs_ficha_servico_locais(tenant_id);
@@ -264,6 +265,16 @@ DELETE /fvs/fichas/:id
        Permissão: ADMIN_TENANT
 ```
 
+### Locais da ficha
+
+```
+PATCH  /fvs/fichas/:fichaId/locais/:localId
+       Body: { equipeResponsavel?: string | null }
+       Regra: retorna 409 se ficha.status = 'concluida'
+       Ação: atualiza fvs_ficha_servico_locais.equipe_responsavel
+       Permissão: ENGENHEIRO+
+```
+
 ### Serviços da ficha
 
 ```
@@ -296,6 +307,8 @@ GET    /fvs/fichas/:id/grade?pavimentoId=&servicoId=
 GET    /fvs/fichas/:fichaId/registros?servicoId=:id&localId=:id
        Resposta: lista de itens do serviço com registro existente para o local
                (itens sem registro retornam com status='nao_avaliado')
+               Cada item inclui: { ..., evidencias_count: number, equipe_responsavel: string|null }
+               equipe_responsavel vem de fvs_ficha_servico_locais para o local/serviço
        Permissão: VISITANTE+
 
 PUT    /fvs/fichas/:fichaId/registros
@@ -357,16 +370,24 @@ DELETE /fvs/evidencias/:id
   - Ao concluir com regime=pbqph: valida se há itens críticos NC sem evidência → exibe lista antes de confirmar
 
 ### Tela 4 — Ficha do Local (`FichaLocalPage`)
-- Cabeçalho: serviço + local + status geral + botão voltar
-- Tabela: nº · item · criticidade (badge) · status (select inline) · observação · fotos
+- **Cabeçalho:** serviço + local + status geral + botão voltar + progress bar do local
+- **Campo equipe responsável** (editável, ENGENHEIRO+): exibido no cabeçalho logo abaixo do nome do local. Campo de texto livre, gravado em `fvs_ficha_servico_locais.equipe_responsavel`. PATCH `/fvs/fichas/:fichaId/locais/:localId` ao confirmar.
+- **Tabela:** nº · item · criticidade (badge) · status (select inline) · observação (truncada) · fotos (ícone câmera + contador)
 - Clicar no status → dropdown (Conforme / Não Conforme / Exceção / Não Avaliado)
 - Selecionar NC → abre `RegistroNcModal`
-- Progress bar do local no cabeçalho
+- **Coluna fotos:** ícone câmera com badge numérico de evidências anexadas. Clicável para qualquer item (independente do status) → abre `FotosModal`. Se item crítico em PBQP-H com status=NC e sem evidência, badge exibe ⚠ (amarelo) em vez do número.
+
+### Modal Fotos (`FotosModal`)
+- Disponível para qualquer item, independente do status (conforme, NC, exceção, não avaliado)
+- Grid de fotos já anexadas com botão remover em cada uma
+- Botão "Adicionar foto" → upload direto via `POST /fvs/registros/:id/evidencias`
+- Para item crítico em PBQP-H com status=NC: exibe aviso "Foto obrigatória — será validada na conclusão da ficha"
 
 ### Modal NC (`RegistroNcModal`)
 - Textarea observação (obrigatória em PBQP-H — bloqueia salvar se vazio)
-- Upload de fotos (exibido com aviso "obrigatório" se item crítico em PBQP-H, mas não bloqueia o modal)
+- Seção de fotos inline (mesmo conteúdo do `FotosModal`) — upload e listagem sem sair do modal
 - Lista de fotos já anexadas com opção de remover
+- Aviso "foto obrigatória" se item crítico em PBQP-H (não bloqueia salvar)
 
 ---
 
@@ -384,6 +405,10 @@ DELETE /fvs/evidencias/:id
 10. Foto enviada via `POST /evidencias` cria `GedVersao` com categoria `FTO`
 11. `DELETE /fvs/fichas/:id` retorna 409 se status ≠ `rascunho`
 12. `GET /fvs/fichas?obraId=&page=1` retorna paginado com `total` e `page`
+13. `PATCH /fvs/fichas/:fichaId/locais/:localId` com `equipeResponsavel` atualiza `fvs_ficha_servico_locais`; retorna 409 se ficha.status = `concluida`
+14. `GET /fvs/fichas/:fichaId/registros` retorna `evidencias_count` e `equipe_responsavel` por item
+15. Tela 4: ícone câmera clicável em qualquer item abre `FotosModal` com upload e listagem de evidências
+16. Tela 4: item crítico NC sem evidência em PBQP-H exibe badge ⚠ na coluna fotos (não bloqueia navegação)
 
 ---
 
