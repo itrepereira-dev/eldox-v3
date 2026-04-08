@@ -7,6 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { GedService } from '../../ged/ged.service';
 import type {
   FichaFvs, FichaFvsComProgresso, FichaDetalhada, FvsGrade,
   FvsRegistro, FvsEvidencia, StatusFicha, StatusGrade,
@@ -29,6 +30,7 @@ export class InspecaoService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly ged: GedService,
   ) {}
 
   // ── Helper: buscar ficha com validação de tenant ────────────────────────────
@@ -516,6 +518,139 @@ export class InspecaoService {
     return rows[0];
   }
 
-  // ── Métodos adicionais (Task 6) — serão adicionados depois ──────────────────
-  // createEvidencia, deleteEvidencia, getEvidencias, patchLocal
+  // ── createEvidencia ──────────────────────────────────────────────────────────
+
+  async createEvidencia(
+    tenantId: number,
+    registroId: number,
+    userId: number,
+    file: Express.Multer.File,
+    ip?: string,
+  ): Promise<FvsEvidencia> {
+    const regRows = await this.prisma.$queryRawUnsafe<{ ficha_id: number }[]>(
+      `SELECT ficha_id FROM fvs_registros WHERE id = $1 AND tenant_id = $2`,
+      registroId, tenantId,
+    );
+    if (!regRows.length) throw new NotFoundException(`Registro ${registroId} não encontrado`);
+
+    const ficha = await this.getFichaOuFalhar(tenantId, regRows[0].ficha_id);
+
+    const catRows = await this.prisma.$queryRawUnsafe<{ id: number }[]>(
+      `SELECT id FROM ged_categorias WHERE codigo = 'FTO' AND tenant_id IN (0, $1) LIMIT 1`,
+      tenantId,
+    );
+    if (!catRows.length) throw new NotFoundException('Categoria GED FTO não configurada');
+
+    // Find or create "Evidências FVS" pasta for this obra
+    const pastaRows = await this.prisma.$queryRawUnsafe<{ id: number }[]>(
+      `SELECT id FROM ged_pastas
+       WHERE tenant_id = $1 AND obra_id = $2 AND nome = 'Evidências FVS' AND escopo = 'OBRA'
+       LIMIT 1`,
+      tenantId, ficha.obra_id,
+    );
+    let pastaId: number;
+    if (pastaRows.length) {
+      pastaId = pastaRows[0].id;
+    } else {
+      const newPasta = await this.prisma.$queryRawUnsafe<{ id: number }[]>(
+        `INSERT INTO ged_pastas (tenant_id, escopo, obra_id, nome, caminho)
+         VALUES ($1, 'OBRA', $2, 'Evidências FVS', '/0/')
+         RETURNING id`,
+        tenantId, ficha.obra_id,
+      );
+      pastaId = newPasta[0].id;
+    }
+
+    const gedResult = await this.ged.upload(
+      tenantId, userId, ficha.obra_id, file,
+      { titulo: `FVS Evidência — registro ${registroId}`, categoriaId: catRows[0].id, pastaId, escopo: 'OBRA' } as any,
+      ip,
+    );
+
+    const evRows = await this.prisma.$queryRawUnsafe<FvsEvidencia[]>(
+      `INSERT INTO fvs_evidencias (tenant_id, registro_id, ged_versao_id)
+       VALUES ($1, $2, $3) RETURNING *`,
+      tenantId, registroId, gedResult.versaoId,
+    );
+
+    if (ficha.regime === 'pbqph') {
+      await this.gravarAuditLog(this.prisma, {
+        tenantId, fichaId: ficha.id, usuarioId: userId,
+        acao: 'upload_evidencia', registroId, ip,
+      });
+    }
+
+    return evRows[0];
+  }
+
+  // ── deleteEvidencia ──────────────────────────────────────────────────────────
+
+  async deleteEvidencia(
+    tenantId: number,
+    evidenciaId: number,
+    userId: number,
+    ip?: string,
+  ): Promise<void> {
+    const evRows = await this.prisma.$queryRawUnsafe<(FvsEvidencia & { ficha_id: number })[]>(
+      `SELECT e.*, r.ficha_id FROM fvs_evidencias e
+       JOIN fvs_registros r ON r.id = e.registro_id
+       WHERE e.id = $1 AND e.tenant_id = $2`,
+      evidenciaId, tenantId,
+    );
+    if (!evRows.length) throw new NotFoundException(`Evidência ${evidenciaId} não encontrada`);
+
+    const ev = evRows[0];
+    const ficha = await this.getFichaOuFalhar(tenantId, ev.ficha_id);
+
+    await this.prisma.$executeRawUnsafe(
+      `DELETE FROM fvs_evidencias WHERE id = $1 AND tenant_id = $2`,
+      evidenciaId, tenantId,
+    );
+
+    if (ficha.regime === 'pbqph') {
+      await this.gravarAuditLog(this.prisma, {
+        tenantId, fichaId: ficha.id, usuarioId: userId,
+        acao: 'remover_evidencia', registroId: ev.registro_id, ip,
+      });
+    }
+  }
+
+  // ── getEvidencias ────────────────────────────────────────────────────────────
+
+  async getEvidencias(tenantId: number, registroId: number): Promise<FvsEvidencia[]> {
+    return this.prisma.$queryRawUnsafe<FvsEvidencia[]>(
+      `SELECT e.*, gv.nome_original, gv.storage_key
+       FROM fvs_evidencias e
+       JOIN ged_versoes gv ON gv.id = e.ged_versao_id
+       WHERE e.registro_id = $1 AND e.tenant_id = $2
+       ORDER BY e.created_at ASC`,
+      registroId, tenantId,
+    );
+  }
+
+  // ── patchLocal ────────────────────────────────────────────────────────────────
+
+  async patchLocal(
+    tenantId: number,
+    fichaId: number,
+    localId: number,
+    dto: { equipeResponsavel?: string | null },
+  ): Promise<{ id: number; equipe_responsavel: string | null }> {
+    const ficha = await this.getFichaOuFalhar(tenantId, fichaId);
+    if (ficha.status === 'concluida') {
+      throw new ConflictException('Não é possível editar local de ficha concluída');
+    }
+
+    const rows = await this.prisma.$queryRawUnsafe<{ id: number; equipe_responsavel: string | null }[]>(
+      `UPDATE fvs_ficha_servico_locais SET equipe_responsavel = $1
+       WHERE obra_local_id = $2 AND tenant_id = $3
+         AND ficha_servico_id IN (
+           SELECT id FROM fvs_ficha_servicos WHERE ficha_id = $4 AND tenant_id = $3
+         )
+       RETURNING id, equipe_responsavel`,
+      dto.equipeResponsavel ?? null, localId, tenantId, fichaId,
+    );
+    if (!rows.length) throw new NotFoundException(`Local ${localId} não vinculado à ficha ${fichaId}`);
+    return rows[0];
+  }
 }

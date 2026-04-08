@@ -19,8 +19,12 @@ const mockPrisma = {
   $transaction: jest.fn(),
 };
 
+const mockGed = {
+  upload: jest.fn(),
+};
+
 function makeService(): InspecaoService {
-  return new (InspecaoService as any)(mockPrisma);
+  return new (InspecaoService as any)(mockPrisma, mockGed);
 }
 
 describe('InspecaoService', () => {
@@ -262,6 +266,43 @@ describe('InspecaoService', () => {
 
       expect(result.status).toBe('nao_conforme');
       expect(mockPrisma.$executeRawUnsafe).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── deleteEvidencia ──────────────────────────────────────────────────────────
+  describe('deleteEvidencia()', () => {
+    it('remove evidência e grava audit_log (pbqph)', async () => {
+      mockPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce([{ id: 1, tenant_id: TENANT_ID, registro_id: 5, ged_versao_id: 99, ficha_id: 1 }]) // buscar evidencia
+        .mockResolvedValueOnce([FICHA_EM_INSPECAO]); // getFichaOuFalhar
+      mockPrisma.$executeRawUnsafe.mockResolvedValue(undefined);
+
+      await svc.deleteEvidencia(TENANT_ID, 1, USER_ID, '127.0.0.1');
+
+      expect(mockPrisma.$executeRawUnsafe).toHaveBeenCalledTimes(2); // DELETE + audit_log
+    });
+
+    it('lança NotFoundException se evidência não pertence ao tenant', async () => {
+      mockPrisma.$queryRawUnsafe.mockResolvedValueOnce([]);
+      await expect(svc.deleteEvidencia(TENANT_ID, 999, USER_ID, '127.0.0.1'))
+        .rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  // ── patchLocal ───────────────────────────────────────────────────────────────
+  describe('patchLocal()', () => {
+    it('lança ConflictException se ficha está concluída', async () => {
+      mockPrisma.$queryRawUnsafe.mockResolvedValueOnce([{ ...FICHA_RASCUNHO, status: 'concluida' }]);
+      await expect(svc.patchLocal(TENANT_ID, 1, 1, { equipeResponsavel: 'Equipe A' }))
+        .rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('atualiza equipe_responsavel com sucesso', async () => {
+      mockPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce([FICHA_EM_INSPECAO])          // getFichaOuFalhar
+        .mockResolvedValueOnce([{ id: 1, equipe_responsavel: 'Equipe A' }]); // UPDATE retorno
+      const result = await svc.patchLocal(TENANT_ID, 1, 1, { equipeResponsavel: 'Equipe A' });
+      expect(result.equipe_responsavel).toBe('Equipe A');
     });
   });
 });
