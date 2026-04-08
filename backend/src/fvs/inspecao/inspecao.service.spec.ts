@@ -279,7 +279,16 @@ describe('InspecaoService', () => {
 
       await svc.deleteEvidencia(TENANT_ID, 1, USER_ID, '127.0.0.1');
 
-      expect(mockPrisma.$executeRawUnsafe).toHaveBeenCalledTimes(2); // DELETE + audit_log
+      expect(mockPrisma.$executeRawUnsafe).toHaveBeenCalledTimes(2);
+      expect(mockPrisma.$executeRawUnsafe).toHaveBeenNthCalledWith(1,
+        expect.stringContaining('DELETE FROM fvs_evidencias'), 1, TENANT_ID,
+      );
+      expect(mockPrisma.$executeRawUnsafe).toHaveBeenNthCalledWith(2,
+        expect.stringContaining('INSERT INTO fvs_audit_log'),
+        TENANT_ID, expect.anything(), expect.anything(),
+        'remover_evidencia', null, null,
+        USER_ID, '127.0.0.1', null,
+      );
     });
 
     it('lança NotFoundException se evidência não pertence ao tenant', async () => {

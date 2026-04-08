@@ -16,6 +16,7 @@ import type { CreateFichaDto } from './dto/create-ficha.dto';
 import type { UpdateFichaDto } from './dto/update-ficha.dto';
 import type { PutRegistroDto } from './dto/put-registro.dto';
 import type { UpdateLocalDto } from './dto/update-local.dto';
+import { UploadDocumentoDto } from '../../ged/dto/upload-documento.dto';
 
 // Transições de status válidas: de → [destinos permitidos]
 const TRANSICOES_VALIDAS: Record<StatusFicha, StatusFicha[]> = {
@@ -563,7 +564,12 @@ export class InspecaoService {
 
     const gedResult = await this.ged.upload(
       tenantId, userId, ficha.obra_id, file,
-      { titulo: `FVS Evidência — registro ${registroId}`, categoriaId: catRows[0].id, pastaId, escopo: 'OBRA' } as any,
+      {
+        titulo: `FVS Evidência — registro ${registroId}`,
+        categoriaId: catRows[0].id,
+        pastaId,
+        escopo: 'OBRA',
+      } as UploadDocumentoDto,
       ip,
     );
 
