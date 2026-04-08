@@ -161,7 +161,11 @@ export class InspecaoService {
     }
 
     const total = rows.length ? Number(rows[0].total_count) : 0;
-    return { data: rows, total, page };
+    return {
+      data: rows.map(r => ({ ...r, progresso: Number(r.progresso) })),
+      total,
+      page,
+    };
   }
 
   // ── getFicha (detalhada) ────────────────────────────────────────────────────
@@ -301,20 +305,22 @@ export class InspecaoService {
       throw new ConflictException('Serviços só podem ser adicionados com ficha em rascunho');
     }
 
-    const rows = await this.prisma.$queryRawUnsafe<{ id: number }[]>(
-      `INSERT INTO fvs_ficha_servicos (tenant_id, ficha_id, servico_id, itens_excluidos)
-       VALUES ($1, $2, $3, $4) RETURNING id`,
-      tenantId, fichaId, dto.servicoId,
-      dto.itensExcluidos ? JSON.stringify(dto.itensExcluidos) : null,
-    );
-    const fichaServicoId = rows[0].id;
-
-    for (const localId of dto.localIds) {
-      await this.prisma.$queryRawUnsafe(
-        `INSERT INTO fvs_ficha_servico_locais (tenant_id, ficha_servico_id, obra_local_id) VALUES ($1, $2, $3)`,
-        tenantId, fichaServicoId, localId,
+    await this.prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRawUnsafe<{ id: number }[]>(
+        `INSERT INTO fvs_ficha_servicos (tenant_id, ficha_id, servico_id, itens_excluidos)
+         VALUES ($1, $2, $3, $4) RETURNING id`,
+        tenantId, fichaId, dto.servicoId,
+        dto.itensExcluidos ? JSON.stringify(dto.itensExcluidos) : null,
       );
-    }
+      const fichaServicoId = rows[0].id;
+
+      for (const localId of dto.localIds) {
+        await tx.$queryRawUnsafe(
+          `INSERT INTO fvs_ficha_servico_locais (tenant_id, ficha_servico_id, obra_local_id) VALUES ($1, $2, $3)`,
+          tenantId, fichaServicoId, localId,
+        );
+      }
+    });
   }
 
   // ── removeServico ─────────────────────────────────────────────────────────────

@@ -95,6 +95,18 @@ describe('InspecaoService', () => {
 
       const result = await svc.patchFicha(TENANT_ID, 1, USER_ID, { status: 'em_inspecao' }, '127.0.0.1');
       expect(result.status).toBe('em_inspecao');
+      expect(mockPrisma.$executeRawUnsafe).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO fvs_audit_log'),
+        TENANT_ID,
+        1,              // fichaId
+        null,           // registroId
+        'alteracao_status',
+        'rascunho',     // statusDe
+        'em_inspecao',  // statusPara
+        USER_ID,
+        '127.0.0.1',    // ip
+        null,           // detalhes
+      );
     });
 
     it('transição inválida rascunho→concluida lança ConflictException', async () => {
