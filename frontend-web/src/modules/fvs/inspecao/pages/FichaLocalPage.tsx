@@ -1,5 +1,5 @@
 // frontend-web/src/modules/fvs/inspecao/pages/FichaLocalPage.tsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useFicha } from '../hooks/useFichas';
 import { useRegistros, usePutRegistro, usePatchLocal } from '../hooks/useRegistros';
@@ -35,8 +35,12 @@ export function FichaLocalPage() {
 
   const [fotosRegistro, setFotosRegistro] = useState<FvsRegistro | null>(null);
   const [ncRegistro, setNcRegistro] = useState<FvsRegistro | null>(null);
-  const [equipe, setEquipe] = useState<string>(registros[0]?.equipe_responsavel ?? '');
+  const [equipe, setEquipe] = useState('');
   const [editandoEquipe, setEditandoEquipe] = useState(false);
+
+  useEffect(() => {
+    setEquipe(registros[0]?.equipe_responsavel ?? '');
+  }, [registros[0]?.equipe_responsavel]);
 
   const regime = ficha?.regime ?? 'livre';
   const podeEditar = ficha?.status === 'em_inspecao';

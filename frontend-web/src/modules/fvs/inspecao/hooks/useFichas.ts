@@ -33,6 +33,7 @@ export function usePatchFicha(fichaId: number) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['fvs-ficha', fichaId] });
       qc.invalidateQueries({ queryKey: ['fvs-fichas'] });
+      qc.invalidateQueries({ queryKey: ['fvs-grade', fichaId] });
     },
   });
 }

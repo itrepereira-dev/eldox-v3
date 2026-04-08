@@ -54,6 +54,10 @@ export function AbrirFichaWizard({ obras = [], locaisPorObra = {} }: Props) {
 
   async function handleConfirmar() {
     setError('');
+    if (!stepOne.obraId) {
+      setError('Obra é obrigatória.');
+      return;
+    }
     const servicosComLocais = servicosSelecionados.filter(s => s.localIds.length > 0);
     if (!servicosComLocais.length) {
       setError('Selecione ao menos um serviço com um local para inspecionar.');
@@ -61,7 +65,7 @@ export function AbrirFichaWizard({ obras = [], locaisPorObra = {} }: Props) {
     }
     try {
       const ficha = await createFicha.mutateAsync({
-        obraId: stepOne.obraId!,
+        obraId: stepOne.obraId,
         nome: stepOne.nome,
         regime: stepOne.regime,
         servicos: servicosComLocais,
