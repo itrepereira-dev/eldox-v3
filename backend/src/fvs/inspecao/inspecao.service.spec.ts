@@ -54,8 +54,15 @@ describe('InspecaoService', () => {
       expect(result.status).toBe('rascunho');
       expect(mockPrisma.$executeRawUnsafe).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO fvs_audit_log'),
-        expect.anything(), expect.anything(), expect.anything(),
-        'abertura_ficha', expect.anything(), expect.anything(), expect.anything(), expect.anything(),
+        TENANT_ID,          // $1 tenant_id
+        expect.anything(),  // $2 ficha_id
+        null,               // $3 registro_id (nullable)
+        'abertura_ficha',   // $4 acao
+        null,               // $5 status_de (nullable)
+        null,               // $6 status_para (nullable)
+        USER_ID,            // $7 usuario_id
+        '127.0.0.1',        // $8 ip
+        null,               // $9 detalhes (nullable)
       );
     });
 

@@ -54,17 +54,15 @@ export class InspecaoService {
       registroId?: number; ip?: string; detalhes?: object;
     },
   ): Promise<void> {
-    const detalhesJson = params.detalhes ? JSON.stringify(params.detalhes) : null;
-    const sql = `INSERT INTO fvs_audit_log
+    await tx.$executeRawUnsafe(
+      `INSERT INTO fvs_audit_log
          (tenant_id, ficha_id, registro_id, acao, status_de, status_para, usuario_id, ip_origem, detalhes, criado_em)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::inet, ${detalhesJson !== null ? `$9::jsonb` : `NULL::jsonb`}, NOW())`;
-    const baseArgs: unknown[] = [
-      params.tenantId, params.fichaId, params.registroId ?? 0,
-      params.acao, params.statusDe ?? '', params.statusPara ?? '',
-      params.usuarioId, params.ip ?? '',
-    ];
-    if (detalhesJson !== null) baseArgs.push(detalhesJson);
-    await tx.$executeRawUnsafe(sql, ...baseArgs);
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::inet, $9::jsonb, NOW())`,
+      params.tenantId, params.fichaId, params.registroId ?? null,
+      params.acao, params.statusDe ?? null, params.statusPara ?? null,
+      params.usuarioId, params.ip ?? null,
+      params.detalhes ? JSON.stringify(params.detalhes) : null,
+    );
   }
 
   // ── createFicha ─────────────────────────────────────────────────────────────
