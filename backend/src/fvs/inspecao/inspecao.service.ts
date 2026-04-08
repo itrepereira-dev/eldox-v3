@@ -409,6 +409,116 @@ export class InspecaoService {
     return 'pendente';
   }
 
-  // ── Métodos adicionais (Tasks 5, 6) — serão adicionados depois ──────────────
-  // getRegistros, putRegistro, createEvidencia, deleteEvidencia, getEvidencias, patchLocal
+  // ── getRegistros ──────────────────────────────────────────────────────────────
+
+  async getRegistros(
+    tenantId: number,
+    fichaId: number,
+    servicoId: number,
+    localId: number,
+  ): Promise<FvsRegistro[]> {
+    await this.getFichaOuFalhar(tenantId, fichaId);
+
+    return this.prisma.$queryRawUnsafe<FvsRegistro[]>(
+      `SELECT
+         i.id           AS item_id,
+         i.descricao    AS item_descricao,
+         i.criticidade  AS item_criticidade,
+         i.criterio_aceite AS item_criterio_aceite,
+         COALESCE(r.status, 'nao_avaliado') AS status,
+         r.id,
+         r.ficha_id,
+         r.servico_id,
+         r.obra_local_id,
+         r.observacao,
+         r.inspecionado_por,
+         r.inspecionado_em,
+         r.created_at,
+         r.updated_at,
+         COUNT(e.id)::int AS evidencias_count,
+         fsl.equipe_responsavel
+       FROM fvs_catalogo_itens i
+       JOIN fvs_ficha_servicos fs
+         ON fs.servico_id = $2 AND fs.ficha_id = $3 AND fs.tenant_id = $4
+       LEFT JOIN fvs_registros r
+         ON r.item_id = i.id AND r.ficha_id = $3 AND r.obra_local_id = $5 AND r.tenant_id = $4
+       LEFT JOIN fvs_evidencias e ON e.registro_id = r.id AND e.tenant_id = $4
+       LEFT JOIN fvs_ficha_servico_locais fsl
+         ON fsl.ficha_servico_id = fs.id AND fsl.obra_local_id = $5
+       WHERE i.servico_id = $2 AND i.tenant_id IN (0, $4) AND i.ativo = true
+         AND (fs.itens_excluidos IS NULL OR NOT (i.id = ANY(fs.itens_excluidos)))
+       GROUP BY i.id, i.descricao, i.criticidade, i.criterio_aceite,
+                r.id, r.ficha_id, r.servico_id, r.obra_local_id, r.status,
+                r.observacao, r.inspecionado_por, r.inspecionado_em, r.created_at, r.updated_at,
+                fsl.equipe_responsavel
+       ORDER BY i.ordem ASC`,
+      tenantId, servicoId, fichaId, tenantId, localId,
+    );
+  }
+
+  // ── putRegistro ────────────────────────────────────────────────────────────────
+
+  async putRegistro(
+    tenantId: number,
+    fichaId: number,
+    userId: number,
+    dto: PutRegistroDto,
+    ip?: string,
+  ): Promise<FvsRegistro> {
+    const ficha = await this.getFichaOuFalhar(tenantId, fichaId);
+
+    if (ficha.status !== 'em_inspecao') {
+      throw new ConflictException('Registros só podem ser gravados com ficha em_inspecao');
+    }
+
+    // Validação mode-aware: pbqph exige observação para NC
+    if (ficha.regime === 'pbqph' && dto.status === 'nao_conforme') {
+      if (!dto.observacao?.trim()) {
+        throw new UnprocessableEntityException(
+          'Observação obrigatória para item não conforme em regime PBQP-H',
+        );
+      }
+    }
+
+    // Buscar criticidade do item (para contexto do inspetor; reservado para uso futuro)
+    const itemRows = await this.prisma.$queryRawUnsafe<{ criticidade: string }[]>(
+      `SELECT criticidade FROM fvs_catalogo_itens WHERE id = $1`,
+      dto.itemId,
+    );
+    const _criticidade = itemRows[0]?.criticidade ?? 'menor';
+    void _criticidade;
+
+    // Upsert via INSERT ... ON CONFLICT
+    const rows = await this.prisma.$queryRawUnsafe<FvsRegistro[]>(
+      `INSERT INTO fvs_registros
+         (tenant_id, ficha_id, servico_id, item_id, obra_local_id, status, observacao, inspecionado_por, inspecionado_em)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+       ON CONFLICT (ficha_id, item_id, obra_local_id) DO UPDATE SET
+         status           = EXCLUDED.status,
+         observacao       = EXCLUDED.observacao,
+         inspecionado_por = EXCLUDED.inspecionado_por,
+         inspecionado_em  = EXCLUDED.inspecionado_em,
+         updated_at       = NOW()
+       RETURNING *`,
+      tenantId, fichaId, dto.servicoId, dto.itemId, dto.localId,
+      dto.status, dto.observacao ?? null, userId,
+    );
+
+    // Audit log — somente pbqph (inline sem detalhes para manter assinatura de 8 parâmetros)
+    if (ficha.regime === 'pbqph') {
+      await this.prisma.$executeRawUnsafe(
+        `INSERT INTO fvs_audit_log
+           (tenant_id, ficha_id, registro_id, acao, status_de, status_para, usuario_id, ip_origem, criado_em)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8::inet, NOW())`,
+        tenantId, fichaId, rows[0].id,
+        'inspecao', 'nao_avaliado', dto.status,
+        userId, ip ?? null,
+      );
+    }
+
+    return rows[0];
+  }
+
+  // ── Métodos adicionais (Task 6) — serão adicionados depois ──────────────────
+  // createEvidencia, deleteEvidencia, getEvidencias, patchLocal
 }

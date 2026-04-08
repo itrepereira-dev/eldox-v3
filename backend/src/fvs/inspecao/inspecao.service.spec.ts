@@ -207,4 +207,55 @@ describe('InspecaoService', () => {
       await expect(svc.getGrade(TENANT_ID, 999)).rejects.toBeInstanceOf(NotFoundException);
     });
   });
+
+  // ── putRegistro ──────────────────────────────────────────────────────────────
+  describe('putRegistro()', () => {
+    it('retorna 409 se ficha não está em_inspecao', async () => {
+      mockPrisma.$queryRawUnsafe.mockResolvedValueOnce([FICHA_RASCUNHO]);
+      await expect(
+        svc.putRegistro(TENANT_ID, 1, USER_ID, { servicoId: 1, itemId: 1, localId: 1, status: 'conforme' }, '127.0.0.1'),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('regime=pbqph, status=nao_conforme sem observacao → 422', async () => {
+      mockPrisma.$queryRawUnsafe.mockResolvedValueOnce([FICHA_EM_INSPECAO]);
+      await expect(
+        svc.putRegistro(TENANT_ID, 1, USER_ID, { servicoId: 1, itemId: 1, localId: 1, status: 'nao_conforme' }, '127.0.0.1'),
+      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    });
+
+    it('regime=pbqph, status=nao_conforme COM observacao → salva e grava audit_log', async () => {
+      mockPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce([FICHA_EM_INSPECAO])             // getFichaOuFalhar
+        .mockResolvedValueOnce([{ criticidade: 'critico' }])    // buscar item
+        .mockResolvedValueOnce([{ id: 5, status: 'nao_conforme' }]); // upsert retorno
+      mockPrisma.$executeRawUnsafe.mockResolvedValue(undefined); // audit_log
+
+      const result = await svc.putRegistro(TENANT_ID, 1, USER_ID, {
+        servicoId: 1, itemId: 1, localId: 1, status: 'nao_conforme', observacao: 'Desvio observado',
+      }, '127.0.0.1');
+
+      expect(result.status).toBe('nao_conforme');
+      expect(mockPrisma.$executeRawUnsafe).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO fvs_audit_log'),
+        expect.anything(), expect.anything(), expect.anything(),
+        'inspecao',
+        expect.anything(), expect.anything(), expect.anything(), expect.anything(),
+      );
+    });
+
+    it('regime=livre, status=nao_conforme sem observacao → salva sem audit_log', async () => {
+      mockPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce([{ ...FICHA_EM_INSPECAO, regime: 'livre' }])
+        .mockResolvedValueOnce([{ criticidade: 'menor' }])
+        .mockResolvedValueOnce([{ id: 5, status: 'nao_conforme' }]);
+
+      const result = await svc.putRegistro(TENANT_ID, 1, USER_ID, {
+        servicoId: 1, itemId: 1, localId: 1, status: 'nao_conforme',
+      }, '127.0.0.1');
+
+      expect(result.status).toBe('nao_conforme');
+      expect(mockPrisma.$executeRawUnsafe).not.toHaveBeenCalled();
+    });
+  });
 });
