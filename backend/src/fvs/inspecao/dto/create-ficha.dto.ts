@@ -7,6 +7,7 @@ class ServicoFichaDto {
 
   @IsArray()
   @ArrayNotEmpty()
+  @IsNumber({}, { each: true })
   localIds: number[];
 
   @IsOptional()

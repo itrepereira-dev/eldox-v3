@@ -102,7 +102,7 @@ export interface FvsRegistro {
   updated_at: Date;
   // joined (na listagem de registros por local)
   item_descricao?: string;
-  item_criticidade?: string;
+  item_criticidade?: Criticidade;
   item_criterio_aceite?: string | null;
   evidencias_count?: number;
   equipe_responsavel?: string | null;
@@ -128,4 +128,18 @@ export interface FvsEvidencia {
 export interface FichaDetalhada extends FichaFvs {
   servicos: (FichaServico & { locais: FichaServicoLocal[] })[];
   progresso: number;
+}
+
+export interface FvsAuditLog {
+  id: number;
+  tenant_id: number;
+  ficha_id: number;
+  registro_id: number | null;
+  acao: string;
+  status_de: string | null;
+  status_para: string | null;
+  usuario_id: number;
+  ip_origem: string | null;
+  detalhes: Record<string, unknown> | null;
+  criado_em: Date;
 }
