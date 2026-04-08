@@ -480,13 +480,12 @@ export class InspecaoService {
       }
     }
 
-    // Buscar criticidade do item (para contexto do inspetor; reservado para uso futuro)
+    // Buscar criticidade do item (para detalhes do audit_log)
     const itemRows = await this.prisma.$queryRawUnsafe<{ criticidade: string }[]>(
-      `SELECT criticidade FROM fvs_catalogo_itens WHERE id = $1`,
-      dto.itemId,
+      `SELECT criticidade FROM fvs_catalogo_itens WHERE id = $1 AND tenant_id IN (0, $2)`,
+      dto.itemId, tenantId,
     );
-    const _criticidade = itemRows[0]?.criticidade ?? 'menor';
-    void _criticidade;
+    const criticidade = itemRows[0]?.criticidade ?? 'menor';
 
     // Upsert via INSERT ... ON CONFLICT
     const rows = await this.prisma.$queryRawUnsafe<FvsRegistro[]>(
@@ -504,16 +503,14 @@ export class InspecaoService {
       dto.status, dto.observacao ?? null, userId,
     );
 
-    // Audit log — somente pbqph (inline sem detalhes para manter assinatura de 8 parâmetros)
+    // Audit log — somente pbqph
     if (ficha.regime === 'pbqph') {
-      await this.prisma.$executeRawUnsafe(
-        `INSERT INTO fvs_audit_log
-           (tenant_id, ficha_id, registro_id, acao, status_de, status_para, usuario_id, ip_origem, criado_em)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8::inet, NOW())`,
-        tenantId, fichaId, rows[0].id,
-        'inspecao', 'nao_avaliado', dto.status,
-        userId, ip ?? null,
-      );
+      await this.gravarAuditLog(this.prisma, {
+        tenantId, fichaId, usuarioId: userId,
+        acao: 'inspecao', registroId: rows[0].id, ip,
+        statusPara: dto.status,
+        detalhes: { itemId: dto.itemId, localId: dto.localId, criticidade },
+      });
     }
 
     return rows[0];

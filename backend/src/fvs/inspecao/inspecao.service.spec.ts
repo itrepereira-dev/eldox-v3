@@ -238,9 +238,15 @@ describe('InspecaoService', () => {
       expect(result.status).toBe('nao_conforme');
       expect(mockPrisma.$executeRawUnsafe).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO fvs_audit_log'),
-        expect.anything(), expect.anything(), expect.anything(),
-        'inspecao',
-        expect.anything(), expect.anything(), expect.anything(), expect.anything(),
+        TENANT_ID,          // $1 tenant_id
+        1,                  // $2 ficha_id
+        5,                  // $3 registro_id (from mock return { id: 5 })
+        'inspecao',         // $4 acao
+        null,               // $5 status_de (not provided → null)
+        'nao_conforme',     // $6 status_para
+        USER_ID,            // $7 usuario_id
+        '127.0.0.1',        // $8 ip_origem
+        expect.stringContaining('"itemId"'), // $9 detalhes JSON
       );
     });
 
