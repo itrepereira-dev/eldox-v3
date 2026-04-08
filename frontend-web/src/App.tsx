@@ -12,6 +12,10 @@ import { GedDocumentoDetalhePage } from './pages/ged/GedDocumentoDetalhePage';
 import { GedListaMestraPage } from './pages/ged/GedListaMestraPage';
 import { GedAdminPage } from './pages/ged/GedAdminPage';
 import CatalogoFvsPage from './modules/fvs/catalogo/CatalogoPage';
+import { FichasListPage } from './modules/fvs/inspecao/pages/FichasListPage';
+import { AbrirFichaWizard } from './modules/fvs/inspecao/pages/AbrirFichaWizard';
+import { FichaGradePage } from './modules/fvs/inspecao/pages/FichaGradePage';
+import { FichaLocalPage } from './modules/fvs/inspecao/pages/FichaLocalPage';
 import { AppLayout } from './layouts/AppLayout';
 
 const queryClient = new QueryClient();
@@ -45,6 +49,12 @@ export default function App() {
 
               {/* FVS — Catálogo de Serviços */}
               <Route path="/configuracoes/fvs/catalogo" element={<CatalogoFvsPage />} />
+
+              {/* FVS — Inspeção */}
+              <Route path="/fvs/fichas" element={<FichasListPage />} />
+              <Route path="/fvs/fichas/nova" element={<AbrirFichaWizard />} />
+              <Route path="/fvs/fichas/:fichaId" element={<FichaGradePage />} />
+              <Route path="/fvs/fichas/:fichaId/inspecao" element={<FichaLocalPage />} />
             </Route>
 
             {/* Fallback */}
