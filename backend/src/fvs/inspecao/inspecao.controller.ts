@@ -2,7 +2,7 @@
 import {
   Controller, Get, Post, Patch, Delete, Put, Body, Param, Query,
   ParseIntPipe, UseGuards, UseInterceptors, UploadedFile,
-  HttpCode, HttpStatus, Ip,
+  HttpCode, HttpStatus, Ip, BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../../common/guards/jwt.guard';
@@ -14,6 +14,7 @@ import { CreateFichaDto } from './dto/create-ficha.dto';
 import { UpdateFichaDto } from './dto/update-ficha.dto';
 import { PutRegistroDto } from './dto/put-registro.dto';
 import { UpdateLocalDto } from './dto/update-local.dto';
+import { AddServicoDto } from './dto/add-servico.dto';
 
 interface JwtUser { sub: number; tenantId: number; role: string }
 
@@ -98,7 +99,10 @@ export class InspecaoController {
     @Query('servicoId', new ParseIntPipe({ optional: true })) servicoId?: number,
     @Query('localId', new ParseIntPipe({ optional: true })) localId?: number,
   ) {
-    return this.inspecao.getRegistros(tenantId, fichaId, servicoId!, localId!);
+    if (servicoId === undefined || localId === undefined) {
+      throw new BadRequestException('servicoId e localId são obrigatórios');
+    }
+    return this.inspecao.getRegistros(tenantId, fichaId, servicoId, localId);
   }
 
   @Put('fichas/:fichaId/registros')
@@ -136,7 +140,7 @@ export class InspecaoController {
   addServico(
     @TenantId() tenantId: number,
     @Param('id', ParseIntPipe) fichaId: number,
-    @Body() dto: { servicoId: number; localIds: number[]; itensExcluidos?: number[] },
+    @Body() dto: AddServicoDto,
   ) {
     return this.inspecao.addServico(tenantId, fichaId, dto);
   }
