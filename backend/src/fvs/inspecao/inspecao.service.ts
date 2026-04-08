@@ -337,6 +337,74 @@ export class InspecaoService {
     );
   }
 
-  // ── Métodos adicionais (Tasks 4, 5, 6) — serão adicionados depois ──────────
-  // getGrade, getRegistros, putRegistro, createEvidencia, deleteEvidencia, getEvidencias, patchLocal
+  // ── getGrade ─────────────────────────────────────────────────────────────────
+
+  async getGrade(
+    tenantId: number,
+    fichaId: number,
+    filtros?: { pavimentoId?: number; servicoId?: number },
+  ): Promise<FvsGrade> {
+    await this.getFichaOuFalhar(tenantId, fichaId);
+
+    // Parameterized filter for servico (optional)
+    const servicoParams: unknown[] = [fichaId, tenantId];
+    const servicoExtra = filtros?.servicoId
+      ? (() => { servicoParams.push(filtros.servicoId); return `AND fs.servico_id = $${servicoParams.length}`; })()
+      : '';
+
+    const servicos = await this.prisma.$queryRawUnsafe<{ id: number; nome: string }[]>(
+      `SELECT s.id, s.nome
+       FROM fvs_ficha_servicos fs
+       JOIN fvs_catalogo_servicos s ON s.id = fs.servico_id
+       WHERE fs.ficha_id = $1 AND fs.tenant_id = $2 ${servicoExtra}
+       ORDER BY fs.ordem ASC`,
+      ...servicoParams,
+    );
+
+    // Parameterized filter for pavimento (optional)
+    const localParams: unknown[] = [fichaId, tenantId];
+    const pavimentoExtra = filtros?.pavimentoId
+      ? (() => { localParams.push(filtros.pavimentoId); return `AND ol.pavimento_id = $${localParams.length}`; })()
+      : '';
+
+    const locais = await this.prisma.$queryRawUnsafe<{ id: number; nome: string; pavimento_id: number | null }[]>(
+      `SELECT DISTINCT ol.id, ol.nome, ol.pavimento_id
+       FROM fvs_ficha_servico_locais fsl
+       JOIN "ObraLocal" ol ON ol.id = fsl.obra_local_id
+       JOIN fvs_ficha_servicos fs ON fs.id = fsl.ficha_servico_id
+       WHERE fs.ficha_id = $1 AND fsl.tenant_id = $2 ${pavimentoExtra}
+       ORDER BY ol.nome ASC`,
+      ...localParams,
+    );
+
+    const registros = await this.prisma.$queryRawUnsafe<{ servico_id: number; obra_local_id: number; status: string }[]>(
+      `SELECT servico_id, obra_local_id, status
+       FROM fvs_registros
+       WHERE ficha_id = $1 AND tenant_id = $2`,
+      fichaId, tenantId,
+    );
+
+    // Algoritmo de agregação: NC > Aprovado > Não avaliado > Pendente
+    const celulas: Record<number, Record<number, StatusGrade>> = {};
+    for (const srv of servicos) {
+      celulas[srv.id] = {};
+      for (const loc of locais) {
+        const celReg = registros.filter(r => r.servico_id === srv.id && r.obra_local_id === loc.id);
+        celulas[srv.id][loc.id] = this.calcularStatusCelula(celReg.map(r => r.status));
+      }
+    }
+
+    return { servicos, locais, celulas };
+  }
+
+  private calcularStatusCelula(statuses: string[]): StatusGrade {
+    if (!statuses.length) return 'nao_avaliado';
+    if (statuses.some(s => s === 'nao_conforme')) return 'nc';
+    if (statuses.every(s => s === 'conforme' || s === 'excecao')) return 'aprovado';
+    if (statuses.every(s => s === 'nao_avaliado')) return 'nao_avaliado';
+    return 'pendente';
+  }
+
+  // ── Métodos adicionais (Tasks 5, 6) — serão adicionados depois ──────────────
+  // getRegistros, putRegistro, createEvidencia, deleteEvidencia, getEvidencias, patchLocal
 }
