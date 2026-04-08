@@ -48,6 +48,7 @@ export function useCreateEvidencia() {
       fvsService.createEvidencia(registroId, file),
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ['fvs-evidencias', vars.registroId] });
+      qc.invalidateQueries({ queryKey: ['fvs-registros'] });
     },
   });
 }
@@ -59,6 +60,7 @@ export function useDeleteEvidencia() {
       fvsService.deleteEvidencia(id),
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ['fvs-evidencias', vars.registroId] });
+      qc.invalidateQueries({ queryKey: ['fvs-registros'] });
     },
   });
 }

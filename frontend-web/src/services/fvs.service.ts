@@ -140,7 +140,7 @@ export interface FvsRegistro {
   inspecionado_por: number | null;
   inspecionado_em: string | null;
   item_descricao: string;
-  item_criticidade: 'critico' | 'maior' | 'menor';
+  item_criticidade: Criticidade;
   item_criterio_aceite: string | null;
   evidencias_count: number;
   equipe_responsavel: string | null;
@@ -300,9 +300,7 @@ export const fvsService = {
   async createEvidencia(registroId: number, file: File): Promise<FvsEvidencia> {
     const form = new FormData();
     form.append('arquivo', file);
-    const { data } = await api.post(`/fvs/registros/${registroId}/evidencias`, form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    const { data } = await api.post(`/fvs/registros/${registroId}/evidencias`, form);
     return data;
   },
   async deleteEvidencia(id: number): Promise<void> {
