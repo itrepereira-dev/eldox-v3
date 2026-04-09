@@ -19,6 +19,7 @@ import type { PutRegistroDto } from './dto/put-registro.dto';
 import type { UpdateLocalDto } from './dto/update-local.dto';
 import { UploadDocumentoDto } from '../../ged/dto/upload-documento.dto';
 import { RoService } from './ro.service';
+import { ModeloService } from '../modelos/modelo.service';
 
 // Transições de status válidas: de → [destinos permitidos]
 const TRANSICOES_VALIDAS: Record<string, string[]> = {
@@ -37,6 +38,7 @@ export class InspecaoService {
     private readonly prisma: PrismaService,
     private readonly ged: GedService,
     private readonly roService: RoService,
+    private readonly modeloService: ModeloService,
   ) {}
 
   // ── Helper: buscar ficha com validação de tenant ────────────────────────────
@@ -173,34 +175,71 @@ export class InspecaoService {
         throw new BadRequestException(`Obra ${dto.obraId} não encontrada no tenant`);
       }
 
+      let regime: string = dto.regime ?? 'livre';
+      let exigeRo = true;
+      let exigeReinspecao = true;
+      let exigeParecer = true;
+      const modeloId: number | null = dto.modeloId ?? null;
+      let servicosDoTemplate: { servico_id: number; ordem: number; itens_excluidos: number[] | null }[] = [];
+
+      // Se tem template, buscar e bloquear dentro da mesma transaction
+      if (dto.modeloId) {
+        const { modelo, servicos } = await this.modeloService.getModeloParaFicha(tx, tenantId, dto.modeloId);
+        regime = modelo.regime;
+        exigeRo = modelo.exige_ro;
+        exigeReinspecao = modelo.exige_reinspecao;
+        exigeParecer = modelo.exige_parecer;
+        servicosDoTemplate = servicos;
+      }
+
       const fichas = await tx.$queryRawUnsafe<FichaFvs[]>(
-        `INSERT INTO fvs_fichas (tenant_id, obra_id, nome, regime, status, criado_por)
-         VALUES ($1, $2, $3, $4, 'rascunho', $5)
+        `INSERT INTO fvs_fichas (tenant_id, obra_id, nome, regime, status, criado_por, modelo_id, exige_ro, exige_reinspecao, exige_parecer)
+         VALUES ($1, $2, $3, $4, 'rascunho', $5, $6, $7, $8, $9)
          RETURNING *`,
-        tenantId, dto.obraId, dto.nome, dto.regime, userId,
+        tenantId, dto.obraId, dto.nome, regime, userId, modeloId, exigeRo, exigeReinspecao, exigeParecer,
       );
       const ficha = fichas[0];
 
-      for (const svc of dto.servicos) {
-        const fichaServicos = await tx.$queryRawUnsafe<{ id: number }[]>(
+      // Serviços do template
+      for (const svc of servicosDoTemplate) {
+        await tx.$queryRawUnsafe<{ id: number }[]>(
           `INSERT INTO fvs_ficha_servicos (tenant_id, ficha_id, servico_id, itens_excluidos)
            VALUES ($1, $2, $3, $4)
            RETURNING id`,
-          tenantId, ficha.id, svc.servicoId,
-          svc.itensExcluidos ? JSON.stringify(svc.itensExcluidos) : null,
+          tenantId, ficha.id, svc.servico_id,
+          svc.itens_excluidos ? JSON.stringify(svc.itens_excluidos) : null,
         );
-        const fichaServicoId = fichaServicos[0].id;
+        // Nota: locais não são copiados do template — usuário adiciona manualmente
+      }
 
-        for (const localId of svc.localIds) {
-          await tx.$queryRawUnsafe(
-            `INSERT INTO fvs_ficha_servico_locais (tenant_id, ficha_servico_id, obra_local_id)
-             VALUES ($1, $2, $3)`,
-            tenantId, fichaServicoId, localId,
+      // Serviços manuais (sem template)
+      if (!dto.modeloId && dto.servicos) {
+        for (const svc of dto.servicos) {
+          const fichaServicos = await tx.$queryRawUnsafe<{ id: number }[]>(
+            `INSERT INTO fvs_ficha_servicos (tenant_id, ficha_id, servico_id, itens_excluidos)
+             VALUES ($1, $2, $3, $4)
+             RETURNING id`,
+            tenantId, ficha.id, svc.servicoId,
+            svc.itensExcluidos ? JSON.stringify(svc.itensExcluidos) : null,
           );
+          const fichaServicoId = fichaServicos[0].id;
+
+          for (const localId of svc.localIds) {
+            await tx.$executeRawUnsafe(
+              `INSERT INTO fvs_ficha_servico_locais (tenant_id, ficha_servico_id, obra_local_id)
+               VALUES ($1, $2, $3)`,
+              tenantId, fichaServicoId, localId,
+            );
+          }
         }
       }
 
-      if (dto.regime === 'pbqph') {
+      // Incrementar fichas_count na vinculação obra-template
+      if (dto.modeloId) {
+        await this.modeloService.incrementFichasCount(tx, tenantId, dto.modeloId, dto.obraId);
+      }
+
+      if (regime === 'pbqph') {
         await this.gravarAuditLog(tx, {
           tenantId, fichaId: ficha.id, usuarioId: userId,
           acao: 'abertura_ficha', ip,

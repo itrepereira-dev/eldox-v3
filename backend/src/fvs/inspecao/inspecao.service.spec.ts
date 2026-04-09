@@ -23,8 +23,11 @@ const mockGed = {
   upload: jest.fn(),
 };
 
+const mockRoServiceGlobal = { checkAndAdvanceRoStatus: jest.fn() };
+const mockModeloService = { getModeloParaFicha: jest.fn(), incrementFichasCount: jest.fn() };
+
 function makeService(): InspecaoService {
-  return new (InspecaoService as any)(mockPrisma, mockGed);
+  return new (InspecaoService as any)(mockPrisma, mockGed, mockRoServiceGlobal, mockModeloService);
 }
 
 describe('InspecaoService', () => {
@@ -85,15 +88,86 @@ describe('InspecaoService', () => {
       mockPrisma.$queryRawUnsafe
         .mockResolvedValueOnce([{ id: 10 }])            // SELECT Obra (validação tenant)
         .mockResolvedValueOnce([{ ...FICHA_RASCUNHO, regime: 'livre' }])
-        .mockResolvedValueOnce([{ id: 10 }])
-        .mockResolvedValueOnce([{ id: 20 }]);
+        .mockResolvedValueOnce([{ id: 10 }]);           // INSERT fvs_ficha_servicos
+      mockPrisma.$executeRawUnsafe.mockResolvedValueOnce(undefined); // INSERT fvs_ficha_servico_locais
 
       await svc.createFicha(TENANT_ID, USER_ID, {
         obraId: 10, nome: 'FVS Torre 1', regime: 'livre',
         servicos: [{ servicoId: 1, localIds: [1] }],
       }, '127.0.0.1');
 
-      expect(mockPrisma.$executeRawUnsafe).not.toHaveBeenCalled();
+      // audit_log NÃO deve ter sido chamado (apenas o INSERT locais foi)
+      expect(mockPrisma.$executeRawUnsafe).not.toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO fvs_audit_log'),
+        expect.anything(), expect.anything(), expect.anything(),
+        expect.anything(), expect.anything(), expect.anything(),
+        expect.anything(), expect.anything(), expect.anything(),
+      );
+    });
+
+    it('cria ficha via template — regime, flags e serviços vêm do template', async () => {
+      const modeloFake = {
+        id: 5, regime: 'pbqph', exige_ro: true, exige_reinspecao: false, exige_parecer: true,
+      };
+      const servicosFake = [{ servico_id: 10, ordem: 0, itens_excluidos: null }];
+      const fichaFake = {
+        id: 99, tenant_id: TENANT_ID, obra_id: 10, nome: 'FVS Template',
+        regime: 'pbqph', status: 'rascunho', criado_por: USER_ID,
+        modelo_id: 5, exige_ro: true, exige_reinspecao: false, exige_parecer: true,
+      };
+
+      mockPrisma.$transaction.mockImplementation(async (fn: any) => fn(mockPrisma));
+      // SELECT Obra validation
+      mockPrisma.$queryRawUnsafe.mockResolvedValueOnce([{ id: 10 }]);
+      // getModeloParaFicha is called via modeloService mock
+      mockModeloService.getModeloParaFicha.mockResolvedValueOnce({ modelo: modeloFake, servicos: servicosFake });
+      // INSERT fvs_fichas
+      mockPrisma.$queryRawUnsafe.mockResolvedValueOnce([fichaFake]);
+      // INSERT fvs_ficha_servicos (for the 1 template service)
+      mockPrisma.$queryRawUnsafe.mockResolvedValueOnce([{ id: 1 }]);
+      // incrementFichasCount
+      mockModeloService.incrementFichasCount.mockResolvedValueOnce(undefined);
+      // audit log (pbqph regime)
+      mockPrisma.$executeRawUnsafe.mockResolvedValue(undefined);
+
+      const result = await svc.createFicha(TENANT_ID, USER_ID, {
+        obraId: 10, nome: 'FVS Template', modeloId: 5,
+      });
+
+      expect(result.modelo_id).toBe(5);
+      expect(result.regime).toBe('pbqph');
+      expect(mockModeloService.getModeloParaFicha).toHaveBeenCalledWith(
+        mockPrisma, TENANT_ID, 5,
+      );
+      expect(mockModeloService.incrementFichasCount).toHaveBeenCalledWith(
+        mockPrisma, TENANT_ID, 5, 10,
+      );
+    });
+
+    it('cria ficha sem template — usa dto.servicos (comportamento existente)', async () => {
+      const fichaFake = {
+        id: 1, tenant_id: TENANT_ID, obra_id: 10, nome: 'FVS Manual',
+        regime: 'livre', status: 'rascunho', criado_por: USER_ID,
+        modelo_id: null, exige_ro: true, exige_reinspecao: true, exige_parecer: true,
+      };
+
+      mockPrisma.$transaction.mockImplementation(async (fn: any) => fn(mockPrisma));
+      // SELECT Obra validation
+      mockPrisma.$queryRawUnsafe.mockResolvedValueOnce([{ id: 10 }]);
+      // INSERT fvs_fichas
+      mockPrisma.$queryRawUnsafe.mockResolvedValueOnce([fichaFake]);
+      // INSERT fvs_ficha_servicos
+      mockPrisma.$queryRawUnsafe.mockResolvedValueOnce([{ id: 1 }]);
+      // INSERT fvs_ficha_servico_locais
+      mockPrisma.$executeRawUnsafe.mockResolvedValue(undefined);
+
+      const result = await svc.createFicha(TENANT_ID, USER_ID, {
+        obraId: 10, nome: 'FVS Manual', regime: 'livre',
+        servicos: [{ servicoId: 1, localIds: [100] }],
+      });
+
+      expect(result.modelo_id).toBeNull();
+      expect(mockModeloService.getModeloParaFicha).not.toHaveBeenCalled();
     });
   });
 
