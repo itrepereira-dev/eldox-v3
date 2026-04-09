@@ -246,7 +246,7 @@ export function Sidebar({ onNavClick, className }: SidebarProps) {
 
         <NavSection label="Qualidade">
           <NavItem
-            to="/fvs"
+            to="/fvs/fichas"
             icon={<ClipboardList size={18} />}
             label="Fichas FVS"
             onClick={onNavClick}
@@ -268,7 +268,7 @@ export function Sidebar({ onNavClick, className }: SidebarProps) {
 
         <NavSection label="Operacional">
           <NavItem
-            to="/ged"
+            to="/ged/admin"
             icon={<FolderOpen size={18} />}
             label="GED"
             onClick={onNavClick}

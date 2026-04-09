@@ -45,11 +45,13 @@ export function GedListaMestraPage() {
     );
   }
 
-  const totalDocs = listaMestra.categorias.reduce(
+  const categorias = listaMestra.categorias ?? [];
+
+  const totalDocs = categorias.reduce(
     (acc, cat) => acc + cat.documentos.length,
     0,
   );
-  const totalAlerta = listaMestra.categorias.reduce(
+  const totalAlerta = categorias.reduce(
     (acc, cat) => acc + cat.documentos.filter((d) => d.alertaVencimento).length,
     0,
   );
@@ -117,8 +119,8 @@ export function GedListaMestraPage() {
             )}
           </div>
           <p style={{ color: 'var(--text-mid)', fontSize: '13px' }}>
-            {listaMestra.obra.nome} · Gerado em{' '}
-            {new Date(listaMestra.geradoEm).toLocaleString('pt-BR')}
+            {listaMestra.obra?.nome ?? obra?.nome} · Gerado em{' '}
+            {listaMestra.geradoEm ? new Date(listaMestra.geradoEm).toLocaleString('pt-BR') : '—'}
           </p>
         </div>
 
@@ -165,7 +167,7 @@ export function GedListaMestraPage() {
         }}
       >
         <StatPill label="Documentos vigentes" value={totalDocs} color="var(--ok)" />
-        <StatPill label="Categorias" value={listaMestra.categorias.length} color="var(--accent)" />
+        <StatPill label="Categorias" value={categorias.length} color="var(--accent)" />
         {totalAlerta > 0 && (
           <StatPill
             label="Alerta de vencimento"
@@ -177,7 +179,7 @@ export function GedListaMestraPage() {
       </div>
 
       {/* Categorias (acordeons) */}
-      {listaMestra.categorias.length === 0 ? (
+      {categorias.length === 0 ? (
         <div
           style={{
             padding: '56px',
@@ -193,7 +195,7 @@ export function GedListaMestraPage() {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {listaMestra.categorias.map((categoria) => (
+          {categorias.map((categoria) => (
             <CategoriaSection key={categoria.codigo} categoria={categoria} />
           ))}
         </div>

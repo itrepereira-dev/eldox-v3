@@ -57,8 +57,8 @@ export default function App() {
               <Route path="/fvs/fichas/:fichaId/inspecao" element={<FichaLocalPage />} />
             </Route>
 
-            {/* Fallback */}
-            <Route path="*" element={<Navigate to="/login" replace />} />
+            {/* Módulos em construção (NC, Concretagem, Efetivo, Frota, Aprovações, IA) */}
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </BrowserRouter>
       </QueryClientProvider>
