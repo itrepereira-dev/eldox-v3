@@ -1,5 +1,6 @@
 // frontend-web/src/modules/fvs/inspecao/components/RoPanel.tsx
-import { useRef, useState } from 'react';
+import { useRef, useState, useCallback } from 'react';
+import { api } from '../../../../services/api';
 import {
   useRo,
   usePatchRo,
@@ -11,12 +12,13 @@ import type { RoServicoNc } from '../../../../services/fvs.service';
 
 const CAUSA_6M_OPTIONS = [
   { value: '', label: '— Selecione —' },
-  { value: 'mao_de_obra', label: 'Mão de Obra' },
+  { value: 'mao_obra', label: 'Mão de Obra' },
   { value: 'maquina', label: 'Máquina / Equipamento' },
   { value: 'material', label: 'Material' },
   { value: 'metodo', label: 'Método' },
-  { value: 'medicao', label: 'Medição' },
+  { value: 'medida', label: 'Medição / Medida' },
   { value: 'meio_ambiente', label: 'Meio Ambiente' },
+  { value: 'gestao', label: 'Gestão' },
 ];
 
 const STATUS_BADGE: Record<string, { label: string; bg: string; color: string }> = {
@@ -75,6 +77,11 @@ function ServicoAccordion({ servico, fichaId }: ServicoAccordionProps) {
   async function handleDeleteEvidencia(evidenciaId: number) {
     await deleteEvidencia.mutateAsync({ servicoNcId: servico.id, evidenciaId });
   }
+
+  const handleDownloadEvidencia = useCallback(async (versaoGedId: number) => {
+    const { data } = await api.get<{ presignedUrl: string }>(`/ged/versoes/${versaoGedId}/download`);
+    window.open(data.presignedUrl, '_blank', 'noopener,noreferrer');
+  }, []);
 
   return (
     <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, marginBottom: 8, overflow: 'hidden' }}>
@@ -159,13 +166,12 @@ function ServicoAccordion({ servico, fichaId }: ServicoAccordionProps) {
                     position: 'relative', border: '1px solid #e5e7eb', borderRadius: 6,
                     padding: '6px 10px', background: '#fff', display: 'flex', alignItems: 'center', gap: 8,
                   }}>
-                    {ev.url ? (
-                      <a href={ev.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#3b82f6', textDecoration: 'none' }}>
-                        {ev.nome_original ?? `Evidência ${ev.id}`}
-                      </a>
-                    ) : (
-                      <span style={{ fontSize: 12, color: '#374151' }}>{ev.nome_original ?? `Evidência ${ev.id}`}</span>
-                    )}
+                    <button
+                      onClick={() => handleDownloadEvidencia(ev.versao_ged_id)}
+                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 12, color: '#3b82f6', textDecoration: 'underline' }}
+                    >
+                      {ev.nome_original ?? `Evidência ${ev.id}`}
+                    </button>
                     <button
                       onClick={() => handleDeleteEvidencia(ev.id)}
                       disabled={deleteEvidencia.isPending}

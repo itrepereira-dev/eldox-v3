@@ -24,7 +24,7 @@ export class RoService {
 
   async getRo(tenantId: number, fichaId: number): Promise<RoOcorrencia> {
     const rows = await this.prisma.$queryRawUnsafe<RoOcorrencia[]>(
-      `SELECT * FROM ro_ocorrencias WHERE ficha_id = $1 AND tenant_id = $2 LIMIT 1`,
+      `SELECT * FROM ro_ocorrencias WHERE ficha_id = $1 AND tenant_id = $2 AND deleted_at IS NULL LIMIT 1`,
       fichaId, tenantId,
     );
     if (!rows.length) throw new NotFoundException(`RO não encontrado para ficha ${fichaId}`);
@@ -58,7 +58,7 @@ export class RoService {
 
   async patchRo(tenantId: number, fichaId: number, dto: PatchRoDto): Promise<RoOcorrencia> {
     const roRows = await this.prisma.$queryRawUnsafe<RoOcorrencia[]>(
-      `SELECT * FROM ro_ocorrencias WHERE ficha_id = $1 AND tenant_id = $2 LIMIT 1`,
+      `SELECT * FROM ro_ocorrencias WHERE ficha_id = $1 AND tenant_id = $2 AND deleted_at IS NULL LIMIT 1`,
       fichaId, tenantId,
     );
     if (!roRows.length) throw new NotFoundException(`RO não encontrado para ficha ${fichaId}`);
@@ -94,7 +94,7 @@ export class RoService {
     ip?: string,
   ): Promise<RoServicoNc> {
     const roRows = await this.prisma.$queryRawUnsafe<RoOcorrencia[]>(
-      `SELECT * FROM ro_ocorrencias WHERE ficha_id = $1 AND tenant_id = $2 LIMIT 1`,
+      `SELECT * FROM ro_ocorrencias WHERE ficha_id = $1 AND tenant_id = $2 AND deleted_at IS NULL LIMIT 1`,
       fichaId, tenantId,
     );
     if (!roRows.length) throw new NotFoundException(`RO não encontrado para ficha ${fichaId}`);
@@ -159,13 +159,13 @@ export class RoService {
           );
         }
 
-        // Marcar serviço como desbloqueado
+        // Marcar serviço como desbloqueado (com rastreabilidade de quem desbloqueou)
         const updatedSvc = await tx.$queryRawUnsafe<RoServicoNc[]>(
           `UPDATE ro_servicos_nc
-           SET status = 'desbloqueado', ciclo_reinspecao = $1, desbloqueado_em = NOW()
-           WHERE id = $2 AND tenant_id = $3
+           SET status = 'desbloqueado', ciclo_reinspecao = $1, desbloqueado_por = $2, desbloqueado_em = NOW()
+           WHERE id = $3 AND tenant_id = $4
            RETURNING *`,
-          novoCiclo, servicoNcId, tenantId,
+          novoCiclo, userId ?? null, servicoNcId, tenantId,
         );
 
         // Audit log (PBQP-H)
@@ -263,25 +263,50 @@ export class RoService {
 
   async deleteRoEvidencia(
     tenantId: number,
+    fichaId: number,
     servicoNcId: number,
     evidenciaId: number,
+    userId?: number,
+    ip?: string,
   ): Promise<void> {
-    const rows = await this.prisma.$queryRawUnsafe<{ id: number; versao_ged_id: number }[]>(
-      `SELECT id, versao_ged_id FROM ro_servico_evidencias
-       WHERE id = $1 AND ro_servico_nc_id = $2 AND tenant_id = $3`,
-      evidenciaId, servicoNcId, tenantId,
-    );
+    // Buscar evidência e regime da ficha em paralelo
+    const [rows, fichaRows] = await Promise.all([
+      this.prisma.$queryRawUnsafe<{ id: number; versao_ged_id: number }[]>(
+        `SELECT id, versao_ged_id FROM ro_servico_evidencias
+         WHERE id = $1 AND ro_servico_nc_id = $2 AND tenant_id = $3`,
+        evidenciaId, servicoNcId, tenantId,
+      ),
+      this.prisma.$queryRawUnsafe<{ regime: string }[]>(
+        `SELECT regime FROM fvs_fichas WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+        fichaId, tenantId,
+      ),
+    ]);
     if (!rows.length) throw new NotFoundException(`Evidência ${evidenciaId} não encontrada`);
 
-    await this.prisma.$executeRawUnsafe(
-      `DELETE FROM ro_servico_evidencias WHERE id = $1 AND tenant_id = $2`,
-      evidenciaId, tenantId,
-    );
-    // Marcar versão GED como obsoleta
-    await this.prisma.$executeRawUnsafe(
-      `UPDATE ged_versoes SET status = 'obsoleta', atualizado_em = NOW() WHERE id = $1 AND tenant_id = $2`,
-      rows[0].versao_ged_id, tenantId,
-    );
+    const versaoGedId = rows[0].versao_ged_id;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(
+        `DELETE FROM ro_servico_evidencias WHERE id = $1 AND tenant_id = $2`,
+        evidenciaId, tenantId,
+      );
+      // Marcar versão GED como obsoleta
+      await tx.$executeRawUnsafe(
+        `UPDATE ged_versoes SET status = 'obsoleta', atualizado_em = NOW() WHERE id = $1 AND tenant_id = $2`,
+        versaoGedId, tenantId,
+      );
+      // Audit log PBQP-H
+      if (fichaRows[0]?.regime === 'pbqph' && userId) {
+        await tx.$executeRawUnsafe(
+          `INSERT INTO fvs_audit_log
+             (tenant_id, ficha_id, acao, usuario_id, ip_origem, detalhes, criado_em)
+           VALUES ($1, $2, $3, $4, $5::inet, $6::jsonb, NOW())`,
+          tenantId, fichaId, 'exclusao_evidencia_ro',
+          userId, ip ?? null,
+          JSON.stringify({ evidenciaId, servicoNcId, versaoGedId }),
+        );
+      }
+    });
   }
 
   // ── checkAndAdvanceRoStatus ────────────────────────────────────────────────────

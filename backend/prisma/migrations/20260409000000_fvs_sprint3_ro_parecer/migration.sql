@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS ro_servicos_nc (
   acao_corretiva      TEXT,
   status              VARCHAR(20) NOT NULL DEFAULT 'pendente',
   ciclo_reinspecao    INT NULL,
+  desbloqueado_por    INT NULL REFERENCES "Usuario"(id),
   desbloqueado_em     TIMESTAMP NULL,
   verificado_em       TIMESTAMP NULL,
   created_at          TIMESTAMP NOT NULL DEFAULT NOW()

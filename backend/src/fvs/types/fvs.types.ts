@@ -180,6 +180,7 @@ export interface RoServicoNc {
   acao_corretiva: string | null;
   status: StatusServicoNc;
   ciclo_reinspecao: number | null;
+  desbloqueado_por: number | null;
   desbloqueado_em: Date | null;
   verificado_em: Date | null;
   created_at: Date;

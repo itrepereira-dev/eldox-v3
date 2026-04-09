@@ -73,10 +73,12 @@ export class RoController {
   @HttpCode(HttpStatus.NO_CONTENT)
   deleteRoEvidencia(
     @TenantId() tenantId: number,
+    @CurrentUser() user: JwtUser,
     @Param('fichaId', ParseIntPipe) fichaId: number,
     @Param('servicoNcId', ParseIntPipe) servicoNcId: number,
     @Param('evidenciaId', ParseIntPipe) evidenciaId: number,
+    @Ip() ip: string,
   ) {
-    return this.ro.deleteRoEvidencia(tenantId, servicoNcId, evidenciaId);
+    return this.ro.deleteRoEvidencia(tenantId, fichaId, servicoNcId, evidenciaId, user.sub, ip);
   }
 }
