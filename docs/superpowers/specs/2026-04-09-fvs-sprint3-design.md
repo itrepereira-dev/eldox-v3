@@ -90,9 +90,14 @@ ALTER TABLE fvs_fichas
   ADD COLUMN exige_parecer BOOLEAN NOT NULL DEFAULT false;
 -- status VARCHAR expande para incluir: 'aguardando_parecer', 'aprovada'
 
--- fvs_registros: suporte a ciclos de reinspeção
+-- fvs_registros: suporte a ciclos de reinspeção + scaffolding para IA (Sprint 4/5)
 ALTER TABLE fvs_registros
-  ADD COLUMN ciclo INT NOT NULL DEFAULT 1;
+  ADD COLUMN ciclo            INT NOT NULL DEFAULT 1,
+  ADD COLUMN ai_sugestao      VARCHAR(20) NULL,   -- conforme | nc | inconclusivo
+  ADD COLUMN ai_confianca     DECIMAL(3,2) NULL,  -- 0.00 a 1.00
+  ADD COLUMN ai_observacao    TEXT NULL,
+  ADD COLUMN ai_processado_em TIMESTAMP NULL;
+-- Campos ai_* são nullable — sem impacto no fluxo atual, preparação para FVS-VISION
 -- UNIQUE constraint muda de (ficha_id, servico_id, item_id, local_id)
 -- para (ficha_id, servico_id, item_id, local_id, ciclo)
 ```
@@ -154,6 +159,11 @@ CREATE TABLE ro_servico_evidencias (
   ro_servico_nc_id    INT NOT NULL REFERENCES ro_servicos_nc(id) ON DELETE CASCADE,
   versao_ged_id       INT NOT NULL REFERENCES ged_versoes(id),
   descricao           TEXT NULL,
+  -- Scaffolding para FVS-VISION (Sprint 4/5): IA analisa se foto comprova a correção
+  ai_sugestao         VARCHAR(20) NULL,   -- correcao_confirmada | insuficiente | inconclusivo
+  ai_confianca        DECIMAL(3,2) NULL,
+  ai_observacao       TEXT NULL,
+  ai_processado_em    TIMESTAMP NULL,
   created_at          TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
@@ -296,6 +306,25 @@ useSubmitParecer(fichaId)
 | PA3 | `fvs_pareceres` append-only — cada ciclo pode ter seu próprio parecer. Nunca UPDATE/DELETE. |
 | PA4 | Em PBQP-H, `observacao` obrigatória no parecer de rejeição (422 sem ela). |
 | AU1 | Todo evento grava em `fvs_audit_log` quando `regime = 'pbqph'`: criação do RO, desbloqueio de serviço, cada reinspeção de item, solicitação de parecer, emissão do parecer. |
+
+---
+
+## Pipeline de IA — Scaffolding (Sprint 3) e Implementação Futura
+
+Sprint 3 **reserva os campos** nas tabelas. Os agentes são implementados no Sprint 4/5.
+
+| Agente | Trigger | O que faz | Sprint |
+|---|---|---|---|
+| **FVS-VISION** | Upload de foto em `fvs_evidencias` ou `ro_servico_evidencias` | Analisa foto e sugere conformidade/NC/inconclusivo + confiança | 4/5 |
+| **FVS-GUARDIAN** | Job periódico ou fim de inspeção | Detecta padrões anômalos (velocidade alta, 100% conforme em histórico ruim) | 5 |
+
+**Campos reservados** (nullable, sem impacto no fluxo atual):
+- `fvs_registros`: `ai_sugestao`, `ai_confianca`, `ai_observacao`, `ai_processado_em`
+- `ro_servico_evidencias`: `ai_sugestao` (`correcao_confirmada | insuficiente | inconclusivo`), `ai_confianca`, `ai_observacao`, `ai_processado_em`
+
+**Fila futura:** `fvs.vision` (BullMQ) — disparada após upload, resultado salvo nos campos `ai_*`.
+
+**Princípio:** sugestão não-bloqueante. A IA informa, o inspetor/engenheiro decide. Nunca bloqueia o fluxo.
 
 ---
 
