@@ -329,20 +329,20 @@ export class ModeloService {
     tenantId: number,
     modeloId: number,
   ): Promise<{ modelo: FvsModelo; servicos: FvsModeloServico[] }> {
-    const rows = await tx.$queryRawUnsafe<FvsModelo[]>(
+    const rows = (await tx.$queryRawUnsafe(
       `SELECT * FROM fvs_modelos WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
       modeloId, tenantId,
-    );
+    )) as FvsModelo[];
     if (!rows.length) throw new NotFoundException(`Template ${modeloId} não encontrado`);
     const modelo = rows[0];
     if (modelo.status !== 'concluido') {
       throw new ConflictException('Apenas templates concluídos podem ser usados para criar Fichas');
     }
 
-    const servicos = await tx.$queryRawUnsafe<FvsModeloServico[]>(
+    const servicos = (await tx.$queryRawUnsafe(
       `SELECT * FROM fvs_modelo_servicos WHERE modelo_id = $1 AND tenant_id = $2 ORDER BY ordem ASC`,
       modeloId, tenantId,
-    );
+    )) as FvsModeloServico[];
 
     // Bloquear template se ainda não bloqueado (1ª vez)
     await tx.$executeRawUnsafe(

@@ -6,6 +6,6 @@ export class UpdateFichaDto {
   nome?: string;
 
   @IsOptional()
-  @IsEnum(['rascunho', 'em_inspecao', 'concluida'])
-  status?: 'rascunho' | 'em_inspecao' | 'concluida';
+  @IsEnum(['rascunho', 'em_inspecao', 'concluida', 'aguardando_parecer', 'aprovada'])
+  status?: 'rascunho' | 'em_inspecao' | 'concluida' | 'aguardando_parecer' | 'aprovada';
 }

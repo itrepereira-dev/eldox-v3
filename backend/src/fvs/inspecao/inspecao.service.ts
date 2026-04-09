@@ -84,10 +84,10 @@ export class InspecaoService {
     ip?: string,
   ): Promise<void> {
     // Sprint 4a: verificar se ficha exige RO
-    const fichaRows = await tx.$queryRawUnsafe<{ exige_ro: boolean }[]>(
+    const fichaRows = (await tx.$queryRawUnsafe(
       `SELECT exige_ro FROM fvs_fichas WHERE id = $1 AND tenant_id = $2`,
       fichaId, tenantId,
-    );
+    )) as { exige_ro: boolean }[];
     if (!fichaRows.length || !fichaRows[0].exige_ro) return;
 
     type ItensNcRow = {
