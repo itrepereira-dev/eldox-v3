@@ -4,6 +4,7 @@ import {
   NotFoundException,
   ConflictException,
   UnprocessableEntityException,
+  BadRequestException,
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -163,6 +164,15 @@ export class InspecaoService {
     ip?: string,
   ): Promise<FichaFvs> {
     return this.prisma.$transaction(async (tx) => {
+      // Segurança: validar que a obra pertence ao tenant (GAP-01)
+      const obraRows = await tx.$queryRawUnsafe<{ id: number }[]>(
+        `SELECT id FROM "Obra" WHERE id = $1 AND "tenantId" = $2`,
+        dto.obraId, tenantId,
+      );
+      if (!obraRows.length) {
+        throw new BadRequestException(`Obra ${dto.obraId} não encontrada no tenant`);
+      }
+
       const fichas = await tx.$queryRawUnsafe<FichaFvs[]>(
         `INSERT INTO fvs_fichas (tenant_id, obra_id, nome, regime, status, criado_por)
          VALUES ($1, $2, $3, $4, 'rascunho', $5)

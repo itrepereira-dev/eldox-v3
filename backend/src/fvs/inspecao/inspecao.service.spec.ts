@@ -1,5 +1,5 @@
 // backend/src/fvs/inspecao/inspecao.service.spec.ts
-import { ConflictException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { InspecaoService } from './inspecao.service';
 
 const TENANT_ID = 5;
@@ -37,10 +37,24 @@ describe('InspecaoService', () => {
 
   // ── createFicha ─────────────────────────────────────────────────────────────
   describe('createFicha()', () => {
+    it('lança BadRequestException se obraId não pertence ao tenant', async () => {
+      mockPrisma.$transaction.mockImplementation(async (fn: any) => fn(mockPrisma));
+      mockPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce([]); // SELECT Obra → não encontrada no tenant
+
+      await expect(
+        svc.createFicha(TENANT_ID, USER_ID, {
+          obraId: 999, nome: 'FVS', regime: 'livre',
+          servicos: [{ servicoId: 1, localIds: [1] }],
+        }, '127.0.0.1'),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
     it('cria ficha com rascunho e grava audit_log quando regime=pbqph', async () => {
       mockPrisma.$transaction.mockImplementation(async (fn: any) => fn(mockPrisma));
       mockPrisma.$queryRawUnsafe
-        .mockResolvedValueOnce([FICHA_RASCUNHO])       // INSERT fvs_fichas
+        .mockResolvedValueOnce([{ id: 10 }])            // SELECT Obra (validação tenant)
+        .mockResolvedValueOnce([FICHA_RASCUNHO])        // INSERT fvs_fichas
         .mockResolvedValueOnce([{ id: 10 }])            // INSERT fvs_ficha_servicos
         .mockResolvedValueOnce([{ id: 20 }]);           // INSERT fvs_ficha_servico_locais
       mockPrisma.$executeRawUnsafe.mockResolvedValue(undefined); // audit_log
@@ -69,6 +83,7 @@ describe('InspecaoService', () => {
     it('NÃO grava audit_log quando regime=livre', async () => {
       mockPrisma.$transaction.mockImplementation(async (fn: any) => fn(mockPrisma));
       mockPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce([{ id: 10 }])            // SELECT Obra (validação tenant)
         .mockResolvedValueOnce([{ ...FICHA_RASCUNHO, regime: 'livre' }])
         .mockResolvedValueOnce([{ id: 10 }])
         .mockResolvedValueOnce([{ id: 20 }]);
