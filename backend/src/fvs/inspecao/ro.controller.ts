@@ -55,7 +55,7 @@ export class RoController {
   @Post('fichas/:fichaId/ro/servicos/:servicoNcId/evidencias')
   @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO')
   @HttpCode(HttpStatus.CREATED)
-  @UseInterceptors(FileInterceptor('arquivo'))
+  @UseInterceptors(FileInterceptor('arquivo', { limits: { fileSize: 10 * 1024 * 1024 } }))
   createRoEvidencia(
     @TenantId() tenantId: number,
     @CurrentUser() user: JwtUser,

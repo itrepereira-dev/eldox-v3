@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsNumber, IsEnum } from 'class-validator';
+import { IsOptional, IsString, IsNumber, IsEnum, MaxLength } from 'class-validator';
 
 export class PatchRoDto {
   @IsOptional()
@@ -11,10 +11,12 @@ export class PatchRoDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(2000)
   o_que_aconteceu?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(2000)
   acao_imediata?: string;
 
   @IsOptional()
@@ -23,5 +25,6 @@ export class PatchRoDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(2000)
   justificativa_causa?: string;
 }

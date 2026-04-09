@@ -279,8 +279,8 @@ export class RoService {
     );
     // Marcar versão GED como obsoleta
     await this.prisma.$executeRawUnsafe(
-      `UPDATE ged_versoes SET status = 'obsoleta', atualizado_em = NOW() WHERE id = $1`,
-      rows[0].versao_ged_id,
+      `UPDATE ged_versoes SET status = 'obsoleta', atualizado_em = NOW() WHERE id = $1 AND tenant_id = $2`,
+      rows[0].versao_ged_id, tenantId,
     );
   }
 
@@ -324,8 +324,8 @@ export class RoService {
 
         if (Number(pendentes[0].pendente_count) === 0) {
           await tx.$executeRawUnsafe(
-            `UPDATE ro_servicos_nc SET status = 'verificado', verificado_em = NOW() WHERE id = $1`,
-            svc.id,
+            `UPDATE ro_servicos_nc SET status = 'verificado', verificado_em = NOW() WHERE id = $1 AND tenant_id = $2`,
+            svc.id, tenantId,
           );
         }
       }

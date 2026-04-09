@@ -1,10 +1,20 @@
-import { IsEnum, IsOptional, IsString, IsArray, ValidateNested } from 'class-validator';
+import { IsEnum, IsOptional, IsString, IsArray, ValidateNested, IsInt, MaxLength } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class ItemReferenciadoDto {
-  @IsOptional() registro_id?: number;
-  @IsOptional() item_descricao?: string;
-  @IsOptional() servico_nome?: string;
+  @IsOptional()
+  @IsInt()
+  registro_id?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  item_descricao?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  servico_nome?: string;
 }
 
 export class SubmitParecerDto {
