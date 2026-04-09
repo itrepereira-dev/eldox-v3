@@ -16,6 +16,9 @@ import { FichasListPage } from './modules/fvs/inspecao/pages/FichasListPage';
 import { AbrirFichaWizard } from './modules/fvs/inspecao/pages/AbrirFichaWizard';
 import { FichaGradePage } from './modules/fvs/inspecao/pages/FichaGradePage';
 import { FichaLocalPage } from './modules/fvs/inspecao/pages/FichaLocalPage';
+import { ModelosListPage } from './modules/fvs/modelos/pages/ModelosListPage';
+import { ModeloFormPage } from './modules/fvs/modelos/pages/ModeloFormPage';
+import { ModeloDetailPage } from './modules/fvs/modelos/pages/ModeloDetailPage';
 import { AppLayout } from './layouts/AppLayout';
 
 const queryClient = new QueryClient();
@@ -55,6 +58,12 @@ export default function App() {
               <Route path="/fvs/fichas/nova" element={<AbrirFichaWizard />} />
               <Route path="/fvs/fichas/:fichaId" element={<FichaGradePage />} />
               <Route path="/fvs/fichas/:fichaId/inspecao" element={<FichaLocalPage />} />
+
+              {/* FVS — Templates de Inspeção (Sprint 4a) */}
+              <Route path="/fvs/modelos" element={<ModelosListPage />} />
+              <Route path="/fvs/modelos/novo" element={<ModeloFormPage />} />
+              <Route path="/fvs/modelos/:modeloId" element={<ModeloDetailPage />} />
+              <Route path="/fvs/modelos/:modeloId/editar" element={<ModeloFormPage />} />
             </Route>
 
             {/* Módulos em construção (NC, Concretagem, Efetivo, Frota, Aprovações, IA) */}
