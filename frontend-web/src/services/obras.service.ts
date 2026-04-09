@@ -138,6 +138,15 @@ export const obrasService = {
     return data.data ?? data;
   },
 
+  async updateLocal(
+    obraId: number,
+    localId: number,
+    payload: Partial<Pick<CreateLocalPayload, 'nome' | 'ordem' | 'dataInicioPrevista' | 'dataFimPrevista'>>,
+  ): Promise<ObraLocal> {
+    const { data } = await api.put(`/obras/${obraId}/locais/${localId}`, payload);
+    return data.data ?? data;
+  },
+
   async removeLocal(obraId: number, localId: number) {
     const { data } = await api.delete(`/obras/${obraId}/locais/${localId}`);
     return data.data ?? data;

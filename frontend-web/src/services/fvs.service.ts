@@ -300,6 +300,15 @@ export const fvsService = {
   async deleteFicha(id: number): Promise<void> {
     await api.delete(`/fvs/fichas/${id}`);
   },
+  async addServico(
+    fichaId: number,
+    payload: { servicoId: number; localIds: number[]; itensExcluidos?: number[] },
+  ): Promise<void> {
+    await api.post(`/fvs/fichas/${fichaId}/servicos`, payload);
+  },
+  async removeServico(fichaId: number, servicoId: number): Promise<void> {
+    await api.delete(`/fvs/fichas/${fichaId}/servicos/${servicoId}`);
+  },
 
   // ─── Grade ─────────────────────────────────────────────────────────────────────
   async getGrade(fichaId: number, params?: { pavimentoId?: number; servicoId?: number }): Promise<FvsGrade> {
