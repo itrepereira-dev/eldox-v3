@@ -108,7 +108,7 @@ CREATE TABLE ro_ocorrencias (
   numero              VARCHAR(50) NOT NULL,        -- gerado: RO-{ficha_id}-{seq}
   tipo                VARCHAR(20) NOT NULL DEFAULT 'real',  -- real | potencial
   responsavel_id      INT NOT NULL REFERENCES "Usuario"(id),
-  data_ocorrencia     DATE NOT NULL DEFAULT NOW(),
+  data_ocorrencia     DATE NOT NULL DEFAULT CURRENT_DATE,
   o_que_aconteceu     TEXT,
   acao_imediata       TEXT,
   causa_6m            VARCHAR(20),
@@ -117,9 +117,9 @@ CREATE TABLE ro_ocorrencias (
   status              VARCHAR(20) NOT NULL DEFAULT 'aberto', -- aberto | concluido
   created_at          TIMESTAMP NOT NULL DEFAULT NOW(),
   updated_at          TIMESTAMP NOT NULL DEFAULT NOW(),
-  UNIQUE(tenant_id, ficha_id),
-  INDEX(tenant_id, status)
+  UNIQUE(tenant_id, ficha_id)
 );
+CREATE INDEX idx_ro_ocorrencias_tenant_status ON ro_ocorrencias(tenant_id, status);
 
 -- NC por serviço — 1 por serviço que tem itens NC na FVS
 CREATE TABLE ro_servicos_nc (
@@ -131,7 +131,7 @@ CREATE TABLE ro_servicos_nc (
   acao_corretiva      TEXT,
   status              VARCHAR(20) NOT NULL DEFAULT 'pendente',
   -- pendente | desbloqueado | verificado
-  ciclo_reinsspecao   INT NULL,                    -- ciclo dos fvs_registros criados na reinspeção
+  ciclo_reinspecao    INT NULL,                    -- ciclo dos fvs_registros criados na reinspeção
   desbloqueado_em     TIMESTAMP NULL,
   verificado_em       TIMESTAMP NULL,
   created_at          TIMESTAMP NOT NULL DEFAULT NOW()
@@ -167,9 +167,9 @@ CREATE TABLE fvs_pareceres (
   itens_referenciados JSONB,
   -- [{ registro_id, item_descricao, servico_nome }] selecionados pelo engenheiro
   criado_por          INT NOT NULL REFERENCES "Usuario"(id),
-  created_at          TIMESTAMP NOT NULL DEFAULT NOW(),
-  INDEX(tenant_id, ficha_id)
+  created_at          TIMESTAMP NOT NULL DEFAULT NOW()
 );
+CREATE INDEX idx_fvs_pareceres_tenant_ficha ON fvs_pareceres(tenant_id, ficha_id);
 ```
 
 ### Trilha de evidências por ciclo (PBQP-H)
@@ -201,7 +201,7 @@ PATCH  /api/v1/fvs/fichas/:fichaId/ro/servicos/:servicoNcId
   → Se desbloquear=true:
       - Valida campos obrigatórios do RO (PBQP-H)
       - Cria fvs_registros ciclo=N para cada item NC do serviço
-      - ro_servicos_nc.status = 'desbloqueado', ciclo_reinsspecao = N
+      - ro_servicos_nc.status = 'desbloqueado', ciclo_reinspecao = N
 
 POST   /api/v1/fvs/fichas/:fichaId/ro/servicos/:servicoNcId/evidencias
   Body: multipart/form-data — arquivo + descricao?
