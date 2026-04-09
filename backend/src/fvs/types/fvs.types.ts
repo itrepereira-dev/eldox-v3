@@ -59,6 +59,11 @@ export interface FichaFvs {
   created_at: Date;
   updated_at: Date;
   deleted_at: Date | null;
+  // Sprint 4a
+  modelo_id: number | null;
+  exige_ro: boolean;
+  exige_reinspecao: boolean;
+  exige_parecer?: boolean;
 }
 
 export interface FichaFvsComProgresso extends FichaFvs {
@@ -225,4 +230,58 @@ export interface FvsParecer {
 export interface FvsRegistroComCiclo extends FvsRegistro {
   ciclo: number;
   desbloqueado: boolean; // item está em ro_servico_itens_nc (reinspecao desbloqueada)
+}
+
+// ─── Sprint 4a: Templates de Inspeção ───────────────────────────────────────
+
+export type StatusModelo = 'rascunho' | 'concluido';
+export type EscopoModelo = 'empresa' | 'obra';
+export type RegimeModelo = 'livre' | 'pbqph';
+
+export interface FvsModelo {
+  id: number;
+  tenant_id: number;
+  nome: string;
+  descricao: string | null;
+  versao: number;
+  escopo: EscopoModelo;
+  obra_id: number | null;
+  status: StatusModelo;
+  bloqueado: boolean;
+  regime: RegimeModelo;
+  exige_ro: boolean;
+  exige_reinspecao: boolean;
+  exige_parecer: boolean;
+  concluido_por: number | null;
+  concluido_em: Date | null;
+  criado_por: number;
+  deleted_at: Date | null;
+  // joined (opcional)
+  servicos?: FvsModeloServico[];
+  obras_count?: number; // COUNT de obra_modelo_fvs ativo
+}
+
+export interface FvsModeloServico {
+  id: number;
+  tenant_id: number;
+  modelo_id: number;
+  servico_id: number;
+  ordem: number;
+  itens_excluidos: number[] | null;
+  // joined
+  servico_nome?: string;
+}
+
+export interface ObraModeloFvs {
+  id: number;
+  tenant_id: number;
+  obra_id: number;
+  modelo_id: number;
+  vinculado_por: number;
+  fichas_count: number;
+  created_at: Date;
+  deleted_at: Date | null;
+  // joined
+  modelo_nome?: string;
+  obra_nome?: string;
 }

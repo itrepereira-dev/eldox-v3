@@ -14,6 +14,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { ObrasService } from './obras.service';
+import { ModeloService } from '../fvs/modelos/modelo.service';
 import { CreateObraDto } from './dto/create-obra.dto';
 import { UpdateObraDto } from './dto/update-obra.dto';
 import { CreateObraLocalDto } from './dto/create-obra-local.dto';
@@ -28,7 +29,10 @@ import { TenantId } from '../common/decorators/tenant.decorator';
 @Controller('api/v1')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class ObrasController {
-  constructor(private readonly obrasService: ObrasService) {}
+  constructor(
+    private readonly obrasService: ObrasService,
+    private readonly modeloService: ModeloService,
+  ) {}
 
   // ─────────────────────────────────────────
   // OBRA TIPOS
@@ -157,5 +161,29 @@ export class ObrasController {
     @Param('localId', ParseIntPipe) localId: number,
   ) {
     return this.obrasService.removeLocal(tenantId, obraId, localId);
+  }
+
+  // ─────────────────────────────────────────
+  // OBRA MODELOS (FVS templates)
+  // ─────────────────────────────────────────
+
+  @Get('obras/:obraId/modelos')
+  @Roles('ADMIN_TENANT' as any, 'ENGENHEIRO' as any, 'TECNICO' as any, 'VISITANTE' as any)
+  getModelosByObra(
+    @TenantId() tenantId: number,
+    @Param('obraId', ParseIntPipe) obraId: number,
+  ) {
+    return this.modeloService.getModelosByObra(tenantId, obraId);
+  }
+
+  @Delete('obras/:obraId/modelos/:modeloId')
+  @Roles('ADMIN_TENANT' as any, 'ENGENHEIRO' as any)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  desvincularModelo(
+    @TenantId() tenantId: number,
+    @Param('obraId', ParseIntPipe) obraId: number,
+    @Param('modeloId', ParseIntPipe) modeloId: number,
+  ) {
+    return this.modeloService.desvincularObra(tenantId, modeloId, obraId);
   }
 }

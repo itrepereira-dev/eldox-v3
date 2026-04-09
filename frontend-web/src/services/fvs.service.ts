@@ -192,11 +192,77 @@ export interface FvsEvidencia {
   url?: string;
 }
 
+// ─── Sprint 4a: Templates ──────────────────────────────────────────────────
+
+export type StatusModelo = 'rascunho' | 'concluido';
+export type EscopoModelo = 'empresa' | 'obra';
+export type RegimeModelo = 'livre' | 'pbqph';
+
+export interface FvsModelo {
+  id: number;
+  tenant_id: number;
+  nome: string;
+  descricao: string | null;
+  versao: number;
+  escopo: EscopoModelo;
+  obra_id: number | null;
+  status: StatusModelo;
+  bloqueado: boolean;
+  regime: RegimeModelo;
+  exige_ro: boolean;
+  exige_reinspecao: boolean;
+  exige_parecer: boolean;
+  concluido_por: number | null;
+  concluido_em: string | null;
+  criado_por: number;
+  deleted_at: string | null;
+  servicos?: FvsModeloServico[];
+  obras_count?: number;
+}
+
+export interface FvsModeloServico {
+  id: number;
+  tenant_id: number;
+  modelo_id: number;
+  servico_id: number;
+  ordem: number;
+  itens_excluidos: number[] | null;
+  servico_nome?: string;
+}
+
+export interface ObraModeloFvs {
+  id: number;
+  obra_id: number;
+  modelo_id: number;
+  fichas_count: number;
+  created_at: string;
+  modelo_nome?: string;
+  obra_nome?: string;
+}
+
+export interface CreateModeloPayload {
+  nome: string;
+  descricao?: string;
+  escopo: EscopoModelo;
+  obraId?: number;
+  regime: RegimeModelo;
+  exigeRo?: boolean;
+  exigeReinspecao?: boolean;
+  exigeParecer?: boolean;
+}
+
+export interface CreateModeloServicoPayload {
+  servicoId: number;
+  ordem?: number;
+  itensExcluidos?: number[];
+}
+
 export interface CreateFichaPayload {
   obraId: number;
   nome: string;
-  regime: RegimeFicha;
-  servicos: { servicoId: number; localIds: number[]; itensExcluidos?: number[] }[];
+  modeloId?: number;
+  regime?: 'pbqph' | 'norma_tecnica' | 'livre';
+  servicos?: { servicoId: number; localIds: number[]; itensExcluidos?: number[] }[];
 }
 
 export interface PaginatedFichas {
@@ -385,6 +451,73 @@ export const fvsService = {
   },
   async deleteRoEvidencia(fichaId: number, servicoNcId: number, evidenciaId: number): Promise<void> {
     await api.delete(`/fvs/fichas/${fichaId}/ro/servicos/${servicoNcId}/evidencias/${evidenciaId}`);
+  },
+
+  // ─── Modelos (Templates) ──────────────────────────────────────────────────
+  async getModelos(params?: { escopo?: string; status?: string }): Promise<FvsModelo[]> {
+    const { data } = await api.get('/fvs/modelos', { params });
+    return data;
+  },
+
+  async getModelo(id: number): Promise<FvsModelo> {
+    const { data } = await api.get(`/fvs/modelos/${id}`);
+    return data;
+  },
+
+  async createModelo(payload: CreateModeloPayload): Promise<FvsModelo> {
+    const { data } = await api.post('/fvs/modelos', payload);
+    return data;
+  },
+
+  async updateModelo(id: number, payload: Partial<CreateModeloPayload>): Promise<FvsModelo> {
+    const { data } = await api.patch(`/fvs/modelos/${id}`, payload);
+    return data;
+  },
+
+  async deleteModelo(id: number): Promise<void> {
+    await api.delete(`/fvs/modelos/${id}`);
+  },
+
+  async concluirModelo(id: number): Promise<FvsModelo> {
+    const { data } = await api.post(`/fvs/modelos/${id}/concluir`);
+    return data;
+  },
+
+  async reabrirModelo(id: number): Promise<FvsModelo> {
+    const { data } = await api.post(`/fvs/modelos/${id}/reabrir`);
+    return data;
+  },
+
+  async duplicarModelo(id: number): Promise<FvsModelo> {
+    const { data } = await api.post(`/fvs/modelos/${id}/duplicar`);
+    return data;
+  },
+
+  async addServicoModelo(modeloId: number, payload: CreateModeloServicoPayload): Promise<FvsModeloServico> {
+    const { data } = await api.post(`/fvs/modelos/${modeloId}/servicos`, payload);
+    return data;
+  },
+
+  async updateServicoModelo(modeloId: number, servicoId: number, payload: { ordem?: number; itensExcluidos?: number[] }): Promise<FvsModeloServico> {
+    const { data } = await api.patch(`/fvs/modelos/${modeloId}/servicos/${servicoId}`, payload);
+    return data;
+  },
+
+  async deleteServicoModelo(modeloId: number, servicoId: number): Promise<void> {
+    await api.delete(`/fvs/modelos/${modeloId}/servicos/${servicoId}`);
+  },
+
+  async vincularModeloObras(modeloId: number, obraIds: number[]): Promise<void> {
+    await api.post(`/fvs/modelos/${modeloId}/obras`, { obraIds });
+  },
+
+  async getModelosByObra(obraId: number): Promise<ObraModeloFvs[]> {
+    const { data } = await api.get(`/obras/${obraId}/modelos`);
+    return data;
+  },
+
+  async desvincularModeloObra(obraId: number, modeloId: number): Promise<void> {
+    await api.delete(`/obras/${obraId}/modelos/${modeloId}`);
   },
 
   // ─── Parecer ──────────────────────────────────────────────────────────────────

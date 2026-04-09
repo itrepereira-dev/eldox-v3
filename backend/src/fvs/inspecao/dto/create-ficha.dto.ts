@@ -1,4 +1,8 @@
-import { IsString, IsNotEmpty, IsEnum, IsNumber, IsArray, IsOptional, ValidateNested, ArrayNotEmpty } from 'class-validator';
+// backend/src/fvs/inspecao/dto/create-ficha.dto.ts
+import {
+  IsString, IsNotEmpty, IsEnum, IsNumber, IsArray, IsOptional,
+  ValidateNested, ArrayNotEmpty, ValidateIf,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 class ServicoFichaDto {
@@ -23,14 +27,22 @@ export class CreateFichaDto {
   @IsNotEmpty()
   nome: string;
 
-  @IsEnum(['pbqph', 'norma_tecnica', 'livre'])
-  regime: 'pbqph' | 'norma_tecnica' | 'livre';
+  @IsOptional()
+  @IsNumber()
+  modeloId?: number;
 
+  // Obrigatório apenas quando modeloId não fornecido
+  @ValidateIf((o) => !o.modeloId)
+  @IsEnum(['pbqph', 'norma_tecnica', 'livre'])
+  regime?: 'pbqph' | 'norma_tecnica' | 'livre';
+
+  // Obrigatório apenas quando modeloId não fornecido
+  @ValidateIf((o) => !o.modeloId)
   @IsArray()
   @ArrayNotEmpty()
   @ValidateNested({ each: true })
   @Type(() => ServicoFichaDto)
-  servicos: ServicoFichaDto[];
+  servicos?: ServicoFichaDto[];
 }
 
 export type CreateFichaDtoServico = ServicoFichaDto;
