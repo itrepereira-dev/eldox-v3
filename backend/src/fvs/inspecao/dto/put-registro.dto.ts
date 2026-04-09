@@ -1,4 +1,4 @@
-import { IsNumber, IsEnum, IsOptional, IsString } from 'class-validator';
+import { IsNumber, IsEnum, IsOptional, IsString, IsInt, Min } from 'class-validator';
 
 export class PutRegistroDto {
   @IsNumber()
@@ -16,4 +16,9 @@ export class PutRegistroDto {
   @IsOptional()
   @IsString()
   observacao?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  ciclo?: number; // Sprint 3: default 1, reinspeções usam ciclo > 1
 }
