@@ -339,8 +339,8 @@ export class RoService {
 
       if (Number(naoVerificados[0].pendente_count) === 0) {
         await tx.$executeRawUnsafe(
-          `UPDATE ro_ocorrencias SET status = 'concluido', updated_at = NOW() WHERE id = $1`,
-          roId,
+          `UPDATE ro_ocorrencias SET status = 'concluido', updated_at = NOW() WHERE id = $1 AND tenant_id = $2`,
+          roId, tenantId,
         );
       }
     });
