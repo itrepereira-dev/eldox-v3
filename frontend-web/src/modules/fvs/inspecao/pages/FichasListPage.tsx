@@ -11,9 +11,11 @@ const REGIME_LABEL: Record<string, string> = {
 };
 
 const STATUS_LABEL: Record<string, { label: string; color: string }> = {
-  rascunho: { label: 'Rascunho', color: '#6b7280' },
-  em_inspecao: { label: 'Em Inspeção', color: '#3b82f6' },
-  concluida: { label: 'Concluída', color: '#22c55e' },
+  rascunho:          { label: 'Rascunho',        color: '#6b7280' },
+  em_inspecao:       { label: 'Em Inspeção',      color: '#3b82f6' },
+  concluida:         { label: 'Concluída',         color: '#22c55e' },
+  aguardando_parecer: { label: 'Aguard. Parecer', color: '#f97316' },
+  aprovada:          { label: 'Aprovada',          color: '#15803d' },
 };
 
 export function FichasListPage() {
