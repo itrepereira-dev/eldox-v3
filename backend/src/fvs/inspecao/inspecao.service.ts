@@ -10,19 +10,22 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { GedService } from '../../ged/ged.service';
 import type {
   FichaFvs, FichaFvsComProgresso, FichaDetalhada, FvsGrade,
-  FvsRegistro, FvsEvidencia, StatusFicha, StatusGrade,
+  FvsRegistro, FvsRegistroComCiclo, FvsEvidencia, StatusGrade,
 } from '../types/fvs.types';
 import type { CreateFichaDto } from './dto/create-ficha.dto';
 import type { UpdateFichaDto } from './dto/update-ficha.dto';
 import type { PutRegistroDto } from './dto/put-registro.dto';
 import type { UpdateLocalDto } from './dto/update-local.dto';
 import { UploadDocumentoDto } from '../../ged/dto/upload-documento.dto';
+import { RoService } from './ro.service';
 
 // Transições de status válidas: de → [destinos permitidos]
-const TRANSICOES_VALIDAS: Record<StatusFicha, StatusFicha[]> = {
+const TRANSICOES_VALIDAS: Record<string, string[]> = {
   rascunho: ['em_inspecao'],
   em_inspecao: ['concluida', 'rascunho'],
-  concluida: ['em_inspecao'],
+  concluida: ['em_inspecao'],          // reabrir manualmente ainda permitido
+  aguardando_parecer: [],              // transições gerenciadas por ParecerService
+  aprovada: [],                        // estado final
 };
 
 @Injectable()
@@ -32,6 +35,7 @@ export class InspecaoService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ged: GedService,
+    private readonly roService: RoService,
   ) {}
 
   // ── Helper: buscar ficha com validação de tenant ────────────────────────────
@@ -64,6 +68,90 @@ export class InspecaoService {
       params.usuarioId, params.ip ?? null,
       params.detalhes ? JSON.stringify(params.detalhes) : null,
     );
+  }
+
+  // ── autoCreateRo ────────────────────────────────────────────────────────────
+
+  private async autoCreateRo(
+    tx: any,
+    tenantId: number,
+    fichaId: number,
+    userId: number,
+    regime: string,
+    ip?: string,
+  ): Promise<void> {
+    type ItensNcRow = {
+      registro_id: number; item_id: number; servico_id: number; obra_local_id: number;
+      item_descricao: string; item_criticidade: string; servico_nome: string;
+    };
+
+    // Buscar todos os itens NC do ciclo mais recente por item+local
+    const itensNc = (await tx.$queryRawUnsafe(
+      `SELECT DISTINCT ON (r.item_id, r.obra_local_id)
+         r.id AS registro_id, r.item_id, r.servico_id, r.obra_local_id,
+         i.descricao AS item_descricao, i.criticidade AS item_criticidade,
+         s.nome AS servico_nome
+       FROM fvs_registros r
+       JOIN fvs_catalogo_itens i ON i.id = r.item_id
+       JOIN fvs_catalogo_servicos s ON s.id = r.servico_id
+       WHERE r.ficha_id = $1 AND r.tenant_id = $2 AND r.status = 'nao_conforme'
+       ORDER BY r.item_id, r.obra_local_id, r.ciclo DESC`,
+      fichaId, tenantId,
+    )) as ItensNcRow[];
+
+    if (!itensNc.length) return; // sem NCs, não cria RO
+
+    // Buscar MAX(ciclo_numero) dos ROs existentes (mesmo deletados) para calcular próximo
+    const maxCicloRows = (await tx.$queryRawUnsafe(
+      `SELECT MAX(ciclo_numero) AS max_ciclo FROM ro_ocorrencias WHERE ficha_id = $1 AND tenant_id = $2`,
+      fichaId, tenantId,
+    )) as { max_ciclo: string | null }[];
+    const cicloNumero = (Number(maxCicloRows[0]?.max_ciclo ?? 0)) + 1;
+    const numero = `RO-${fichaId}-${cicloNumero}`;
+
+    const roRows = (await tx.$queryRawUnsafe(
+      `INSERT INTO ro_ocorrencias (tenant_id, ficha_id, ciclo_numero, numero, responsavel_id, status)
+       VALUES ($1, $2, $3, $4, $5, 'aberto') RETURNING id`,
+      tenantId, fichaId, cicloNumero, numero, userId,
+    )) as { id: number }[];
+    const roId = roRows[0].id;
+
+    // Agrupar itens por servico_id
+    const porServico = new Map<number, { servicoNome: string; itens: ItensNcRow[] }>();
+    for (const item of itensNc) {
+      if (!porServico.has(item.servico_id)) {
+        porServico.set(item.servico_id, { servicoNome: item.servico_nome, itens: [] });
+      }
+      porServico.get(item.servico_id)!.itens.push(item);
+    }
+
+    for (const [servicoId, { servicoNome, itens }] of porServico) {
+      const svcRows = (await tx.$queryRawUnsafe(
+        `INSERT INTO ro_servicos_nc (tenant_id, ro_id, servico_id, servico_nome)
+         VALUES ($1, $2, $3, $4) RETURNING id`,
+        tenantId, roId, servicoId, servicoNome,
+      )) as { id: number }[];
+      const svcNcId = svcRows[0].id;
+
+      for (const item of itens) {
+        await tx.$executeRawUnsafe(
+          `INSERT INTO ro_servico_itens_nc (tenant_id, ro_servico_nc_id, registro_id, item_descricao, item_criticidade)
+           VALUES ($1, $2, $3, $4, $5)`,
+          tenantId, svcNcId, item.registro_id, item.item_descricao, item.item_criticidade,
+        );
+      }
+    }
+
+    // Audit log (PBQP-H)
+    if (regime === 'pbqph') {
+      await tx.$executeRawUnsafe(
+        `INSERT INTO fvs_audit_log
+           (tenant_id, ficha_id, acao, status_para, usuario_id, ip_origem, detalhes, criado_em)
+         VALUES ($1, $2, $3, $4, $5, $6::inet, $7::jsonb, NOW())`,
+        tenantId, fichaId, 'criacao_ro', 'concluida', userId, ip ?? null,
+        JSON.stringify({ roId, totalServicos: porServico.size, totalItens: itensNc.length }),
+      );
+    }
   }
 
   // ── createFicha ─────────────────────────────────────────────────────────────
@@ -218,8 +306,8 @@ export class InspecaoService {
     const ficha = await this.getFichaOuFalhar(tenantId, fichaId);
 
     if (dto.status && dto.status !== ficha.status) {
-      const permitidos = TRANSICOES_VALIDAS[ficha.status as StatusFicha] ?? [];
-      if (!permitidos.includes(dto.status as StatusFicha)) {
+      const permitidos = TRANSICOES_VALIDAS[ficha.status] ?? [];
+      if (!permitidos.includes(dto.status)) {
         throw new ConflictException(
           `Transição de status inválida: ${ficha.status} → ${dto.status}`,
         );
@@ -248,6 +336,13 @@ export class InspecaoService {
 
       if (!rows.length) throw new NotFoundException(`Ficha ${fichaId} não encontrada após update`);
 
+      const fichaAtualizada = rows[0];
+
+      // Sprint 3: ao concluir, criar RO automático se há NCs
+      if (dto.status === 'concluida' && ficha.status === 'em_inspecao') {
+        await this.autoCreateRo(tx, tenantId, fichaId, userId, ficha.regime, ip);
+      }
+
       if (dto.status && dto.status !== ficha.status && ficha.regime === 'pbqph') {
         await this.gravarAuditLog(tx, {
           tenantId, fichaId, usuarioId: userId,
@@ -255,7 +350,7 @@ export class InspecaoService {
         });
       }
 
-      return rows[0];
+      return fichaAtualizada;
     });
   }
 
@@ -385,9 +480,11 @@ export class InspecaoService {
     );
 
     const registros = await this.prisma.$queryRawUnsafe<{ servico_id: number; obra_local_id: number; status: string }[]>(
-      `SELECT servico_id, obra_local_id, status
+      `SELECT DISTINCT ON (item_id, obra_local_id)
+         servico_id, obra_local_id, status
        FROM fvs_registros
-       WHERE ficha_id = $1 AND tenant_id = $2`,
+       WHERE ficha_id = $1 AND tenant_id = $2
+       ORDER BY item_id, obra_local_id, ciclo DESC`,
       fichaId, tenantId,
     );
 
@@ -419,41 +516,57 @@ export class InspecaoService {
     fichaId: number,
     servicoId: number,
     localId: number,
-  ): Promise<FvsRegistro[]> {
+  ): Promise<FvsRegistroComCiclo[]> {
     await this.getFichaOuFalhar(tenantId, fichaId);
 
-    return this.prisma.$queryRawUnsafe<FvsRegistro[]>(
+    return this.prisma.$queryRawUnsafe<FvsRegistroComCiclo[]>(
       `SELECT
          i.id           AS item_id,
          i.descricao    AS item_descricao,
          i.criticidade  AS item_criticidade,
          i.criterio_aceite AS item_criterio_aceite,
-         COALESCE(r.status, 'nao_avaliado') AS status,
-         r.id,
-         r.ficha_id,
-         r.servico_id,
-         r.obra_local_id,
-         r.observacao,
-         r.inspecionado_por,
-         r.inspecionado_em,
-         r.created_at,
-         r.updated_at,
+         COALESCE(latest_r.status, 'nao_avaliado') AS status,
+         latest_r.id,
+         latest_r.ficha_id,
+         latest_r.servico_id,
+         latest_r.obra_local_id,
+         COALESCE(latest_r.ciclo, 1) AS ciclo,
+         latest_r.observacao,
+         latest_r.inspecionado_por,
+         latest_r.inspecionado_em,
+         latest_r.created_at,
+         latest_r.updated_at,
          COUNT(e.id)::int AS evidencias_count,
-         fsl.equipe_responsavel
+         fsl.equipe_responsavel,
+         CASE WHEN ro_nc.item_id IS NOT NULL THEN true ELSE false END AS desbloqueado
        FROM fvs_catalogo_itens i
        JOIN fvs_ficha_servicos fs
          ON fs.servico_id = $2 AND fs.ficha_id = $3 AND fs.tenant_id = $4
-       LEFT JOIN fvs_registros r
-         ON r.item_id = i.id AND r.ficha_id = $3 AND r.obra_local_id = $5 AND r.tenant_id = $4
-       LEFT JOIN fvs_evidencias e ON e.registro_id = r.id AND e.tenant_id = $4
+       LEFT JOIN LATERAL (
+         SELECT * FROM fvs_registros r
+         WHERE r.item_id = i.id AND r.ficha_id = $3 AND r.obra_local_id = $5 AND r.tenant_id = $4
+         ORDER BY r.ciclo DESC
+         LIMIT 1
+       ) latest_r ON true
+       LEFT JOIN fvs_evidencias e ON e.registro_id = latest_r.id AND e.tenant_id = $4
        LEFT JOIN fvs_ficha_servico_locais fsl
          ON fsl.ficha_servico_id = fs.id AND fsl.obra_local_id = $5
+       LEFT JOIN (
+         SELECT DISTINCT r_orig.item_id, r_orig.obra_local_id
+         FROM ro_servico_itens_nc rsni
+         JOIN ro_servicos_nc rsn ON rsn.id = rsni.ro_servico_nc_id
+         JOIN ro_ocorrencias ro ON ro.id = rsn.ro_id
+         JOIN fvs_registros r_orig ON r_orig.id = rsni.registro_id
+         WHERE ro.ficha_id = $3 AND ro.tenant_id = $4
+       ) ro_nc ON ro_nc.item_id = i.id AND ro_nc.obra_local_id = $5
        WHERE i.servico_id = $2 AND i.tenant_id IN (0, $4) AND i.ativo = true
          AND (fs.itens_excluidos IS NULL OR NOT (i.id = ANY(fs.itens_excluidos)))
        GROUP BY i.id, i.descricao, i.criticidade, i.criterio_aceite,
-                r.id, r.ficha_id, r.servico_id, r.obra_local_id, r.status,
-                r.observacao, r.inspecionado_por, r.inspecionado_em, r.created_at, r.updated_at,
-                fsl.equipe_responsavel
+                latest_r.id, latest_r.ficha_id, latest_r.servico_id, latest_r.obra_local_id,
+                latest_r.status, latest_r.ciclo, latest_r.observacao,
+                latest_r.inspecionado_por, latest_r.inspecionado_em,
+                latest_r.created_at, latest_r.updated_at,
+                fsl.equipe_responsavel, ro_nc.item_id
        ORDER BY i.ordem ASC`,
       tenantId, servicoId, fichaId, tenantId, localId,
     );
@@ -467,7 +580,7 @@ export class InspecaoService {
     userId: number,
     dto: PutRegistroDto,
     ip?: string,
-  ): Promise<FvsRegistro> {
+  ): Promise<FvsRegistroComCiclo> {
     const ficha = await this.getFichaOuFalhar(tenantId, fichaId);
 
     if (ficha.status !== 'em_inspecao') {
@@ -489,20 +602,21 @@ export class InspecaoService {
       dto.itemId, tenantId,
     );
     const criticidade = itemRows[0]?.criticidade ?? 'menor';
+    const ciclo = dto.ciclo ?? 1;
 
-    // Upsert via INSERT ... ON CONFLICT
-    const rows = await this.prisma.$queryRawUnsafe<FvsRegistro[]>(
+    // Upsert via INSERT ... ON CONFLICT (Sprint 3: inclui ciclo na chave)
+    const rows = await this.prisma.$queryRawUnsafe<FvsRegistroComCiclo[]>(
       `INSERT INTO fvs_registros
-         (tenant_id, ficha_id, servico_id, item_id, obra_local_id, status, observacao, inspecionado_por, inspecionado_em)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
-       ON CONFLICT (ficha_id, item_id, obra_local_id) DO UPDATE SET
+         (tenant_id, ficha_id, servico_id, item_id, obra_local_id, ciclo, status, observacao, inspecionado_por, inspecionado_em)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+       ON CONFLICT (ficha_id, item_id, obra_local_id, ciclo) DO UPDATE SET
          status           = EXCLUDED.status,
          observacao       = EXCLUDED.observacao,
          inspecionado_por = EXCLUDED.inspecionado_por,
          inspecionado_em  = EXCLUDED.inspecionado_em,
          updated_at       = NOW()
        RETURNING *`,
-      tenantId, fichaId, dto.servicoId, dto.itemId, dto.localId,
+      tenantId, fichaId, dto.servicoId, dto.itemId, dto.localId, ciclo,
       dto.status, dto.observacao ?? null, userId,
     );
 
@@ -512,8 +626,13 @@ export class InspecaoService {
         tenantId, fichaId, usuarioId: userId,
         acao: 'inspecao', registroId: rows[0].id, ip,
         statusPara: dto.status,
-        detalhes: { itemId: dto.itemId, localId: dto.localId, criticidade },
+        detalhes: { itemId: dto.itemId, localId: dto.localId, criticidade, ciclo },
       });
+    }
+
+    // Sprint 3: se ciclo > 1 (reinspeção), verificar avanço do RO
+    if (ciclo > 1) {
+      await this.roService.checkAndAdvanceRoStatus(tenantId, fichaId);
     }
 
     return rows[0];

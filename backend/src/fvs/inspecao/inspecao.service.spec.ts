@@ -314,4 +314,116 @@ describe('InspecaoService', () => {
       expect(result.equipe_responsavel).toBe('Equipe A');
     });
   });
+
+  // ── autoCreateRo (via patchFicha em_inspecao→concluida) ──────────────────────
+  describe('patchFicha() em_inspecao→concluida com NCs → autoCreateRo', () => {
+    it('cria ro_ocorrencias quando há itens NC ao concluir', async () => {
+      const fichaEmInspecao = { ...FICHA_EM_INSPECAO };
+
+      mockPrisma.$transaction.mockImplementation(async (fn: any) => fn(mockPrisma));
+      mockPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce([fichaEmInspecao])       // getFichaOuFalhar
+        // validarConclusaoPbqph: sem itens críticos sem foto
+        .mockResolvedValueOnce([])
+        // UPDATE fvs_fichas
+        .mockResolvedValueOnce([{ ...fichaEmInspecao, status: 'concluida' }])
+        // autoCreateRo: buscar itens NC
+        .mockResolvedValueOnce([{
+          registro_id: 5, item_id: 3, servico_id: 10, obra_local_id: 20,
+          item_descricao: 'Prumo da alvenaria', item_criticidade: 'maior',
+          servico_nome: 'Alvenaria',
+        }])
+        // autoCreateRo: MAX(ciclo_numero) dos ROs existentes
+        .mockResolvedValueOnce([{ max_ciclo: null }])
+        // INSERT ro_ocorrencias
+        .mockResolvedValueOnce([{ id: 1, numero: 'RO-1-1' }])
+        // INSERT ro_servicos_nc
+        .mockResolvedValueOnce([{ id: 1 }]);
+
+      mockPrisma.$executeRawUnsafe.mockResolvedValue(undefined); // audit_log + INSERT ro_servico_itens_nc
+
+      const result = await svc.patchFicha(TENANT_ID, 1, USER_ID, { status: 'concluida' }, '127.0.0.1');
+      expect(result.status).toBe('concluida');
+      // ro_ocorrencias inserido (tenant_id, ficha_id, ciclo_numero, numero, responsavel_id)
+      expect(mockPrisma.$queryRawUnsafe).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO ro_ocorrencias'),
+        expect.anything(), expect.anything(), expect.anything(),
+        expect.anything(), expect.anything(),
+      );
+    });
+
+    it('NÃO cria RO quando não há NCs', async () => {
+      mockPrisma.$transaction.mockImplementation(async (fn: any) => fn(mockPrisma));
+      mockPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce([FICHA_EM_INSPECAO])     // getFichaOuFalhar
+        .mockResolvedValueOnce([])                       // validarConclusaoPbqph
+        .mockResolvedValueOnce([{ ...FICHA_EM_INSPECAO, status: 'concluida' }]) // UPDATE
+        .mockResolvedValueOnce([]);                      // autoCreateRo: sem NCs
+
+      mockPrisma.$executeRawUnsafe.mockResolvedValue(undefined); // audit_log
+
+      const result = await svc.patchFicha(TENANT_ID, 1, USER_ID, { status: 'concluida' }, '127.0.0.1');
+      expect(result.status).toBe('concluida');
+      // ro_ocorrencias NÃO foi inserido
+      const insertRoCalls = (mockPrisma.$queryRawUnsafe as jest.Mock).mock.calls
+        .filter((call: any[]) => typeof call[0] === 'string' && call[0].includes('INSERT INTO ro_ocorrencias'));
+      expect(insertRoCalls).toHaveLength(0);
+    });
+  });
+
+  // ── getGrade ciclo-aware ──────────────────────────────────────────────────────
+  describe('getGrade() com ciclos', () => {
+    it('usa ciclo mais recente por item para calcular status da célula', async () => {
+      // Item teve NC no ciclo 1, mas conforme no ciclo 2 → célula deve ser 'aprovado'
+      mockPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce([FICHA_EM_INSPECAO])
+        .mockResolvedValueOnce([{ id: 1, nome: 'Alvenaria' }])
+        .mockResolvedValueOnce([{ id: 10, nome: 'Ap 101', pavimento_id: 1 }])
+        // getGrade retorna status do ciclo mais recente por (servico_id, obra_local_id)
+        .mockResolvedValueOnce([{ servico_id: 1, obra_local_id: 10, status: 'conforme' }]);
+
+      const result = await svc.getGrade(TENANT_ID, 1);
+      expect(result.celulas[1][10]).toBe('aprovado');
+    });
+  });
+
+  // ── putRegistro com ciclo > 1 ─────────────────────────────────────────────────
+  describe('putRegistro() com ciclo > 1 (reinspeção)', () => {
+    it('salva registro com ciclo=2 e chama checkAndAdvanceRoStatus', async () => {
+      mockPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce([FICHA_EM_INSPECAO])          // getFichaOuFalhar
+        .mockResolvedValueOnce([{ criticidade: 'maior' }])   // buscar item
+        .mockResolvedValueOnce([{ id: 5, status: 'conforme', ciclo: 2 }]); // upsert retorno
+      mockPrisma.$executeRawUnsafe.mockResolvedValue(undefined); // audit_log
+
+      // checkAndAdvanceRoStatus é mockado via mockRoService
+      const mockRoService = { checkAndAdvanceRoStatus: jest.fn().mockResolvedValue(undefined) };
+      const svcComRo = new (InspecaoService as any)(mockPrisma, {}, mockRoService);
+
+      const result = await svcComRo.putRegistro(TENANT_ID, 1, USER_ID, {
+        servicoId: 1, itemId: 1, localId: 1, status: 'conforme', ciclo: 2,
+      }, '127.0.0.1');
+
+      expect(result.status).toBe('conforme');
+      expect(mockRoService.checkAndAdvanceRoStatus).toHaveBeenCalledWith(TENANT_ID, 1);
+    });
+
+    it('NÃO chama checkAndAdvanceRoStatus para ciclo=1', async () => {
+      mockPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce([FICHA_EM_INSPECAO])
+        .mockResolvedValueOnce([{ criticidade: 'menor' }])
+        .mockResolvedValueOnce([{ id: 5, status: 'conforme', ciclo: 1 }]);
+      mockPrisma.$executeRawUnsafe.mockResolvedValue(undefined);
+
+      const mockRoService = { checkAndAdvanceRoStatus: jest.fn() };
+      const svcComRo = new (InspecaoService as any)(mockPrisma, {}, mockRoService);
+
+      await svcComRo.putRegistro(TENANT_ID, 1, USER_ID, {
+        servicoId: 1, itemId: 1, localId: 1, status: 'conforme',
+        // ciclo não informado → padrão 1
+      }, '127.0.0.1');
+
+      expect(mockRoService.checkAndAdvanceRoStatus).not.toHaveBeenCalled();
+    });
+  });
 });
