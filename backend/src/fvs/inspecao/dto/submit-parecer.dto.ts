@@ -1,4 +1,4 @@
-import { IsEnum, IsOptional, IsString, IsArray, ValidateNested, IsInt, MaxLength } from 'class-validator';
+import { IsEnum, IsOptional, IsString, IsArray, ValidateNested, IsInt, MaxLength, IsNotEmpty } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class ItemReferenciadoDto {
@@ -23,6 +23,7 @@ export class SubmitParecerDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(2000)
   observacao?: string;
 
   @IsOptional()
