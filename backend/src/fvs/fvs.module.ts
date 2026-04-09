@@ -7,6 +7,9 @@ import { CatalogoService } from './catalogo/catalogo.service';
 import { CatalogoController } from './catalogo/catalogo.controller';
 import { InspecaoService } from './inspecao/inspecao.service';
 import { InspecaoController } from './inspecao/inspecao.controller';
+import { RoService } from './inspecao/ro.service';
+import { RoController } from './inspecao/ro.controller';
+import { ParecerService } from './inspecao/parecer.service';
 
 @Module({
   imports: [
@@ -17,8 +20,8 @@ import { InspecaoController } from './inspecao/inspecao.controller';
       limits: { fileSize: 10 * 1024 * 1024 }, // 10MB para fotos
     }),
   ],
-  providers: [CatalogoService, InspecaoService],
-  controllers: [CatalogoController, InspecaoController],
-  exports: [CatalogoService, InspecaoService],
+  providers: [CatalogoService, InspecaoService, RoService, ParecerService],
+  controllers: [CatalogoController, InspecaoController, RoController],
+  exports: [CatalogoService, InspecaoService, RoService, ParecerService],
 })
 export class FvsModule {}

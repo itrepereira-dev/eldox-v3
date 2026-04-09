@@ -10,18 +10,23 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { TenantId, CurrentUser } from '../../common/decorators/tenant.decorator';
 import { InspecaoService } from './inspecao.service';
+import { ParecerService } from './parecer.service';
 import { CreateFichaDto } from './dto/create-ficha.dto';
 import { UpdateFichaDto } from './dto/update-ficha.dto';
 import { PutRegistroDto } from './dto/put-registro.dto';
 import { UpdateLocalDto } from './dto/update-local.dto';
 import { AddServicoDto } from './dto/add-servico.dto';
+import { SubmitParecerDto } from './dto/submit-parecer.dto';
 
 interface JwtUser { sub: number; tenantId: number; role: string }
 
 @Controller('api/v1/fvs')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class InspecaoController {
-  constructor(private readonly inspecao: InspecaoService) {}
+  constructor(
+    private readonly inspecao: InspecaoService,
+    private readonly parecer: ParecerService,
+  ) {}
 
   // ─── Fichas ─────────────────────────────────────────────────────────────────
 
@@ -191,5 +196,32 @@ export class InspecaoController {
     @Ip() ip: string,
   ) {
     return this.inspecao.deleteEvidencia(tenantId, id, user.sub, ip);
+  }
+
+  // ─── Parecer ─────────────────────────────────────────────────────────────────
+
+  @Post('fichas/:id/solicitar-parecer')
+  @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO')
+  @HttpCode(HttpStatus.OK)
+  solicitarParecer(
+    @TenantId() tenantId: number,
+    @CurrentUser() user: JwtUser,
+    @Param('id', ParseIntPipe) id: number,
+    @Ip() ip: string,
+  ) {
+    return this.parecer.solicitarParecer(tenantId, id, user.sub, ip);
+  }
+
+  @Post('fichas/:id/parecer')
+  @Roles('ADMIN_TENANT', 'ENGENHEIRO')
+  @HttpCode(HttpStatus.CREATED)
+  submitParecer(
+    @TenantId() tenantId: number,
+    @CurrentUser() user: JwtUser,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: SubmitParecerDto,
+    @Ip() ip: string,
+  ) {
+    return this.parecer.submitParecer(tenantId, id, user.sub, dto, ip);
   }
 }
