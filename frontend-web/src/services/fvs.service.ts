@@ -82,9 +82,42 @@ export interface ImportResult {
 // ─── Inspeção Sprint 2 ────────────────────────────────────────────────────────
 
 export type RegimeFicha = 'pbqph' | 'norma_tecnica' | 'livre';
-export type StatusFicha = 'rascunho' | 'em_inspecao' | 'concluida';
+export type StatusFicha = 'rascunho' | 'em_inspecao' | 'concluida' | 'aguardando_parecer' | 'aprovada';
 export type StatusRegistro = 'nao_avaliado' | 'conforme' | 'nao_conforme' | 'excecao';
 export type StatusGrade = 'nao_avaliado' | 'aprovado' | 'nc' | 'pendente';
+
+export type StatusRo = 'aberto' | 'concluido';
+export type StatusServicoNc = 'pendente' | 'desbloqueado' | 'verificado';
+export type DecisaoParecer = 'aprovado' | 'rejeitado';
+
+export interface RoServicoItemNc {
+  id: number; ro_servico_nc_id: number; registro_id: number;
+  item_descricao: string; item_criticidade: Criticidade;
+}
+export interface RoServicoEvidencia {
+  id: number; ro_servico_nc_id: number; versao_ged_id: number;
+  descricao: string | null; created_at: string;
+  url?: string; nome_original?: string;
+}
+export interface RoServicoNc {
+  id: number; ro_id: number; servico_id: number; servico_nome: string;
+  acao_corretiva: string | null; status: StatusServicoNc;
+  ciclo_reinspecao: number | null; desbloqueado_em: string | null;
+  verificado_em: string | null; created_at: string;
+  itens?: RoServicoItemNc[]; evidencias?: RoServicoEvidencia[];
+}
+export interface RoOcorrencia {
+  id: number; ficha_id: number; ciclo_numero: number; numero: string;
+  tipo: 'real' | 'potencial'; responsavel_id: number; data_ocorrencia: string;
+  o_que_aconteceu: string | null; acao_imediata: string | null;
+  causa_6m: string | null; justificativa_causa: string | null;
+  status: StatusRo; created_at: string; updated_at: string;
+  servicos?: RoServicoNc[];
+}
+export interface SubmitParecerPayload {
+  decisao: DecisaoParecer; observacao?: string;
+  itens_referenciados?: { registro_id: number; item_descricao: string; servico_nome: string }[];
+}
 
 export interface FichaFvs {
   id: number;
@@ -146,6 +179,8 @@ export interface FvsRegistro {
   equipe_responsavel: string | null;
   created_at: string;
   updated_at: string;
+  ciclo?: number;
+  desbloqueado?: boolean;
 }
 
 export interface FvsEvidencia {
@@ -281,7 +316,7 @@ export const fvsService = {
   },
   async putRegistro(
     fichaId: number,
-    payload: { servicoId: number; itemId: number; localId: number; status: StatusRegistro; observacao?: string },
+    payload: { servicoId: number; itemId: number; localId: number; status: StatusRegistro; observacao?: string; ciclo?: number },
   ): Promise<FvsRegistro> {
     const { data } = await api.put(`/fvs/fichas/${fichaId}/registros`, payload);
     return data;
@@ -305,5 +340,51 @@ export const fvsService = {
   },
   async deleteEvidencia(id: number): Promise<void> {
     await api.delete(`/fvs/evidencias/${id}`);
+  },
+
+  // ─── RO (Registro de Ocorrência) ───────────────────────────────────────────────
+  async getRo(fichaId: number): Promise<RoOcorrencia> {
+    const { data } = await api.get(`/fvs/fichas/${fichaId}/ro`);
+    return data;
+  },
+  async patchRo(fichaId: number, payload: {
+    tipo?: 'real' | 'potencial';
+    o_que_aconteceu?: string | null;
+    acao_imediata?: string | null;
+    causa_6m?: string | null;
+    justificativa_causa?: string | null;
+    status?: StatusRo;
+  }): Promise<RoOcorrencia> {
+    const { data } = await api.patch(`/fvs/fichas/${fichaId}/ro`, payload);
+    return data;
+  },
+  async patchServicoNc(fichaId: number, servicoNcId: number, payload: {
+    acao_corretiva?: string | null;
+    desbloquear?: boolean;
+    verificar?: boolean;
+  }): Promise<RoServicoNc> {
+    const { data } = await api.patch(`/fvs/fichas/${fichaId}/ro/servicos/${servicoNcId}`, payload);
+    return data;
+  },
+  async createRoEvidencia(fichaId: number, servicoNcId: number, file: File): Promise<RoServicoEvidencia> {
+    const form = new FormData();
+    form.append('arquivo', file);
+    const { data } = await api.post(`/fvs/fichas/${fichaId}/ro/servicos/${servicoNcId}/evidencias`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data;
+  },
+  async deleteRoEvidencia(fichaId: number, servicoNcId: number, evidenciaId: number): Promise<void> {
+    await api.delete(`/fvs/fichas/${fichaId}/ro/servicos/${servicoNcId}/evidencias/${evidenciaId}`);
+  },
+
+  // ─── Parecer ──────────────────────────────────────────────────────────────────
+  async solicitarParecer(fichaId: number): Promise<FichaFvs> {
+    const { data } = await api.post(`/fvs/fichas/${fichaId}/solicitar-parecer`);
+    return data;
+  },
+  async submitParecer(fichaId: number, payload: SubmitParecerPayload): Promise<FichaFvs> {
+    const { data } = await api.post(`/fvs/fichas/${fichaId}/parecer`, payload);
+    return data;
   },
 };
