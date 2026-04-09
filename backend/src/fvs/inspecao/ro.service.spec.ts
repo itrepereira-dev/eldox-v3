@@ -110,6 +110,7 @@ describe('RoService', () => {
       mockPrisma.$queryRawUnsafe
         .mockResolvedValueOnce([fichaRo])            // buscar RO
         .mockResolvedValueOnce([SERVICO_NC_PENDENTE]) // buscar serviço
+        .mockResolvedValueOnce([{ exige_reinspecao: true }]) // Sprint 4a: guard exige_reinspecao
         .mockResolvedValueOnce([fichaBase]);          // buscar ficha (para regime)
 
       await expect(
@@ -135,6 +136,7 @@ describe('RoService', () => {
       mockPrisma.$queryRawUnsafe
         .mockResolvedValueOnce([roPreenchido])        // buscar RO
         .mockResolvedValueOnce([SERVICO_NC_PENDENTE]) // buscar serviço
+        .mockResolvedValueOnce([{ exige_reinspecao: true }]) // Sprint 4a: guard exige_reinspecao
         .mockResolvedValueOnce([fichaBase])           // buscar ficha
         .mockResolvedValueOnce([itenNc[0]])           // buscar itens NC
         .mockResolvedValueOnce([registroOriginal])    // buscar registro original
@@ -151,6 +153,16 @@ describe('RoService', () => {
         expect.anything(), expect.anything(), 2, // ciclo=2
         'nao_avaliado', null, // userId não fornecido → null
       );
+    });
+
+    it('lança UnprocessableEntityException ao desbloquear quando exige_reinspecao=false', async () => {
+      mockPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce([RO_ABERTO])                      // ro_ocorrencias WHERE ficha_id
+        .mockResolvedValueOnce([SERVICO_NC_PENDENTE])            // ro_servicos_nc WHERE id
+        .mockResolvedValueOnce([{ exige_reinspecao: false }]);   // fvs_fichas WHERE id (nova query Sprint 4a)
+      await expect(
+        svc.patchServicoNc(TENANT_ID, RO_ABERTO.ficha_id, SERVICO_NC_PENDENTE.id, { desbloquear: true }),
+      ).rejects.toBeInstanceOf(UnprocessableEntityException);
     });
 
     it('lança ConflictException se serviço já está verificado', async () => {

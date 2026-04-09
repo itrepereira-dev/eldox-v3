@@ -112,12 +112,23 @@ export class RoService {
     }
 
     if (dto.desbloquear) {
+      // Sprint 4a: verificar se ficha exige reinspeção
+      const fichaRows = await this.prisma.$queryRawUnsafe<{ exige_reinspecao: boolean }[]>(
+        `SELECT exige_reinspecao FROM fvs_fichas WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+        fichaId, tenantId,
+      );
+      if (!fichaRows.length || !fichaRows[0].exige_reinspecao) {
+        throw new UnprocessableEntityException(
+          'Esta ficha não exige reinspeção — desbloqueio não permitido',
+        );
+      }
+
       // Buscar ficha para verificar regime
-      const fichaRows = await this.prisma.$queryRawUnsafe<FichaFvs[]>(
+      const fichaRowsFull = await this.prisma.$queryRawUnsafe<FichaFvs[]>(
         `SELECT * FROM fvs_fichas WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
         fichaId, tenantId,
       );
-      const ficha = fichaRows[0];
+      const ficha = fichaRowsFull[0];
 
       // PBQP-H: campos obrigatórios antes de desbloquear
       if (ficha?.regime === 'pbqph') {

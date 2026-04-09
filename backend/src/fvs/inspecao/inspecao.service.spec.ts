@@ -208,6 +208,46 @@ describe('InspecaoService', () => {
         svc.patchFicha(TENANT_ID, 1, USER_ID, { status: 'concluida' }, '127.0.0.1'),
       ).rejects.toBeInstanceOf(ConflictException);
     });
+
+    it('concluida→aprovada direto quando exige_parecer=false', async () => {
+      const fichaComParecer = { ...FICHA_EM_INSPECAO, status: 'concluida', exige_parecer: false, exige_ro: false };
+      mockPrisma.$transaction.mockImplementation(async (fn: any) => fn(mockPrisma));
+      mockPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce([fichaComParecer])
+        .mockResolvedValueOnce([{ ...fichaComParecer, status: 'aprovada' }]);
+      mockPrisma.$executeRawUnsafe.mockResolvedValue(undefined);
+
+      const result = await svc.patchFicha(TENANT_ID, 1, USER_ID, { status: 'aprovada' }, '127.0.0.1');
+      expect(result.status).toBe('aprovada');
+    });
+
+    it('concluida→aprovada lança erro quando exige_parecer=true', async () => {
+      const fichaComParecer = { ...FICHA_EM_INSPECAO, status: 'concluida', exige_parecer: true, exige_ro: false };
+      mockPrisma.$queryRawUnsafe.mockResolvedValueOnce([fichaComParecer]);
+      await expect(
+        svc.patchFicha(TENANT_ID, 1, USER_ID, { status: 'aprovada' }, '127.0.0.1'),
+      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    });
+
+    it('autoCreateRo não é chamado quando exige_ro=false', async () => {
+      const ficha = { ...FICHA_EM_INSPECAO, status: 'em_inspecao', regime: 'livre', exige_ro: false, exige_parecer: true };
+      const fichaAtualizada = { ...ficha, status: 'concluida' };
+      mockPrisma.$transaction.mockImplementation(async (fn: any) => fn(mockPrisma));
+      mockPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce([ficha])               // getFichaOuFalhar
+        .mockResolvedValueOnce([fichaAtualizada])      // UPDATE fvs_fichas
+        .mockResolvedValueOnce([{ exige_ro: false }]); // autoCreateRo: guard SELECT exige_ro → retorna early
+      mockPrisma.$executeRawUnsafe.mockResolvedValue(undefined);
+
+      await svc.patchFicha(TENANT_ID, 1, USER_ID, { status: 'concluida' }, '127.0.0.1');
+      // autoCreateRo executa guard SELECT exige_ro e retorna cedo (sem buscar NCs)
+      // Verificar: $queryRawUnsafe foi chamado 3x (buscar ficha + UPDATE + guard), sem busca de NCs
+      expect(mockPrisma.$queryRawUnsafe).toHaveBeenCalledTimes(3);
+      // Garantir que não tentou buscar itens NC (indicativo de que o RO NÃO foi criado)
+      const callArgs = (mockPrisma.$queryRawUnsafe as jest.Mock).mock.calls;
+      const ncQuery = callArgs.find((call: any[]) => typeof call[0] === 'string' && call[0].includes('nao_conforme'));
+      expect(ncQuery).toBeUndefined();
+    });
   });
 
   // ── deleteFicha ─────────────────────────────────────────────────────────────
@@ -407,7 +447,7 @@ describe('InspecaoService', () => {
   // ── autoCreateRo (via patchFicha em_inspecao→concluida) ──────────────────────
   describe('patchFicha() em_inspecao→concluida com NCs → autoCreateRo', () => {
     it('cria ro_ocorrencias quando há itens NC ao concluir', async () => {
-      const fichaEmInspecao = { ...FICHA_EM_INSPECAO };
+      const fichaEmInspecao = { ...FICHA_EM_INSPECAO, exige_ro: true };
 
       mockPrisma.$transaction.mockImplementation(async (fn: any) => fn(mockPrisma));
       mockPrisma.$queryRawUnsafe
@@ -416,6 +456,8 @@ describe('InspecaoService', () => {
         .mockResolvedValueOnce([])
         // UPDATE fvs_fichas
         .mockResolvedValueOnce([{ ...fichaEmInspecao, status: 'concluida' }])
+        // autoCreateRo: guard — SELECT exige_ro
+        .mockResolvedValueOnce([{ exige_ro: true }])
         // autoCreateRo: buscar itens NC
         .mockResolvedValueOnce([{
           registro_id: 5, item_id: 3, servico_id: 10, obra_local_id: 20,
@@ -444,9 +486,10 @@ describe('InspecaoService', () => {
     it('NÃO cria RO quando não há NCs', async () => {
       mockPrisma.$transaction.mockImplementation(async (fn: any) => fn(mockPrisma));
       mockPrisma.$queryRawUnsafe
-        .mockResolvedValueOnce([FICHA_EM_INSPECAO])     // getFichaOuFalhar
+        .mockResolvedValueOnce([{ ...FICHA_EM_INSPECAO, exige_ro: true }])  // getFichaOuFalhar
         .mockResolvedValueOnce([])                       // validarConclusaoPbqph
-        .mockResolvedValueOnce([{ ...FICHA_EM_INSPECAO, status: 'concluida' }]) // UPDATE
+        .mockResolvedValueOnce([{ ...FICHA_EM_INSPECAO, status: 'concluida', exige_ro: true }]) // UPDATE
+        .mockResolvedValueOnce([{ exige_ro: true }])     // autoCreateRo: guard
         .mockResolvedValueOnce([]);                      // autoCreateRo: sem NCs
 
       mockPrisma.$executeRawUnsafe.mockResolvedValue(undefined); // audit_log

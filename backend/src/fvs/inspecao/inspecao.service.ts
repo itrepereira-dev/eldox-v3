@@ -25,7 +25,7 @@ import { ModeloService } from '../modelos/modelo.service';
 const TRANSICOES_VALIDAS: Record<string, string[]> = {
   rascunho: ['em_inspecao'],
   em_inspecao: ['concluida', 'rascunho'],
-  concluida: ['em_inspecao'],          // reabrir manualmente ainda permitido
+  concluida: ['em_inspecao', 'aguardando_parecer', 'aprovada'],  // reabrir manualmente ainda permitido
   aguardando_parecer: [],              // transições gerenciadas por ParecerService
   aprovada: [],                        // estado final
 };
@@ -83,6 +83,13 @@ export class InspecaoService {
     regime: string,
     ip?: string,
   ): Promise<void> {
+    // Sprint 4a: verificar se ficha exige RO
+    const fichaRows = await tx.$queryRawUnsafe<{ exige_ro: boolean }[]>(
+      `SELECT exige_ro FROM fvs_fichas WHERE id = $1 AND tenant_id = $2`,
+      fichaId, tenantId,
+    );
+    if (!fichaRows.length || !fichaRows[0].exige_ro) return;
+
     type ItensNcRow = {
       registro_id: number; item_id: number; servico_id: number; obra_local_id: number;
       item_descricao: string; item_criticidade: string; servico_nome: string;
@@ -364,6 +371,18 @@ export class InspecaoService {
 
       if (dto.status === 'concluida' && ficha.regime === 'pbqph') {
         await this.validarConclusaoPbqph(tenantId, fichaId);
+      }
+
+      // Regras de exige_parecer:
+      if (dto.status === 'aguardando_parecer' && !ficha.exige_parecer) {
+        throw new UnprocessableEntityException(
+          'Esta ficha não exige parecer — use transição direta concluida → aprovada',
+        );
+      }
+      if (dto.status === 'aprovada' && ficha.status === 'concluida' && ficha.exige_parecer) {
+        throw new UnprocessableEntityException(
+          'Esta ficha exige parecer — solicite parecer antes de aprovar',
+        );
       }
     }
 
