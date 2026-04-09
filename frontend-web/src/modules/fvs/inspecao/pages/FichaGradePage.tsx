@@ -3,6 +3,9 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useFicha, usePatchFicha } from '../hooks/useFichas';
 import { useGrade } from '../hooks/useGrade';
+import { useSolicitarParecer } from '../hooks/useRo';
+import { RoPanel } from '../components/RoPanel';
+import { ParecerModal } from '../components/ParecerModal';
 import type { StatusGrade } from '../../../../services/fvs.service';
 
 const CELL_COLOR: Record<StatusGrade, string> = {
@@ -30,6 +33,10 @@ export function FichaGradePage() {
 
   const [confirmando, setConfirmando] = useState<'iniciar' | 'concluir' | null>(null);
   const [erroConcluso, setErroConcluso] = useState<{ message: string; itensPendentes?: any[] } | null>(null);
+  const [showParecer, setShowParecer] = useState(false);
+  const [erroSolicitacao, setErroSolicitacao] = useState<string | null>(null);
+
+  const solicitarParecer = useSolicitarParecer(id);
 
   async function handleStatusChange(novoStatus: 'em_inspecao' | 'concluida') {
     setErroConcluso(null);
@@ -39,6 +46,15 @@ export function FichaGradePage() {
     } catch (e: any) {
       const data = e?.response?.data;
       setErroConcluso({ message: data?.message ?? 'Erro ao alterar status', itensPendentes: data?.itensPendentes });
+    }
+  }
+
+  async function handleSolicitarParecer() {
+    setErroSolicitacao(null);
+    try {
+      await solicitarParecer.mutateAsync();
+    } catch (e: any) {
+      setErroSolicitacao(e?.response?.data?.message ?? 'Erro ao solicitar parecer.');
     }
   }
 
@@ -56,7 +72,7 @@ export function FichaGradePage() {
         </div>
       </div>
 
-      <div style={{ marginBottom: 16, display: 'flex', gap: 10 }}>
+      <div style={{ marginBottom: 16, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
         {ficha.status === 'rascunho' && (
           <button onClick={() => setConfirmando('iniciar')} style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 16px', cursor: 'pointer' }}>
             Iniciar Inspeção
@@ -67,7 +83,38 @@ export function FichaGradePage() {
             Concluir Ficha
           </button>
         )}
+        {ficha.status === 'concluida' && (
+          <button
+            onClick={handleSolicitarParecer}
+            disabled={solicitarParecer.isPending}
+            style={{ background: '#f97316', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 16px', cursor: 'pointer', opacity: solicitarParecer.isPending ? 0.7 : 1 }}
+          >
+            {solicitarParecer.isPending ? 'Solicitando...' : 'Solicitar Parecer'}
+          </button>
+        )}
+        {ficha.status === 'aguardando_parecer' && (
+          <button
+            onClick={() => setShowParecer(true)}
+            style={{ background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 16px', cursor: 'pointer' }}
+          >
+            Emitir Parecer
+          </button>
+        )}
+        {ficha.status === 'aprovada' && (
+          <span style={{
+            background: '#14532d', color: '#22c55e', border: '1px solid #15803d',
+            borderRadius: 6, padding: '8px 16px', fontSize: 14, fontWeight: 600,
+          }}>
+            ✓ Ficha Aprovada
+          </span>
+        )}
       </div>
+
+      {erroSolicitacao && (
+        <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 6, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#ef4444' }}>
+          {erroSolicitacao}
+        </div>
+      )}
 
       {confirmando && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
@@ -153,6 +200,20 @@ export function FichaGradePage() {
           </span>
         ))}
       </div>
+
+      {(ficha.status === 'concluida' || ficha.status === 'aguardando_parecer') && (
+        <RoPanel fichaId={id} regime={ficha.regime} />
+      )}
+
+      {showParecer && (
+        <ParecerModal
+          fichaId={id}
+          regime={ficha.regime}
+          grade={grade}
+          onClose={() => setShowParecer(false)}
+          onSuccess={() => setShowParecer(false)}
+        />
+      )}
     </div>
   );
 }

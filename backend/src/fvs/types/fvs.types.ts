@@ -44,7 +44,7 @@ export interface FvsItem {
 // ─── Sprint 2: Inspeção ──────────────────────────────────────────────────────
 
 export type RegimeFicha = 'pbqph' | 'norma_tecnica' | 'livre';
-export type StatusFicha = 'rascunho' | 'em_inspecao' | 'concluida';
+export type StatusFicha = 'rascunho' | 'em_inspecao' | 'concluida' | 'aguardando_parecer' | 'aprovada';
 export type StatusRegistro = 'nao_avaliado' | 'conforme' | 'nao_conforme' | 'excecao';
 export type StatusGrade = 'nao_avaliado' | 'aprovado' | 'nc' | 'pendente';
 
@@ -142,4 +142,87 @@ export interface FvsAuditLog {
   ip_origem: string | null;
   detalhes: Record<string, unknown> | null;
   criado_em: Date;
+}
+
+// ─── Sprint 3: RO, Reinspeção e Parecer ─────────────────────────────────────
+
+export type StatusRo = 'aberto' | 'concluido';
+export type StatusServicoNc = 'pendente' | 'desbloqueado' | 'verificado';
+export type DecisaoParecer = 'aprovado' | 'rejeitado';
+export type Causa6M = 'mao_obra' | 'material' | 'metodo' | 'gestao' | 'medida' | 'meio_ambiente' | 'maquina';
+
+export interface RoOcorrencia {
+  id: number;
+  tenant_id: number;
+  ficha_id: number;
+  ciclo_numero: number;
+  numero: string;
+  tipo: 'real' | 'potencial';
+  responsavel_id: number;
+  data_ocorrencia: string; // DATE → string no raw SQL
+  o_que_aconteceu: string | null;
+  acao_imediata: string | null;
+  causa_6m: Causa6M | null;
+  justificativa_causa: string | null;
+  status: StatusRo;
+  created_at: Date;
+  updated_at: Date;
+  // joined
+  servicos?: RoServicoNc[];
+}
+
+export interface RoServicoNc {
+  id: number;
+  tenant_id: number;
+  ro_id: number;
+  servico_id: number;
+  servico_nome: string;
+  acao_corretiva: string | null;
+  status: StatusServicoNc;
+  ciclo_reinspecao: number | null;
+  desbloqueado_por: number | null;
+  desbloqueado_em: Date | null;
+  verificado_em: Date | null;
+  created_at: Date;
+  // joined
+  itens?: RoServicoItemNc[];
+  evidencias?: RoServicoEvidencia[];
+}
+
+export interface RoServicoItemNc {
+  id: number;
+  tenant_id: number;
+  ro_servico_nc_id: number;
+  registro_id: number;
+  item_descricao: string;
+  item_criticidade: Criticidade;
+}
+
+export interface RoServicoEvidencia {
+  id: number;
+  tenant_id: number;
+  ro_servico_nc_id: number;
+  versao_ged_id: number;
+  descricao: string | null;
+  created_at: Date;
+  // joined
+  url?: string;
+  nome_original?: string;
+}
+
+export interface FvsParecer {
+  id: number;
+  tenant_id: number;
+  ficha_id: number;
+  decisao: DecisaoParecer;
+  observacao: string | null;
+  itens_referenciados: { registro_id: number; item_descricao: string; servico_nome: string }[] | null;
+  criado_por: number;
+  created_at: Date;
+}
+
+// FvsRegistro com campos de ciclo e desbloqueado (Sprint 3)
+export interface FvsRegistroComCiclo extends FvsRegistro {
+  ciclo: number;
+  desbloqueado: boolean; // item está em ro_servico_itens_nc (reinspecao desbloqueada)
 }

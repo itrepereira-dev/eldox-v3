@@ -45,22 +45,29 @@ export function FichaLocalPage() {
   const regime = ficha?.regime ?? 'livre';
   const podeEditar = ficha?.status === 'em_inspecao';
 
+  const maxCiclo = registros.length > 0
+    ? Math.max(...registros.map(r => r.ciclo ?? 1), 1)
+    : 1;
+  const eReinsspecao = maxCiclo > 1;
+
   const totalItens = registros.length;
   const avaliados = registros.filter(r => r.status !== 'nao_avaliado').length;
   const progresso = totalItens > 0 ? Math.round((avaliados / totalItens) * 100) : 0;
 
   async function handleStatusChange(reg: FvsRegistro, novoStatus: StatusRegistro) {
     if (!podeEditar) return;
+    // Em reinspeção, itens bloqueados não podem ser alterados
+    if (eReinsspecao && !reg.desbloqueado) return;
     if (novoStatus === 'nao_conforme') {
       setNcRegistro({ ...reg, status: novoStatus });
       return;
     }
-    await putRegistro.mutateAsync({ servicoId, itemId: reg.item_id, localId, status: novoStatus });
+    await putRegistro.mutateAsync({ servicoId, itemId: reg.item_id, localId, status: novoStatus, ciclo: maxCiclo });
   }
 
   async function handleSalvarNc(obs: string) {
     if (!ncRegistro) return;
-    await putRegistro.mutateAsync({ servicoId, itemId: ncRegistro.item_id, localId, status: 'nao_conforme', observacao: obs });
+    await putRegistro.mutateAsync({ servicoId, itemId: ncRegistro.item_id, localId, status: 'nao_conforme', observacao: obs, ciclo: maxCiclo });
     setNcRegistro(null);
   }
 
@@ -100,6 +107,16 @@ export function FichaLocalPage() {
         </div>
       </div>
 
+      {eReinsspecao && (
+        <div style={{
+          background: '#eff6ff', border: '1px solid #3b82f6', borderRadius: 8,
+          padding: '10px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8,
+          fontSize: 13, color: '#1d4ed8', fontWeight: 500,
+        }}>
+          🔄 Reinspeção — Ciclo {maxCiclo} — Apenas itens desbloqueados
+        </div>
+      )}
+
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
@@ -115,8 +132,17 @@ export function FichaLocalPage() {
           <tbody>
             {registros.map((reg, i) => {
               const isCriticoNcSemFoto = regime === 'pbqph' && reg.item_criticidade === 'critico' && reg.status === 'nao_conforme' && reg.evidencias_count === 0;
+              const bloqueadoReinsspecao = eReinsspecao && !reg.desbloqueado;
               return (
-                <tr key={reg.item_id} style={{ borderBottom: '1px solid #f3f4f6', background: i % 2 === 0 ? '#f9fafb' : '#fff' }}>
+                <tr
+                  key={reg.item_id}
+                  style={{
+                    borderBottom: '1px solid #f3f4f6',
+                    background: i % 2 === 0 ? '#f9fafb' : '#fff',
+                    opacity: bloqueadoReinsspecao ? 0.4 : 1,
+                    pointerEvents: bloqueadoReinsspecao ? 'none' : undefined,
+                  }}
+                >
                   <td style={{ padding: '10px 12px', color: '#9ca3af' }}>{i + 1}</td>
                   <td style={{ padding: '10px 12px', color: '#111827' }}>
                     {reg.item_descricao}

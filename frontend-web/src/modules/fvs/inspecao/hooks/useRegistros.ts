@@ -15,7 +15,7 @@ export function usePutRegistro(fichaId: number) {
   return useMutation({
     mutationFn: (payload: {
       servicoId: number; itemId: number; localId: number;
-      status: StatusRegistro; observacao?: string;
+      status: StatusRegistro; observacao?: string; ciclo?: number;
     }) => fvsService.putRegistro(fichaId, payload),
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ['fvs-registros', fichaId, vars.servicoId, vars.localId] });
