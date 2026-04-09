@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { obrasService, type ObraLocal } from '../../services/obras.service';
 import { FileText } from 'lucide-react';
+import { useModelosByObra, useDesvincularModeloObra, useVincularModeloObra, useModelos } from '../../modules/fvs/modelos/hooks/useModelos';
 
 const STATUS_OBRA_LABEL: Record<string, string> = {
   PLANEJAMENTO: 'Planejamento',
@@ -76,6 +77,14 @@ export function ObraDetalhePage() {
       queryClient.invalidateQueries({ queryKey: ['obra-locais', obraId] });
     },
   });
+
+  const [abaAtiva, setAbaAtiva] = useState<'locais' | 'templates'>('locais');
+  const [modeloParaVincular, setModeloParaVincular] = useState<number | null>(null);
+
+  const { data: modelosVinculados = [] } = useModelosByObra(obraId);
+  const { data: todosModelos = [] } = useModelos({ status: 'concluido' });
+  const vincularModelo = useVincularModeloObra();
+  const desvincularModelo = useDesvincularModeloObra();
 
   const entrarLocal = (local: ObraLocal) => {
     setBreadcrumb((prev) => [...prev, local]);
@@ -177,8 +186,27 @@ export function ObraDetalhePage() {
         <span style={{ fontSize: '18px', color: 'var(--text-40)' }}>›</span>
       </div>
 
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 2, marginBottom: 20, borderBottom: '2px solid #e5e7eb' }}>
+        {(['locais', 'templates'] as const).map(aba => (
+          <button
+            key={aba}
+            onClick={() => setAbaAtiva(aba)}
+            style={{
+              background: 'none', border: 'none', padding: '8px 20px', cursor: 'pointer',
+              fontSize: 14, fontWeight: abaAtiva === aba ? 700 : 400,
+              color: abaAtiva === aba ? '#3b82f6' : '#6b7280',
+              borderBottom: abaAtiva === aba ? '2px solid #3b82f6' : '2px solid transparent',
+              marginBottom: -2,
+            }}
+          >
+            {aba === 'locais' ? 'Locais de Inspeção' : 'Templates FVS'}
+          </button>
+        ))}
+      </div>
+
       {/* Hierarquia de locais */}
-      <div
+      {abaAtiva === 'locais' && <div
         style={{
           background: 'var(--bg-elevated)',
           border: '1px solid var(--bg-border)',
@@ -374,7 +402,61 @@ export function ObraDetalhePage() {
             ))}
           </div>
         )}
-      </div>
+      </div>}
+
+      {abaAtiva === 'templates' && (
+        <div>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+            <select
+              value={modeloParaVincular ?? ''}
+              onChange={e => setModeloParaVincular(parseInt(e.target.value) || null)}
+              style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 13, flex: 1 }}
+            >
+              <option value="">Selecionar template para vincular...</option>
+              {todosModelos
+                .filter(m => !modelosVinculados.find(mv => mv.modelo_id === m.id))
+                .map(m => <option key={m.id} value={m.id}>{m.nome} (v{m.versao})</option>)}
+            </select>
+            <button
+              onClick={async () => {
+                if (!modeloParaVincular) return;
+                await vincularModelo.mutateAsync({ obraId, modeloId: modeloParaVincular });
+                setModeloParaVincular(null);
+              }}
+              disabled={!modeloParaVincular}
+              style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', cursor: 'pointer', fontSize: 13 }}
+            >
+              Vincular
+            </button>
+          </div>
+
+          {modelosVinculados.length === 0 ? (
+            <p style={{ color: '#6b7280', fontSize: 13 }}>Nenhum template vinculado a esta obra.</p>
+          ) : (
+            <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
+              {modelosVinculados.map((mv, i) => (
+                <div key={mv.id} style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  padding: '10px 16px', borderBottom: i < modelosVinculados.length - 1 ? '1px solid #f3f4f6' : undefined,
+                }}>
+                  <div>
+                    <p style={{ margin: 0, fontWeight: 600, fontSize: 14 }}>{mv.modelo_nome}</p>
+                    <p style={{ margin: '2px 0 0', fontSize: 12, color: '#6b7280' }}>
+                      {mv.fichas_count} ficha(s) criada(s) com este template nesta obra
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => desvincularModelo.mutateAsync({ obraId, modeloId: mv.modelo_id })}
+                    style={{ background: 'transparent', color: '#dc2626', border: '1px solid #dc2626', borderRadius: 4, padding: '4px 10px', cursor: 'pointer', fontSize: 12 }}
+                  >
+                    Desvincular
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
