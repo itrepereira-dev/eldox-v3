@@ -186,6 +186,7 @@ describe('RoService', () => {
       expect(mockPrisma.$executeRawUnsafe).toHaveBeenCalledWith(
         expect.stringContaining("status = 'verificado'"),
         expect.anything(), // servicoNcId
+        expect.anything(), // tenantId
       );
     });
 
@@ -204,6 +205,7 @@ describe('RoService', () => {
       expect(mockPrisma.$executeRawUnsafe).toHaveBeenCalledWith(
         expect.stringContaining("status = 'concluido'"),
         expect.anything(), // roId
+        expect.anything(), // tenantId
       );
     });
 
