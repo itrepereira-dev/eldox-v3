@@ -554,6 +554,11 @@ export class ObrasService {
   }
 
   async gerarCascata(tenantId: number, obraId: number, dto: GerarCascataDto) {
+    // Guard: payload is required but not validated at DTO level (discriminated union limitation)
+    if (!dto.payload || typeof dto.payload !== 'object') {
+      throw new BadRequestException('payload é obrigatório');
+    }
+
     const obra = await this.findOne(tenantId, obraId);
 
     const strategyMap = {
@@ -571,7 +576,7 @@ export class ObrasService {
         obraId,
         tenantId,
         obraCodigo: obra.codigo ?? 'OBR',
-        tx: tx as any,
+        tx: tx as Prisma.TransactionClient,
       };
       return strategy.gerar(dto.payload as any, ctx);
     });
