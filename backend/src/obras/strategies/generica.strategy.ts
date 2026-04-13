@@ -8,8 +8,14 @@ export class GenericaStrategy implements ILocalGenerator {
     const { niveis } = payload;
     const { obraId, tenantId, obraCodigo, tx } = ctx;
 
-    // Anti-DoS: estimativa do produto dos quantitativos
-    const totalEstimado = niveis.reduce((acc, n) => acc * n.qtde, 1);
+    // Anti-DoS: soma dos nós em cada nível (não apenas o produto final)
+    // nível 1: qtde[0], nível 2: qtde[0]*qtde[1], ..., nível N: produto de todos
+    let totalEstimado = 0;
+    let produto = 1;
+    for (const n of niveis) {
+      produto *= n.qtde;
+      totalEstimado += produto;
+    }
     if (totalEstimado > 5000) {
       throw new UnprocessableEntityException(
         `Configuração geraria ~${totalEstimado} locais. Limite: 5.000 por vez.`,
@@ -74,12 +80,18 @@ export class GenericaStrategy implements ILocalGenerator {
     await tx.obraLocal.createMany({ data });
 
     // Busca os IDs recém-criados para descer recursivamente
+    // Filtra pelo intervalo exato de `ordem` para evitar race condition com
+    // transações concorrentes (READ COMMITTED no PostgreSQL)
     const criados = await tx.obraLocal.findMany({
-      where: { obraId, parentId: parentId ?? null, nivel: cfg.nivel, deletadoEm: null },
+      where: {
+        obraId,
+        parentId: parentId ?? null,
+        nivel: cfg.nivel,
+        deletadoEm: null,
+        ordem: { gte: ordemBase, lt: ordemBase + cfg.qtde },
+      },
       orderBy: { ordem: 'asc' },
       select: { id: true, nome: true, nomeCompleto: true, codigo: true, nivel: true },
-      take: cfg.qtde,
-      skip: ordemBase,
     });
 
     acc.locais!.push(...criados);
