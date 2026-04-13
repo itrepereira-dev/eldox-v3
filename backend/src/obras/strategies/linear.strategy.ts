@@ -48,7 +48,10 @@ export class LinearStrategy implements ILocalGenerator {
       });
       locais!.push({ id: trecho.id, nome: trecho.nome, nomeCompleto: trecho.nomeCompleto, nivel: 1 });
       inseridos++;
-      trechoMap[trechoNome] = trecho.id;
+      // Only map the first trecho with this name (avoid silent collision)
+      if (!trechoMap[trechoNome]) {
+        trechoMap[trechoNome] = trecho.id;
+      }
 
       // Gerar PVs
       const numPVs = tr.pvs ?? 0;
@@ -58,11 +61,15 @@ export class LinearStrategy implements ILocalGenerator {
           const pvNome = `${prefixoPV}-${String(pvNum).padStart(3, '0')}`;
           const pvNomeCompleto = `${trechoNome} > ${pvNome}`;
           let pvKm: number | null = null;
-          if (kmInicio !== null && kmFim !== null && numPVs > 1) {
-            pvKm =
-              Math.round(
-                (kmInicio + ((kmFim - kmInicio) * pvIdx) / (numPVs - 1)) * 10000,
-              ) / 10000;
+          if (kmInicio !== null && kmFim !== null) {
+            if (numPVs === 1) {
+              pvKm = kmInicio;
+            } else {
+              pvKm =
+                Math.round(
+                  (kmInicio + ((kmFim - kmInicio) * pvIdx) / (numPVs - 1)) * 10000,
+                ) / 10000;
+            }
           }
           return {
             tenantId,
