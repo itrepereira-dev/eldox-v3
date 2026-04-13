@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Put,
+  Patch,
   Delete,
   Body,
   Param,
@@ -20,7 +21,9 @@ import { UpdateObraDto } from './dto/update-obra.dto';
 import { CreateObraLocalDto } from './dto/create-obra-local.dto';
 import { UpdateObraLocalDto } from './dto/update-obra-local.dto';
 import { GerarMassaDto } from './dto/gerar-massa.dto';
+import { GerarCascataDto } from './dto/gerar-cascata.dto';
 import { CreateObraTipoDto } from './dto/create-obra-tipo.dto';
+import { UpsertNivelConfigDto } from './dto/nivel-config.dto';
 import { JwtAuthGuard } from '../common/guards/jwt.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -103,6 +106,20 @@ export class ObrasController {
   }
 
   // ─────────────────────────────────────────
+  // OBRA NÍVEIS CONFIG
+  // ─────────────────────────────────────────
+
+  @Patch('obras/:id/niveis-config')
+  @Roles('ADMIN_TENANT' as any, 'ENGENHEIRO' as any)
+  saveNiveisConfig(
+    @TenantId() tenantId: number,
+    @Param('id', ParseIntPipe) obraId: number,
+    @Body() body: { niveis: UpsertNivelConfigDto[] },
+  ) {
+    return this.obrasService.saveNiveisConfig(tenantId, obraId, body.niveis);
+  }
+
+  // ─────────────────────────────────────────
   // OBRA LOCAIS
   // ─────────────────────────────────────────
 
@@ -139,6 +156,17 @@ export class ObrasController {
     @Body() dto: GerarMassaDto,
   ) {
     return this.obrasService.gerarMassa(tenantId, obraId, dto);
+  }
+
+  @Post('obras/:id/locais/gerar-cascata')
+  @Roles('ADMIN_TENANT' as any, 'ENGENHEIRO' as any)
+  @HttpCode(HttpStatus.CREATED)
+  gerarCascata(
+    @TenantId() tenantId: number,
+    @Param('id', ParseIntPipe) obraId: number,
+    @Body() dto: GerarCascataDto,
+  ) {
+    return this.obrasService.gerarCascata(tenantId, obraId, dto);
   }
 
   // GAP-06: Atualizar local de obra

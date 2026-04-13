@@ -12,10 +12,21 @@ import { UpdateObraLocalDto } from './dto/update-obra-local.dto';
 import { GerarMassaDto } from './dto/gerar-massa.dto';
 import { CreateObraTipoDto } from './dto/create-obra-tipo.dto';
 import { Prisma } from '@prisma/client';
+import { GenericaStrategy } from './strategies/generica.strategy';
+import { EdificacaoStrategy } from './strategies/edificacao.strategy';
+import { LinearStrategy } from './strategies/linear.strategy';
+import { InstalacaoStrategy } from './strategies/instalacao.strategy';
+import { GerarCascataDto } from './dto/gerar-cascata.dto';
 
 @Injectable()
 export class ObrasService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private genericaStrategy: GenericaStrategy,
+    private edificacaoStrategy: EdificacaoStrategy,
+    private linearStrategy: LinearStrategy,
+    private instalacaoStrategy: InstalacaoStrategy,
+  ) {}
 
   // ─────────────────────────────────────────
   // OBRA TIPOS
@@ -217,6 +228,40 @@ export class ObrasService {
     });
 
     return { message: 'Obra removida com sucesso' };
+  }
+
+  // ─────────────────────────────────────────
+  // OBRA NÍVEIS CONFIG
+  // ─────────────────────────────────────────
+
+  async saveNiveisConfig(
+    tenantId: number,
+    obraId: number,
+    niveis: { nivel: number; labelSingular: string; labelPlural: string }[],
+  ) {
+    await this.findOne(tenantId, obraId); // garante existência e tenant
+
+    if (niveis.length === 0 || niveis.length > 6) {
+      throw new BadRequestException('A obra deve ter entre 1 e 6 níveis');
+    }
+
+    // Upsert: apaga os existentes e regrava (garante consistência)
+    await this.prisma.$transaction([
+      this.prisma.obraNivelConfig.deleteMany({ where: { obraId } }),
+      this.prisma.obraNivelConfig.createMany({
+        data: niveis.map((n) => ({
+          obraId,
+          nivel: n.nivel,
+          labelSingular: n.labelSingular.trim(),
+          labelPlural: n.labelPlural.trim(),
+        })),
+      }),
+    ]);
+
+    return this.prisma.obraNivelConfig.findMany({
+      where: { obraId },
+      orderBy: { nivel: 'asc' },
+    });
   }
 
   // ─────────────────────────────────────────
@@ -506,6 +551,30 @@ export class ObrasService {
       FROM arvore
       WHERE ol.id = arvore.id AND ol.id != ${localId}
     `;
+  }
+
+  async gerarCascata(tenantId: number, obraId: number, dto: GerarCascataDto) {
+    const obra = await this.findOne(tenantId, obraId);
+
+    const strategyMap = {
+      generica:   this.genericaStrategy,
+      edificacao: this.edificacaoStrategy,
+      linear:     this.linearStrategy,
+      instalacao: this.instalacaoStrategy,
+    };
+
+    const strategy = strategyMap[dto.estrategia];
+    if (!strategy) throw new BadRequestException(`Estratégia desconhecida: ${dto.estrategia}`);
+
+    return this.prisma.$transaction(async (tx) => {
+      const ctx = {
+        obraId,
+        tenantId,
+        obraCodigo: obra.codigo ?? 'OBR',
+        tx: tx as any,
+      };
+      return strategy.gerar(dto.payload as any, ctx);
+    });
   }
 
   // Stub: valida dadosExtras contra ObraTipoCampo (implementação futura)
