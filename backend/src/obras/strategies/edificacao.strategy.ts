@@ -9,7 +9,7 @@ type TX = GerarCascataContext['tx'];
 export class EdificacaoStrategy implements ILocalGenerator {
   // Templates de áreas comuns por bloco
   private readonly templatesPorBloco: Record<string, (numAndares: number) => { nome: string; tipo: string }[]> = {
-    halls:      (n) => Array.from({ length: Math.max(1, n) }, (_, i) => ({ nome: `Hall Pav ${i + 1}`, tipo: 'area_comum' })),
+    halls:      (n) => Array.from({ length: n }, (_, i) => ({ nome: `Hall Pav ${i + 1}`, tipo: 'area_comum' })),
     escadas:    ()  => [{ nome: 'Escada', tipo: 'area_comum' }],
     elevadores: ()  => [{ nome: 'Eixo Elevador 1', tipo: 'tecnica' }, { nome: 'Casa de Máquinas Elevador', tipo: 'tecnica' }],
     fachadas:   ()  => ['Norte', 'Sul', 'Leste', 'Oeste'].map((f) => ({ nome: `Fachada ${f}`, tipo: 'estrutural' })),
@@ -86,7 +86,7 @@ export class EdificacaoStrategy implements ILocalGenerator {
               data: {
                 tenantId, obraId, parentId: condParentId, nivel: nivelBloco,
                 nome: item.nome, nomeCompleto: `${condNomeCompleto} > ${item.nome}`,
-                codigo: `${obraCodigo}-C${c + 1}-${item.nome.substring(0, 3).toUpperCase()}`,
+                codigo: `${obraCodigo}-C${String(condNum).padStart(2, '0')}-${item.nome.substring(0, 3).toUpperCase()}`,
                 ordem: 9000 + inseridos,
               },
             });
