@@ -46,7 +46,7 @@ export class InstalacaoStrategy implements ILocalGenerator {
             data: {
               tenantId, obraId, parentId: areaLocal.id, nivel: 2,
               nome: mod.nome, nomeCompleto: `${areaNome} > ${mod.nome}`,
-              codigo: `${areaLocal.codigo}-${mod.nome.substring(0, 3).toUpperCase()}`,
+              codigo: `${areaLocal.codigo}-${mod.nome.substring(0, 3).toUpperCase()}${String(ordemMod).padStart(2, '0')}`,
               ordem: ordemMod++,
             },
           });
