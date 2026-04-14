@@ -36,6 +36,8 @@ export interface FvsItem {
   servico_id: number;
   descricao: string;
   criterio_aceite: string | null;
+  tolerancia: string | null;
+  metodo_verificacao: string | null;
   criticidade: Criticidade;
   foto_modo: FotoModo;
   foto_minimo: number;
@@ -62,15 +64,37 @@ export interface CreateServicoPayload {
 export interface CreateItemPayload {
   descricao: string;
   criterioAceite?: string;
+  tolerancia?: string;
+  metodoVerificacao?: string;
   criticidade?: Criticidade;
   fotoModo?: FotoModo;
   fotoMinimo?: number;
   fotoMaximo?: number;
   ordem?: number;
+  ativo?: boolean;
 }
 
 export interface ReorderPayload {
   itens: { id: number; ordem: number }[];
+}
+
+export interface GerarCatalogoIAItem {
+  descricao: string;
+  criterio_aceite: string;
+  criticidade: 'critico' | 'maior' | 'menor';
+  foto_modo: 'nenhuma' | 'opcional' | 'obrigatoria';
+}
+
+export interface GerarCatalogoIAServico {
+  nome: string;
+  codigo: string;
+  categoria: string;
+  norma_referencia: string;
+  itens: GerarCatalogoIAItem[];
+}
+
+export interface GerarCatalogoIAResult {
+  servicos: GerarCatalogoIAServico[];
 }
 
 export interface ImportResult {
@@ -83,8 +107,23 @@ export interface ImportResult {
 
 export type RegimeFicha = 'pbqph' | 'norma_tecnica' | 'livre';
 export type StatusFicha = 'rascunho' | 'em_inspecao' | 'concluida' | 'aguardando_parecer' | 'aprovada';
-export type StatusRegistro = 'nao_avaliado' | 'conforme' | 'nao_conforme' | 'excecao';
-export type StatusGrade = 'nao_avaliado' | 'aprovado' | 'nc' | 'pendente';
+export type StatusRegistro =
+  | 'nao_avaliado'
+  | 'conforme'
+  | 'nao_conforme'
+  | 'excecao'
+  | 'conforme_apos_reinspecao'
+  | 'nc_apos_reinspecao'
+  | 'liberado_com_concessao'
+  | 'retrabalho';
+export type StatusGrade =
+  | 'nao_avaliado'
+  | 'parcial'
+  | 'aprovado'
+  | 'nc'
+  | 'nc_final'
+  | 'liberado'
+  | 'pendente';
 
 export type StatusRo = 'aberto' | 'concluido';
 export type StatusServicoNc = 'pendente' | 'desbloqueado' | 'verificado';
@@ -157,9 +196,49 @@ export interface FichaServicoLocal {
 }
 
 export interface FvsGrade {
-  servicos: { id: number; nome: string }[];
-  locais: { id: number; nome: string; pavimento_id: number | null }[];
+  servicos: { id: number; nome: string; codigo?: string }[];
+  locais: {
+    id: number;
+    nome: string;
+    pavimento_id: number | null;
+    pavimento_nome: string | null;
+    ordem: number;
+  }[];
   celulas: Record<number, Record<number, StatusGrade>>;
+  celulas_meta?: Record<number, Record<number, {
+    itens_total: number;
+    itens_avaliados: number;
+    itens_nc: number;
+    ultimo_inspetor?: string;
+    ultima_atividade?: string;
+  }>>;
+  resumo: {
+    total_celulas: number;
+    aprovadas: number;
+    nc: number;
+    nc_final: number;
+    liberadas: number;
+    parciais: number;
+    nao_avaliadas: number;
+    pendentes: number;
+    progresso_pct: number;
+  };
+}
+
+export interface GradePreview {
+  servico_nome: string;
+  local_nome: string;
+  status_geral: StatusGrade;
+  inspetor_nome: string | null;
+  ultima_atividade: string | null;
+  itens: {
+    id: number;
+    descricao: string;
+    criterio_aceite: string | null;
+    criticidade: string;
+    status: string;
+    observacao: string | null;
+  }[];
 }
 
 export interface FvsRegistro {
@@ -283,7 +362,7 @@ export const fvsService = {
     const { data } = await api.post('/fvs/categorias', payload);
     return data;
   },
-  async updateCategoria(id: number, payload: Partial<CreateCategoriaPayload>): Promise<FvsCategoria> {
+  async updateCategoria(id: number, payload: Partial<CreateCategoriaPayload & { ativo: boolean }>): Promise<FvsCategoria> {
     const { data } = await api.patch(`/fvs/categorias/${id}`, payload);
     return data;
   },
@@ -309,7 +388,7 @@ export const fvsService = {
     const { data } = await api.post('/fvs/servicos', payload);
     return data;
   },
-  async updateServico(id: number, payload: Partial<CreateServicoPayload>): Promise<FvsServico> {
+  async updateServico(id: number, payload: Partial<CreateServicoPayload & { ativo: boolean }>): Promise<FvsServico> {
     const { data } = await api.patch(`/fvs/servicos/${id}`, payload);
     return data;
   },
@@ -380,6 +459,24 @@ export const fvsService = {
   async getGrade(fichaId: number, params?: { pavimentoId?: number; servicoId?: number }): Promise<FvsGrade> {
     const { data } = await api.get(`/fvs/fichas/${fichaId}/grade`, { params });
     return data;
+  },
+
+  async getGradePreview(fichaId: number, localId: number, servicoId: number): Promise<GradePreview> {
+    const { data } = await api.get<{ data: GradePreview }>(
+      `/fvs/fichas/${fichaId}/locais/${localId}/servico/${servicoId}/preview`,
+    );
+    return data.data;
+  },
+
+  async bulkInspecaoLocais(
+    fichaId: number,
+    payload: { servicoId: number; localIds: number[]; status: 'conforme' | 'excecao'; observacao?: string },
+  ): Promise<{ processados: number; ignorados: number; erros: number }> {
+    const { data } = await api.post<{ data: { processados: number; ignorados: number; erros: number } }>(
+      `/fvs/fichas/${fichaId}/registros/bulk`,
+      payload,
+    );
+    return data.data;
   },
 
   // ─── Registros ─────────────────────────────────────────────────────────────────
@@ -511,6 +608,15 @@ export const fvsService = {
     await api.post(`/fvs/modelos/${modeloId}/obras`, { obraIds });
   },
 
+  async getObrasModelo(modeloId: number): Promise<ObraModeloFvs[]> {
+    const { data } = await api.get(`/fvs/modelos/${modeloId}/obras`);
+    return data;
+  },
+
+  async desvincularModeloObraByModelo(modeloId: number, obraId: number): Promise<void> {
+    await api.delete(`/obras/${obraId}/modelos/${modeloId}`);
+  },
+
   async getModelosByObra(obraId: number): Promise<ObraModeloFvs[]> {
     const { data } = await api.get(`/obras/${obraId}/modelos`);
     return data;
@@ -527,6 +633,18 @@ export const fvsService = {
   },
   async submitParecer(fichaId: number, payload: SubmitParecerPayload): Promise<FichaFvs> {
     const { data } = await api.post(`/fvs/fichas/${fichaId}/parecer`, payload);
+    return data;
+  },
+
+  // ─── IA ───────────────────────────────────────────────────────────────────────
+
+  async gerarCatalogoIA(payload: {
+    tipo_obra: string;
+    servicos?: string;
+    normas?: string;
+    nivel_detalhe: 'basico' | 'intermediario' | 'avancado';
+  }): Promise<GerarCatalogoIAResult> {
+    const { data } = await api.post('/fvs/ia/gerar-catalogo', payload);
     return data;
   },
 };
