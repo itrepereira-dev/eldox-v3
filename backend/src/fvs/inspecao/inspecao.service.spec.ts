@@ -268,13 +268,38 @@ describe('InspecaoService', () => {
     });
   });
 
+  // ── getGrade Sprint 5 — resumo ───────────────────────────────────────────────
+  describe('getGrade() — Sprint 5 resumo', () => {
+    it('inclui resumo com contagem de células por status', async () => {
+      mockPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce([{ id: 1 }])                   // getFichaOuFalhar
+        // locais (nova ordem!)
+        .mockResolvedValueOnce([
+          { id: 101, nome: 'Ap 101', pavimento_id: 1, pavimento_nome: '1o Pav', ordem: 1 },
+        ])
+        // servicos
+        .mockResolvedValueOnce([{ id: 1, nome: 'Alvenaria', codigo: 'ALV' }])
+        // registros
+        .mockResolvedValueOnce([
+          { servico_id: 1, obra_local_id: 101, status: 'conforme', itens_total: 3, itens_avaliados: 3, itens_nc: 0, ultimo_inspetor: null, ultima_atividade: null },
+        ]);
+
+      const result = await svc.getGrade(TENANT_ID, 1, {});
+
+      expect(result.resumo).toBeDefined();
+      expect(result.resumo.aprovadas).toBe(1);
+      expect(result.resumo.total_celulas).toBe(1);
+      expect(result.resumo.progresso_pct).toBe(100);
+    });
+  });
+
   // ── getGrade ────────────────────────────────────────────────────────────────
   describe('getGrade()', () => {
     it('retorna grade com células agregadas por 4 estados', async () => {
       mockPrisma.$queryRawUnsafe
         .mockResolvedValueOnce([FICHA_EM_INSPECAO])   // getFichaOuFalhar
-        .mockResolvedValueOnce([{ id: 1, nome: 'Alvenaria' }])
-        .mockResolvedValueOnce([{ id: 10, nome: 'Ap 101', pavimento_id: 1 }, { id: 11, nome: 'Ap 102', pavimento_id: 1 }])
+        .mockResolvedValueOnce([{ id: 10, nome: 'Ap 101', pavimento_id: 1, pavimento_nome: null, ordem: 0 }, { id: 11, nome: 'Ap 102', pavimento_id: 1, pavimento_nome: null, ordem: 0 }])  // locais
+        .mockResolvedValueOnce([{ id: 1, nome: 'Alvenaria', codigo: null }])  // servicos
         .mockResolvedValueOnce([
           { servico_id: 1, obra_local_id: 10, status: 'nao_conforme' },
           { servico_id: 1, obra_local_id: 11, status: 'conforme' },
@@ -288,8 +313,8 @@ describe('InspecaoService', () => {
     it('célula sem registros = nao_avaliado', async () => {
       mockPrisma.$queryRawUnsafe
         .mockResolvedValueOnce([FICHA_EM_INSPECAO])
-        .mockResolvedValueOnce([{ id: 1, nome: 'Alvenaria' }])
-        .mockResolvedValueOnce([{ id: 10, nome: 'Ap 101', pavimento_id: 1 }])
+        .mockResolvedValueOnce([{ id: 10, nome: 'Ap 101', pavimento_id: 1, pavimento_nome: null, ordem: 0 }])  // locais
+        .mockResolvedValueOnce([{ id: 1, nome: 'Alvenaria', codigo: null }])  // servicos
         .mockResolvedValueOnce([]);
 
       const result = await svc.getGrade(TENANT_ID, 1);
@@ -299,8 +324,8 @@ describe('InspecaoService', () => {
     it('mix de conforme e nao_avaliado (sem NC) = parcial', async () => {
       mockPrisma.$queryRawUnsafe
         .mockResolvedValueOnce([FICHA_EM_INSPECAO])
-        .mockResolvedValueOnce([{ id: 1, nome: 'Alvenaria' }])
-        .mockResolvedValueOnce([{ id: 10, nome: 'Ap 101', pavimento_id: 1 }])
+        .mockResolvedValueOnce([{ id: 10, nome: 'Ap 101', pavimento_id: 1, pavimento_nome: null, ordem: 0 }])  // locais
+        .mockResolvedValueOnce([{ id: 1, nome: 'Alvenaria', codigo: null }])  // servicos
         .mockResolvedValueOnce([
           { servico_id: 1, obra_local_id: 10, status: 'conforme' },
           { servico_id: 1, obra_local_id: 10, status: 'nao_avaliado' },
@@ -313,8 +338,8 @@ describe('InspecaoService', () => {
     it('excecao alone = aprovado', async () => {
       mockPrisma.$queryRawUnsafe
         .mockResolvedValueOnce([FICHA_EM_INSPECAO])
-        .mockResolvedValueOnce([{ id: 1, nome: 'Alvenaria' }])
-        .mockResolvedValueOnce([{ id: 10, nome: 'Ap 101', pavimento_id: 1 }])
+        .mockResolvedValueOnce([{ id: 10, nome: 'Ap 101', pavimento_id: 1, pavimento_nome: null, ordem: 0 }])  // locais
+        .mockResolvedValueOnce([{ id: 1, nome: 'Alvenaria', codigo: null }])  // servicos
         .mockResolvedValueOnce([{ servico_id: 1, obra_local_id: 10, status: 'excecao' }]);
 
       const result = await svc.getGrade(TENANT_ID, 1);
@@ -324,8 +349,8 @@ describe('InspecaoService', () => {
     it('NC mixed com conforme → nc vence (prioridade NC)', async () => {
       mockPrisma.$queryRawUnsafe
         .mockResolvedValueOnce([FICHA_EM_INSPECAO])
-        .mockResolvedValueOnce([{ id: 1, nome: 'Alvenaria' }])
-        .mockResolvedValueOnce([{ id: 10, nome: 'Ap 101', pavimento_id: 1 }])
+        .mockResolvedValueOnce([{ id: 10, nome: 'Ap 101', pavimento_id: 1, pavimento_nome: null, ordem: 0 }])  // locais
+        .mockResolvedValueOnce([{ id: 1, nome: 'Alvenaria', codigo: null }])  // servicos
         .mockResolvedValueOnce([
           { servico_id: 1, obra_local_id: 10, status: 'conforme' },
           { servico_id: 1, obra_local_id: 10, status: 'nao_conforme' },
@@ -566,8 +591,8 @@ describe('InspecaoService', () => {
       // Item teve NC no ciclo 1, mas conforme no ciclo 2 → célula deve ser 'aprovado'
       mockPrisma.$queryRawUnsafe
         .mockResolvedValueOnce([FICHA_EM_INSPECAO])
-        .mockResolvedValueOnce([{ id: 1, nome: 'Alvenaria' }])
-        .mockResolvedValueOnce([{ id: 10, nome: 'Ap 101', pavimento_id: 1 }])
+        .mockResolvedValueOnce([{ id: 10, nome: 'Ap 101', pavimento_id: 1, pavimento_nome: null, ordem: 0 }])  // locais
+        .mockResolvedValueOnce([{ id: 1, nome: 'Alvenaria', codigo: null }])  // servicos
         // getGrade retorna status do ciclo mais recente por (servico_id, obra_local_id)
         .mockResolvedValueOnce([{ servico_id: 1, obra_local_id: 10, status: 'conforme' }]);
 
@@ -781,6 +806,49 @@ describe('InspecaoService', () => {
           descricao: 'X', acaoCorretiva: 'Y', responsavelId: 5, prazo: ontem,
         }),
       ).rejects.toThrow('Prazo deve ser igual ou posterior à data atual');
+    });
+  });
+
+  // ── getGrade — Sprint 5 ────────────────────────────────────────────────────
+  describe('getGrade() — Sprint 5 resumo', () => {
+    it('inclui resumo com contagem de células por status', async () => {
+      mockPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce([{ id: 1 }])           // getFichaOuFalhar
+        .mockResolvedValueOnce([                       // locais
+          { id: 101, nome: 'Ap 101', pavimento_id: 1, pavimento_nome: '1º Pav', ordem: 1 },
+        ])
+        .mockResolvedValueOnce([{ id: 1, nome: 'Alvenaria', codigo: 'ALV' }])  // servicos
+        .mockResolvedValueOnce([                       // registros
+          {
+            servico_id: 1, obra_local_id: 101, status: 'conforme',
+            itens_total: 3, itens_avaliados: 3, itens_nc: 0,
+            ultimo_inspetor: null, ultima_atividade: null,
+          },
+        ]);
+
+      const result = await svc.getGrade(TENANT_ID, 1, {});
+
+      expect(result.resumo).toBeDefined();
+      expect(result.resumo.aprovadas).toBe(1);
+      expect(result.resumo.total_celulas).toBe(1);
+      expect(result.resumo.progresso_pct).toBe(100);
+    });
+
+    it('calcula progresso_pct = 0 quando todas as células são nao_avaliado', async () => {
+      mockPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce([{ id: 1 }])   // getFichaOuFalhar
+        .mockResolvedValueOnce([               // locais
+          { id: 101, nome: 'Ap 101', pavimento_id: null, pavimento_nome: null, ordem: 0 },
+          { id: 102, nome: 'Ap 102', pavimento_id: null, pavimento_nome: null, ordem: 1 },
+        ])
+        .mockResolvedValueOnce([{ id: 1, nome: 'Alvenaria', codigo: null }])  // servicos
+        .mockResolvedValueOnce([]);            // nenhum registro
+
+      const result = await svc.getGrade(TENANT_ID, 1, {});
+
+      expect(result.resumo.total_celulas).toBe(2);
+      expect(result.resumo.nao_avaliadas).toBe(2);
+      expect(result.resumo.progresso_pct).toBe(0);
     });
   });
 });

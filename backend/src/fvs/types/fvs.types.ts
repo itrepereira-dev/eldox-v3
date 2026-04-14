@@ -132,9 +132,33 @@ export interface FvsRegistro {
 }
 
 export interface FvsGrade {
-  servicos: { id: number; nome: string }[];
-  locais: { id: number; nome: string; pavimento_id: number | null }[];
-  celulas: Record<number, Record<number, StatusGrade>>; // celulas[servicoId][obraLocalId]
+  servicos: { id: number; nome: string; codigo?: string | null }[];
+  locais: {
+    id: number;
+    nome: string;
+    pavimento_id: number | null;
+    pavimento_nome: string | null;
+    ordem: number;
+  }[];
+  celulas: Record<number, Record<number, StatusGrade>>;
+  celulas_meta?: Record<number, Record<number, {
+    itens_total: number;
+    itens_avaliados: number;
+    itens_nc: number;
+    ultimo_inspetor?: string;
+    ultima_atividade?: string;
+  }>>;
+  resumo: {
+    total_celulas: number;
+    aprovadas: number;
+    nc: number;
+    nc_final: number;
+    liberadas: number;
+    parciais: number;
+    nao_avaliadas: number;
+    pendentes: number;
+    progresso_pct: number;
+  };
 }
 
 export interface FvsEvidencia {

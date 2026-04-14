@@ -521,65 +521,150 @@ export class InspecaoService {
   async getGrade(
     tenantId: number,
     fichaId: number,
-    filtros?: { pavimentoId?: number; servicoId?: number },
+    filtros?: { pavimentoId?: number; servicoId?: number; includeMeta?: boolean },
   ): Promise<FvsGrade> {
     await this.getFichaOuFalhar(tenantId, fichaId);
 
-    // Parameterized filter for servico (optional)
-    const servicoParams: unknown[] = [fichaId, tenantId];
-    let servicoExtra = '';
-    if (filtros?.servicoId) {
-      servicoParams.push(filtros.servicoId);
-      servicoExtra = `AND fs.servico_id = $${servicoParams.length}`;
+    // Locais
+    const locaisParams: unknown[] = [fichaId, tenantId];
+    let locaisWhere = '';
+    if (filtros?.pavimentoId) {
+      locaisParams.push(filtros.pavimentoId);
+      locaisWhere = `AND ol."parentId" = $${locaisParams.length}`;
     }
 
-    const servicos = await this.prisma.$queryRawUnsafe<{ id: number; nome: string }[]>(
-      `SELECT s.id, s.nome
+    const locais = await this.prisma.$queryRawUnsafe<{
+      id: number; nome: string; pavimento_id: number | null; pavimento_nome: string | null; ordem: number;
+    }[]>(
+      `SELECT DISTINCT ol.id, ol.nome,
+              ol."parentId" AS pavimento_id,
+              pav.nome      AS pavimento_nome,
+              COALESCE(ol.ordem, 0) AS ordem
+       FROM fvs_ficha_servico_locais fsl
+       JOIN fvs_ficha_servicos fs ON fs.id = fsl.ficha_servico_id AND fs.ficha_id = $1 AND fs.tenant_id = $2
+       JOIN "ObraLocal" ol ON ol.id = fsl.obra_local_id
+       LEFT JOIN "ObraLocal" pav ON pav.id = ol."parentId"
+       WHERE 1=1 ${locaisWhere}
+       ORDER BY pav.nome NULLS FIRST, ol.nome`,
+      ...locaisParams,
+    );
+
+    // Serviços
+    const servicosParams: unknown[] = [fichaId, tenantId];
+    let servicosWhere = '';
+    if (filtros?.servicoId) {
+      servicosParams.push(filtros.servicoId);
+      servicosWhere = `AND s.id = $${servicosParams.length}`;
+    }
+
+    const servicos = await this.prisma.$queryRawUnsafe<{ id: number; nome: string; codigo: string | null }[]>(
+      `SELECT DISTINCT s.id, s.nome, s.codigo
        FROM fvs_ficha_servicos fs
        JOIN fvs_catalogo_servicos s ON s.id = fs.servico_id
-       WHERE fs.ficha_id = $1 AND fs.tenant_id = $2 ${servicoExtra}
-       ORDER BY fs.ordem ASC`,
-      ...servicoParams,
+       WHERE fs.ficha_id = $1 AND fs.tenant_id = $2 ${servicosWhere}
+       ORDER BY s.nome`,
+      ...servicosParams,
     );
 
-    // Parameterized filter for pavimento (optional)
-    const localParams: unknown[] = [fichaId, tenantId];
-    let pavimentoExtra = '';
-    if (filtros?.pavimentoId) {
-      localParams.push(filtros.pavimentoId);
-      pavimentoExtra = `AND ol."parentId" = $${localParams.length}`;
+    if (!servicos.length || !locais.length) {
+      return {
+        servicos, locais,
+        celulas: {},
+        resumo: { total_celulas: 0, aprovadas: 0, nc: 0, nc_final: 0, liberadas: 0, parciais: 0, nao_avaliadas: 0, pendentes: 0, progresso_pct: 0 },
+      };
     }
 
-    const locais = await this.prisma.$queryRawUnsafe<{ id: number; nome: string; pavimento_id: number | null }[]>(
-      `SELECT DISTINCT ol.id, ol.nome, ol."parentId" AS pavimento_id
-       FROM fvs_ficha_servico_locais fsl
-       JOIN "ObraLocal" ol ON ol.id = fsl.obra_local_id
-       JOIN fvs_ficha_servicos fs ON fs.id = fsl.ficha_servico_id
-       WHERE fs.ficha_id = $1 AND fsl.tenant_id = $2 ${pavimentoExtra}
-       ORDER BY ol.nome ASC`,
-      ...localParams,
-    );
+    // Registros por célula — status mais recente por item+local
+    type RegRow = {
+      servico_id: number; obra_local_id: number; status: string;
+      itens_total: number; itens_avaliados: number; itens_nc: number;
+      ultimo_inspetor: string | null; ultima_atividade: string | null;
+    };
 
-    const registros = await this.prisma.$queryRawUnsafe<{ servico_id: number; obra_local_id: number; status: string }[]>(
-      `SELECT DISTINCT ON (item_id, obra_local_id)
-         servico_id, obra_local_id, status
-       FROM fvs_registros
-       WHERE ficha_id = $1 AND tenant_id = $2
-       ORDER BY item_id, obra_local_id, ciclo DESC`,
+    const registros = await this.prisma.$queryRawUnsafe<RegRow[]>(
+      `SELECT DISTINCT ON (r.servico_id, r.item_id, r.obra_local_id)
+         r.servico_id,
+         r.obra_local_id,
+         r.status,
+         0::int                           AS itens_total,
+         0::int                           AS itens_avaliados,
+         0::int                           AS itens_nc,
+         u.nome                           AS ultimo_inspetor,
+         r.inspecionado_em::text          AS ultima_atividade
+       FROM fvs_registros r
+       LEFT JOIN "Usuario" u ON u.id = r.inspecionado_por
+       WHERE r.ficha_id = $1 AND r.tenant_id = $2
+       ORDER BY r.servico_id, r.item_id, r.obra_local_id, r.ciclo DESC`,
       fichaId, tenantId,
     );
 
-    // Algoritmo de agregação: NC > Aprovado > Não avaliado > Pendente
+    // Construir celulas e celulas_meta
+    const gruposCelula: Record<number, Record<number, string[]>> = {};
+    const metaMap: Record<number, Record<number, RegRow>> = {};
+
+    for (const srv of servicos) {
+      gruposCelula[srv.id] = {};
+      if (filtros?.includeMeta) metaMap[srv.id] = {};
+      for (const loc of locais) {
+        gruposCelula[srv.id][loc.id] = [];
+      }
+    }
+
+    for (const r of registros) {
+      gruposCelula[r.servico_id]?.[r.obra_local_id]?.push(r.status);
+      if (filtros?.includeMeta) {
+        metaMap[r.servico_id] ??= {};
+        metaMap[r.servico_id][r.obra_local_id] = r;
+      }
+    }
+
     const celulas: Record<number, Record<number, StatusGrade>> = {};
     for (const srv of servicos) {
       celulas[srv.id] = {};
       for (const loc of locais) {
-        const celReg = registros.filter(r => r.servico_id === srv.id && r.obra_local_id === loc.id);
-        celulas[srv.id][loc.id] = this.calcularStatusCelula(celReg.map(r => r.status));
+        celulas[srv.id][loc.id] = this.calcularStatusCelula(gruposCelula[srv.id]?.[loc.id] ?? []);
       }
     }
 
-    return { servicos, locais, celulas };
+    // Resumo
+    const resumo = { total_celulas: 0, aprovadas: 0, nc: 0, nc_final: 0, liberadas: 0, parciais: 0, nao_avaliadas: 0, pendentes: 0, progresso_pct: 0 };
+    for (const srvCelulas of Object.values(celulas)) {
+      for (const status of Object.values(srvCelulas)) {
+        resumo.total_celulas++;
+        if (status === 'aprovado') resumo.aprovadas++;
+        else if (status === 'nc') resumo.nc++;
+        else if (status === 'nc_final') resumo.nc_final++;
+        else if (status === 'liberado') resumo.liberadas++;
+        else if (status === 'parcial') resumo.parciais++;
+        else if (status === 'nao_avaliado') resumo.nao_avaliadas++;
+        else resumo.pendentes++;
+      }
+    }
+    resumo.progresso_pct = resumo.total_celulas
+      ? Math.round((resumo.aprovadas / resumo.total_celulas) * 100 * 10) / 10
+      : 0;
+
+    const result: FvsGrade = { servicos, locais, celulas, resumo };
+    if (filtros?.includeMeta) {
+      result.celulas_meta = {};
+      for (const srv of servicos) {
+        result.celulas_meta[srv.id] = {};
+        for (const loc of locais) {
+          const meta = metaMap[srv.id]?.[loc.id];
+          if (meta) {
+            result.celulas_meta[srv.id][loc.id] = {
+              itens_total: meta.itens_total,
+              itens_avaliados: meta.itens_avaliados,
+              itens_nc: meta.itens_nc,
+              ultimo_inspetor: meta.ultimo_inspetor ?? undefined,
+              ultima_atividade: meta.ultima_atividade ?? undefined,
+            };
+          }
+        }
+      }
+    }
+
+    return result;
   }
 
   // ── getGradePreview ───────────────────────────────────────────────────────────
