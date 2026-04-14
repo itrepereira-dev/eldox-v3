@@ -583,9 +583,26 @@ export class InspecaoService {
 
   private calcularStatusCelula(statuses: string[]): StatusGrade {
     if (!statuses.length) return 'nao_avaliado';
-    if (statuses.some(s => s === 'nao_conforme')) return 'nc';
-    if (statuses.every(s => s === 'conforme' || s === 'excecao')) return 'aprovado';
+
+    // Prioridade 1: NC ativa (nao_conforme ou retrabalho em curso)
+    if (statuses.some(s => s === 'nao_conforme' || s === 'retrabalho')) return 'nc';
+
+    // Prioridade 2: NC permanente após reinspeção
+    if (statuses.some(s => s === 'nc_apos_reinspecao')) return 'nc_final';
+
+    // Prioridade 3: todos não avaliados
     if (statuses.every(s => s === 'nao_avaliado')) return 'nao_avaliado';
+
+    // Prioridade 4: mix com não avaliados
+    if (statuses.some(s => s === 'nao_avaliado')) return 'parcial';
+
+    // Prioridade 5: todos aprovados (conforme + pós-reinspeção + exceção + liberado)
+    const APROVADOS = new Set(['conforme', 'conforme_apos_reinspecao', 'excecao', 'liberado_com_concessao']);
+    if (statuses.every(s => APROVADOS.has(s))) {
+      if (statuses.every(s => s === 'liberado_com_concessao')) return 'liberado';
+      return 'aprovado';
+    }
+
     return 'pendente';
   }
 

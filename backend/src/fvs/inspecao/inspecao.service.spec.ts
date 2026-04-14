@@ -668,4 +668,35 @@ describe('InspecaoService', () => {
       );
     });
   });
+
+  // ── calcularStatusCelula ──────────────────────────────────────────────────────
+  describe('calcularStatusCelula() — Sprint 4b', () => {
+    it('retorna nc quando há nao_conforme', () => {
+      expect((svc as any).calcularStatusCelula(['conforme', 'nao_conforme'])).toBe('nc');
+    });
+    it('retorna nc quando há retrabalho', () => {
+      expect((svc as any).calcularStatusCelula(['conforme', 'retrabalho'])).toBe('nc');
+    });
+    it('retorna nc_final quando há nc_apos_reinspecao e não há nao_conforme', () => {
+      expect((svc as any).calcularStatusCelula(['conforme', 'nc_apos_reinspecao'])).toBe('nc_final');
+    });
+    it('prefere nc sobre nc_final quando ambos presentes', () => {
+      expect((svc as any).calcularStatusCelula(['nao_conforme', 'nc_apos_reinspecao'])).toBe('nc');
+    });
+    it('retorna parcial quando há nao_avaliado misturado com avaliado', () => {
+      expect((svc as any).calcularStatusCelula(['conforme', 'nao_avaliado'])).toBe('parcial');
+    });
+    it('retorna nao_avaliado quando todos são nao_avaliado', () => {
+      expect((svc as any).calcularStatusCelula(['nao_avaliado', 'nao_avaliado'])).toBe('nao_avaliado');
+    });
+    it('retorna aprovado quando todos são conforme/conforme_apos_reinspecao/excecao', () => {
+      expect((svc as any).calcularStatusCelula(['conforme', 'conforme_apos_reinspecao', 'excecao'])).toBe('aprovado');
+    });
+    it('retorna liberado quando todos são liberado_com_concessao', () => {
+      expect((svc as any).calcularStatusCelula(['liberado_com_concessao', 'liberado_com_concessao'])).toBe('liberado');
+    });
+    it('retorna aprovado para mix de liberado+conforme+conforme_apos_reinspecao', () => {
+      expect((svc as any).calcularStatusCelula(['liberado_com_concessao', 'conforme_apos_reinspecao'])).toBe('aprovado');
+    });
+  });
 });
