@@ -350,18 +350,26 @@ describe('InspecaoService', () => {
       ).rejects.toBeInstanceOf(ConflictException);
     });
 
-    it('regime=pbqph, status=nao_conforme sem observacao → 422', async () => {
-      mockPrisma.$queryRawUnsafe.mockResolvedValueOnce([FICHA_EM_INSPECAO]);
+    it('regime=pbqph, status=nao_conforme sem observacao → 400', async () => {
+      mockPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce([FICHA_EM_INSPECAO])
+        .mockResolvedValueOnce([{ status: 'nao_avaliado' }]);  // status atual
       await expect(
         svc.putRegistro(TENANT_ID, 1, USER_ID, { servicoId: 1, itemId: 1, localId: 1, status: 'nao_conforme' }, '127.0.0.1'),
-      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+      ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('regime=pbqph, status=nao_conforme COM observacao → salva e grava audit_log', async () => {
       mockPrisma.$queryRawUnsafe
-        .mockResolvedValueOnce([FICHA_EM_INSPECAO])             // getFichaOuFalhar
-        .mockResolvedValueOnce([{ criticidade: 'critico' }])    // buscar item
-        .mockResolvedValueOnce([{ id: 5, status: 'nao_conforme' }]); // upsert retorno
+        .mockResolvedValueOnce([FICHA_EM_INSPECAO])              // getFichaOuFalhar
+        .mockResolvedValueOnce([{ status: 'nao_avaliado' }])     // buscar status atual
+        .mockResolvedValueOnce([{ criticidade: 'critico' }])     // buscar item
+        .mockResolvedValueOnce([{ id: 5, ficha_id: 1, status: 'nao_conforme', ciclo: 1 }]) // upsert retorno
+        // autoCreateNc:
+        .mockResolvedValueOnce([])                               // verificar NC existente
+        .mockResolvedValueOnce([{ seq: 1 }])                     // próximo seq
+        .mockResolvedValueOnce([{ codigo: 'ALV' }])              // codigo serviço
+        .mockResolvedValueOnce([{ id: 1 }]);                     // INSERT NC
       mockPrisma.$executeRawUnsafe.mockResolvedValue(undefined); // audit_log
 
       const result = await svc.putRegistro(TENANT_ID, 1, USER_ID, {
@@ -371,30 +379,79 @@ describe('InspecaoService', () => {
       expect(result.status).toBe('nao_conforme');
       expect(mockPrisma.$executeRawUnsafe).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO fvs_audit_log'),
-        TENANT_ID,          // $1 tenant_id
-        1,                  // $2 ficha_id
-        5,                  // $3 registro_id (from mock return { id: 5 })
-        'inspecao',         // $4 acao
-        null,               // $5 status_de (not provided → null)
-        'nao_conforme',     // $6 status_para
-        USER_ID,            // $7 usuario_id
-        '127.0.0.1',        // $8 ip_origem
-        expect.stringContaining('"itemId"'), // $9 detalhes JSON
+        TENANT_ID, 1, 5, 'inspecao',
+        'nao_avaliado',      // status_de (novo campo!)
+        'nao_conforme',
+        USER_ID, '127.0.0.1',
+        expect.stringContaining('"itemId"'),
       );
     });
 
-    it('regime=livre, status=nao_conforme sem observacao → salva sem audit_log', async () => {
+    it('regime=livre, status=nao_conforme COM observacao → salva sem audit_log', async () => {
       mockPrisma.$queryRawUnsafe
         .mockResolvedValueOnce([{ ...FICHA_EM_INSPECAO, regime: 'livre' }])
+        .mockResolvedValueOnce([{ status: 'nao_avaliado' }])    // status atual
         .mockResolvedValueOnce([{ criticidade: 'menor' }])
-        .mockResolvedValueOnce([{ id: 5, status: 'nao_conforme' }]);
+        .mockResolvedValueOnce([{ id: 5, ficha_id: 1, status: 'nao_conforme', ciclo: 1 }])
+        // autoCreateNc:
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ seq: 1 }])
+        .mockResolvedValueOnce([{ codigo: 'ALV' }])
+        .mockResolvedValueOnce([{ id: 1 }]);
 
       const result = await svc.putRegistro(TENANT_ID, 1, USER_ID, {
-        servicoId: 1, itemId: 1, localId: 1, status: 'nao_conforme',
+        servicoId: 1, itemId: 1, localId: 1, status: 'nao_conforme', observacao: 'Desvio',
       }, '127.0.0.1');
 
       expect(result.status).toBe('nao_conforme');
-      expect(mockPrisma.$executeRawUnsafe).not.toHaveBeenCalled();
+      // A nova lógica de audit_log inclui nao_conforme independente de regime
+      expect(mockPrisma.$executeRawUnsafe).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO fvs_audit_log'),
+        expect.anything(), expect.anything(), expect.anything(), 'inspecao',
+        expect.anything(), 'nao_conforme',
+        expect.anything(), expect.anything(), expect.anything(),
+      );
+    });
+  });
+
+  describe('putRegistro() — validações Sprint 4b', () => {
+    const FICHA_APROVADA = { ...FICHA_RASCUNHO, status: 'aprovada' };
+
+    it('lança ConflictException (409) para ficha aprovada', async () => {
+      mockPrisma.$queryRawUnsafe.mockResolvedValueOnce([FICHA_APROVADA]);
+      await expect(
+        svc.putRegistro(TENANT_ID, 1, USER_ID, { servicoId: 1, itemId: 1, localId: 1, status: 'conforme' }, '127.0.0.1'),
+      ).rejects.toThrow('Ficha aprovada. Nenhuma alteração permitida.');
+    });
+
+    it('lança UnprocessableEntityException para transição inválida conforme→conforme_apos_reinspecao', async () => {
+      mockPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce([FICHA_EM_INSPECAO])
+        .mockResolvedValueOnce([{ status: 'conforme' }]);   // status atual do registro
+
+      await expect(
+        svc.putRegistro(TENANT_ID, 1, USER_ID, { servicoId: 1, itemId: 1, localId: 1, status: 'conforme_apos_reinspecao' }, '127.0.0.1'),
+      ).rejects.toThrow('Transição inválida: conforme → conforme_apos_reinspecao');
+    });
+
+    it('lança BadRequestException para nao_conforme sem observacao (qualquer regime)', async () => {
+      mockPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce([{ ...FICHA_EM_INSPECAO, regime: 'livre' }])
+        .mockResolvedValueOnce([{ status: 'nao_avaliado' }]);   // status atual
+
+      await expect(
+        svc.putRegistro(TENANT_ID, 1, USER_ID, { servicoId: 1, itemId: 1, localId: 1, status: 'nao_conforme' }, '127.0.0.1'),
+      ).rejects.toThrow('Observação é obrigatória para não conformidade');
+    });
+
+    it('lança BadRequestException para nc_apos_reinspecao sem observacao', async () => {
+      mockPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce([{ ...FICHA_EM_INSPECAO, regime: 'livre' }])
+        .mockResolvedValueOnce([{ status: 'nao_conforme' }]);   // status atual
+
+      await expect(
+        svc.putRegistro(TENANT_ID, 1, USER_ID, { servicoId: 1, itemId: 1, localId: 1, status: 'nc_apos_reinspecao' }, '127.0.0.1'),
+      ).rejects.toThrow('Observação é obrigatória para NC após reinspeção');
     });
   });
 
@@ -524,6 +581,7 @@ describe('InspecaoService', () => {
     it('salva registro com ciclo=2 e chama checkAndAdvanceRoStatus', async () => {
       mockPrisma.$queryRawUnsafe
         .mockResolvedValueOnce([FICHA_EM_INSPECAO])          // getFichaOuFalhar
+        .mockResolvedValueOnce([{ status: 'nao_avaliado' }]) // buscar status atual
         .mockResolvedValueOnce([{ criticidade: 'maior' }])   // buscar item
         .mockResolvedValueOnce([{ id: 5, status: 'conforme', ciclo: 2 }]); // upsert retorno
       mockPrisma.$executeRawUnsafe.mockResolvedValue(undefined); // audit_log
@@ -543,6 +601,7 @@ describe('InspecaoService', () => {
     it('NÃO chama checkAndAdvanceRoStatus para ciclo=1', async () => {
       mockPrisma.$queryRawUnsafe
         .mockResolvedValueOnce([FICHA_EM_INSPECAO])
+        .mockResolvedValueOnce([{ status: 'nao_avaliado' }]) // buscar status atual
         .mockResolvedValueOnce([{ criticidade: 'menor' }])
         .mockResolvedValueOnce([{ id: 5, status: 'conforme', ciclo: 1 }]);
       mockPrisma.$executeRawUnsafe.mockResolvedValue(undefined);

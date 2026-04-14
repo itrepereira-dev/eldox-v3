@@ -30,6 +30,18 @@ const TRANSICOES_VALIDAS: Record<string, string[]> = {
   aprovada: [],                        // estado final
 };
 
+// Transições válidas para status de registro individual
+const TRANSICOES_REGISTRO: Record<string, string[]> = {
+  nao_avaliado:             ['conforme', 'nao_conforme', 'excecao'],
+  conforme:                 ['nao_conforme'],
+  nao_conforme:             ['conforme_apos_reinspecao', 'nc_apos_reinspecao', 'liberado_com_concessao', 'retrabalho'],
+  excecao:                  ['nao_conforme'],
+  retrabalho:               ['conforme', 'nao_conforme', 'excecao'],
+  conforme_apos_reinspecao: [],
+  nc_apos_reinspecao:       [],
+  liberado_com_concessao:   [],
+};
+
 @Injectable()
 export class InspecaoService {
   private readonly logger = new Logger(InspecaoService.name);
@@ -214,7 +226,7 @@ export class InspecaoService {
            VALUES ($1, $2, $3, $4)
            RETURNING id`,
           tenantId, ficha.id, svc.servico_id,
-          svc.itens_excluidos ? JSON.stringify(svc.itens_excluidos) : null,
+          svc.itens_excluidos?.length ? svc.itens_excluidos : null,
         );
         // Nota: locais não são copiados do template — usuário adiciona manualmente
       }
@@ -227,7 +239,7 @@ export class InspecaoService {
              VALUES ($1, $2, $3, $4)
              RETURNING id`,
             tenantId, ficha.id, svc.servicoId,
-            svc.itensExcluidos ? JSON.stringify(svc.itensExcluidos) : null,
+            svc.itensExcluidos?.length ? svc.itensExcluidos : null,
           );
           const fichaServicoId = fichaServicos[0].id;
 
@@ -309,7 +321,7 @@ export class InspecaoService {
 
     const total = rows.length ? Number(rows[0].total_count) : 0;
     return {
-      data: rows.map(r => ({ ...r, progresso: Number(r.progresso) })),
+      data: rows.map(({ total_count, ...r }) => ({ ...r, progresso: Number(r.progresso) })),
       total,
       page,
     };
@@ -476,7 +488,7 @@ export class InspecaoService {
         `INSERT INTO fvs_ficha_servicos (tenant_id, ficha_id, servico_id, itens_excluidos)
          VALUES ($1, $2, $3, $4) RETURNING id`,
         tenantId, fichaId, dto.servicoId,
-        dto.itensExcluidos ? JSON.stringify(dto.itensExcluidos) : null,
+        dto.itensExcluidos?.length ? dto.itensExcluidos : null,
       );
       const fichaServicoId = rows[0].id;
 
@@ -534,11 +546,11 @@ export class InspecaoService {
     let pavimentoExtra = '';
     if (filtros?.pavimentoId) {
       localParams.push(filtros.pavimentoId);
-      pavimentoExtra = `AND ol.pavimento_id = $${localParams.length}`;
+      pavimentoExtra = `AND ol."parentId" = $${localParams.length}`;
     }
 
     const locais = await this.prisma.$queryRawUnsafe<{ id: number; nome: string; pavimento_id: number | null }[]>(
-      `SELECT DISTINCT ol.id, ol.nome, ol.pavimento_id
+      `SELECT DISTINCT ol.id, ol.nome, ol."parentId" AS pavimento_id
        FROM fvs_ficha_servico_locais fsl
        JOIN "ObraLocal" ol ON ol.id = fsl.obra_local_id
        JOIN fvs_ficha_servicos fs ON fs.id = fsl.ficha_servico_id
@@ -651,28 +663,49 @@ export class InspecaoService {
   ): Promise<FvsRegistroComCiclo> {
     const ficha = await this.getFichaOuFalhar(tenantId, fichaId);
 
+    // Parecer lock: ficha aprovada bloqueia qualquer alteração
+    if (ficha.status === 'aprovada') {
+      throw new ConflictException('Ficha aprovada. Nenhuma alteração permitida.');
+    }
+
     if (ficha.status !== 'em_inspecao') {
       throw new ConflictException('Registros só podem ser gravados com ficha em_inspecao');
     }
 
-    // Validação mode-aware: pbqph exige observação para NC
-    if (ficha.regime === 'pbqph' && dto.status === 'nao_conforme') {
-      if (!dto.observacao?.trim()) {
-        throw new UnprocessableEntityException(
-          'Observação obrigatória para item não conforme em regime PBQP-H',
-        );
-      }
+    // Buscar status atual do registro para validar transição
+    const ciclo = dto.ciclo ?? 1;
+    const registroAtualRows = await this.prisma.$queryRawUnsafe<{ status: string }[]>(
+      `SELECT status FROM fvs_registros
+       WHERE ficha_id = $1 AND item_id = $2 AND obra_local_id = $3 AND ciclo = $4 AND tenant_id = $5
+       LIMIT 1`,
+      fichaId, dto.itemId, dto.localId, ciclo, tenantId,
+    );
+    const statusAtual = registroAtualRows[0]?.status ?? 'nao_avaliado';
+
+    // Validar transição
+    const transicoesPermitidas = TRANSICOES_REGISTRO[statusAtual] ?? [];
+    if (dto.status !== statusAtual && !transicoesPermitidas.includes(dto.status)) {
+      throw new UnprocessableEntityException(
+        `Transição inválida: ${statusAtual} → ${dto.status}`,
+      );
     }
 
-    // Buscar criticidade do item (para detalhes do audit_log)
+    // Observação obrigatória (todos os regimes)
+    if (dto.status === 'nao_conforme' && !dto.observacao?.trim()) {
+      throw new BadRequestException('Observação é obrigatória para não conformidade');
+    }
+    if (dto.status === 'nc_apos_reinspecao' && !dto.observacao?.trim()) {
+      throw new BadRequestException('Observação é obrigatória para NC após reinspeção');
+    }
+
+    // Buscar criticidade do item (para audit_log)
     const itemRows = await this.prisma.$queryRawUnsafe<{ criticidade: string }[]>(
       `SELECT criticidade FROM fvs_catalogo_itens WHERE id = $1 AND tenant_id IN (0, $2)`,
       dto.itemId, tenantId,
     );
     const criticidade = itemRows[0]?.criticidade ?? 'menor';
-    const ciclo = dto.ciclo ?? 1;
 
-    // Upsert via INSERT ... ON CONFLICT (Sprint 3: inclui ciclo na chave)
+    // Upsert registro
     const rows = await this.prisma.$queryRawUnsafe<FvsRegistroComCiclo[]>(
       `INSERT INTO fvs_registros
          (tenant_id, ficha_id, servico_id, item_id, obra_local_id, ciclo, status, observacao, inspecionado_por, inspecionado_em)
@@ -688,11 +721,27 @@ export class InspecaoService {
       dto.status, dto.observacao ?? null, userId,
     );
 
-    // Audit log — somente pbqph
-    if (ficha.regime === 'pbqph') {
+    const registro = rows[0];
+
+    // Auto-criar NC ao transicionar PARA nao_conforme
+    if (dto.status === 'nao_conforme' && statusAtual !== 'nao_conforme') {
+      await this.autoCreateNc(tenantId, fichaId, registro.id, dto, criticidade, userId, ciclo);
+    }
+
+    // Encerrar NC ao transicionar DE nao_conforme
+    if (
+      statusAtual === 'nao_conforme' &&
+      ['conforme_apos_reinspecao', 'liberado_com_concessao', 'nc_apos_reinspecao'].includes(dto.status)
+    ) {
+      await this.encerrarNc(tenantId, registro.id, dto.status, userId);
+    }
+
+    // Audit log — todos os regimes para status críticos
+    if (ficha.regime === 'pbqph' || ['nao_conforme', 'conforme_apos_reinspecao', 'nc_apos_reinspecao', 'liberado_com_concessao'].includes(dto.status)) {
       await this.gravarAuditLog(this.prisma, {
         tenantId, fichaId, usuarioId: userId,
-        acao: 'inspecao', registroId: rows[0].id, ip,
+        acao: 'inspecao', registroId: registro.id, ip,
+        statusDe: statusAtual !== dto.status ? statusAtual : undefined,
         statusPara: dto.status,
         detalhes: { itemId: dto.itemId, localId: dto.localId, criticidade, ciclo },
       });
@@ -703,7 +752,20 @@ export class InspecaoService {
       await this.roService.checkAndAdvanceRoStatus(tenantId, fichaId);
     }
 
-    return rows[0];
+    return registro;
+  }
+
+  private async autoCreateNc(
+    _tenantId: number, _fichaId: number, _registroId: number,
+    _dto: any, _criticidade: string, _userId: number, _ciclo: number,
+  ): Promise<void> {
+    // implementado na Task 6
+  }
+
+  private async encerrarNc(
+    _tenantId: number, _registroId: number, _resultadoFinal: string, _userId: number,
+  ): Promise<void> {
+    // implementado na Task 6
   }
 
   // ── createEvidencia ──────────────────────────────────────────────────────────
