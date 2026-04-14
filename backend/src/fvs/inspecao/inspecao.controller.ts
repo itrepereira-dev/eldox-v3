@@ -18,6 +18,7 @@ import { UpdateLocalDto } from './dto/update-local.dto';
 import { AddServicoDto } from './dto/add-servico.dto';
 import { SubmitParecerDto } from './dto/submit-parecer.dto';
 import { BulkInspecaoDto } from './dto/bulk-inspecao.dto';
+import { RegistrarTratamentoDto } from './dto/registrar-tratamento.dto';
 
 interface JwtUser { id: number; tenantId: number; role: string }
 
@@ -237,5 +238,39 @@ export class InspecaoController {
     @Ip() ip: string,
   ) {
     return this.inspecao.bulkInspecaoLocais(tenantId, fichaId, user.id, dto, ip);
+  }
+
+  // ─── NCs ─────────────────────────────────────────────────────────────────────
+
+  @Get('fichas/:id/ncs')
+  @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO', 'VISITANTE')
+  getNcs(
+    @TenantId() tenantId: number,
+    @Param('id', ParseIntPipe) fichaId: number,
+    @Query('status') status?: string,
+    @Query('criticidade') criticidade?: string,
+    @Query('servicoId', new ParseIntPipe({ optional: true })) servicoId?: number,
+    @Query('slaStatus') slaStatus?: string,
+  ) {
+    return this.inspecao.getNcs(tenantId, fichaId, { status, criticidade, servicoId, slaStatus });
+  }
+
+  @Post('fichas/:fichaId/ncs/:ncId/tratamento')
+  @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO')
+  @HttpCode(HttpStatus.CREATED)
+  registrarTratamento(
+    @TenantId() tenantId: number,
+    @CurrentUser() user: JwtUser,
+    @Param('fichaId', ParseIntPipe) fichaId: number,
+    @Param('ncId', ParseIntPipe) ncId: number,
+    @Body() dto: RegistrarTratamentoDto,
+  ) {
+    return this.inspecao.registrarTratamento(tenantId, fichaId, ncId, user.id, {
+      descricao: dto.descricao,
+      acaoCorretiva: dto.acaoCorretiva,
+      responsavelId: dto.responsavelId,
+      prazo: dto.prazo,
+      evidencias: dto.evidencias?.map(e => ({ gedVersaoId: e.gedVersaoId, descricao: e.descricao })),
+    });
   }
 }

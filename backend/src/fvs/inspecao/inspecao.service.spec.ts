@@ -728,4 +728,59 @@ describe('InspecaoService', () => {
       expect(result.erros).toBe(0);
     });
   });
+
+  // ── getNcs ────────────────────────────────────────────────────────────────────
+  describe('getNcs()', () => {
+    it('retorna lista de NCs com filtros', async () => {
+      mockPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce([FICHA_EM_INSPECAO])
+        .mockResolvedValueOnce([
+          { id: 1, numero: 'NC-1-ALV-001', status: 'aberta', criticidade: 'maior',
+            servico_nome: 'Alvenaria', item_descricao: 'Prumo', local_nome: 'Ap 101',
+            sla_status: 'no_prazo', prazo_resolucao: null, criado_em: new Date() },
+        ])
+        .mockResolvedValueOnce([{ count: 1 }]);
+
+      const result = await svc.getNcs(TENANT_ID, 1, {});
+      expect(result.total).toBe(1);
+      expect(result.ncs[0].numero).toBe('NC-1-ALV-001');
+    });
+  });
+
+  // ── registrarTratamento ───────────────────────────────────────────────────────
+  describe('registrarTratamento()', () => {
+    it('insere tratamento e atualiza NC para em_tratamento', async () => {
+      const prazoFuturo = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+
+      mockPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce([FICHA_EM_INSPECAO])
+        .mockResolvedValueOnce([{ id: 3, status: 'aberta', ficha_id: 1 }])  // buscar NC
+        .mockResolvedValueOnce([{ max_ciclo: null }])                         // max ciclo (nenhum)
+        .mockResolvedValueOnce([{ id: 10 }]);                                 // INSERT tratamento
+
+      mockPrisma.$executeRawUnsafe.mockResolvedValue(undefined); // UPDATE NC
+
+      await svc.registrarTratamento(TENANT_ID, 1, 3, USER_ID, {
+        descricao: 'Realinhamento', acaoCorretiva: 'Refazer fiadas', responsavelId: 5, prazo: prazoFuturo,
+      });
+
+      expect(mockPrisma.$executeRawUnsafe).toHaveBeenCalledWith(
+        expect.stringContaining('UPDATE fvs_nao_conformidades'),
+        'em_tratamento', expect.anything(), expect.anything(), expect.anything(), 3, TENANT_ID,
+      );
+    });
+
+    it('lança BadRequestException para prazo no passado', async () => {
+      const ontem = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+      mockPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce([FICHA_EM_INSPECAO])
+        .mockResolvedValueOnce([{ id: 3, status: 'aberta', ficha_id: 1 }]);
+
+      await expect(
+        svc.registrarTratamento(TENANT_ID, 1, 3, USER_ID, {
+          descricao: 'X', acaoCorretiva: 'Y', responsavelId: 5, prazo: ontem,
+        }),
+      ).rejects.toThrow('Prazo deve ser igual ou posterior à data atual');
+    });
+  });
 });

@@ -12,6 +12,7 @@ import { GedService } from '../../ged/ged.service';
 import type {
   FichaFvs, FichaFvsComProgresso, FichaDetalhada, FvsGrade,
   FvsRegistro, FvsRegistroComCiclo, FvsEvidencia, StatusGrade,
+  FvsNaoConformidade,
 } from '../types/fvs.types';
 import type { CreateFichaDto } from './dto/create-ficha.dto';
 import type { UpdateFichaDto } from './dto/update-ficha.dto';
@@ -1038,5 +1039,109 @@ export class InspecaoService {
     );
     if (!rows.length) throw new NotFoundException(`Local ${localId} não vinculado à ficha ${fichaId}`);
     return rows[0];
+  }
+
+  // ── getNcs ────────────────────────────────────────────────────────────────────
+
+  async getNcs(
+    tenantId: number,
+    fichaId: number,
+    filtros: {
+      status?: string;
+      criticidade?: string;
+      servicoId?: number;
+      slaStatus?: string;
+    },
+  ): Promise<{ total: number; ncs: FvsNaoConformidade[] }> {
+    await this.getFichaOuFalhar(tenantId, fichaId);
+
+    const params: unknown[] = [tenantId, fichaId];
+    const conditions: string[] = ['nc.tenant_id = $1', 'nc.ficha_id = $2', 'nc.deleted_at IS NULL'];
+
+    if (filtros.status) { params.push(filtros.status); conditions.push(`nc.status = $${params.length}`); }
+    if (filtros.criticidade) { params.push(filtros.criticidade); conditions.push(`nc.criticidade = $${params.length}`); }
+    if (filtros.servicoId) { params.push(filtros.servicoId); conditions.push(`nc.servico_id = $${params.length}`); }
+    if (filtros.slaStatus) { params.push(filtros.slaStatus); conditions.push(`nc.sla_status = $${params.length}`); }
+
+    const where = conditions.join(' AND ');
+
+    const ncs = await this.prisma.$queryRawUnsafe<FvsNaoConformidade[]>(
+      `SELECT nc.*,
+              s.nome      AS servico_nome,
+              i.descricao AS item_descricao,
+              ol.nome     AS local_nome
+       FROM fvs_nao_conformidades nc
+       LEFT JOIN fvs_catalogo_servicos s  ON s.id = nc.servico_id
+       LEFT JOIN fvs_catalogo_itens    i  ON i.id = nc.item_id
+       LEFT JOIN obra_locais           ol ON ol.id = nc.obra_local_id
+       WHERE ${where}
+       ORDER BY nc.criado_em DESC`,
+      ...params,
+    );
+
+    const countRows = await this.prisma.$queryRawUnsafe<{ count: number }[]>(
+      `SELECT COUNT(*)::int AS count FROM fvs_nao_conformidades nc WHERE ${where}`,
+      ...params,
+    );
+
+    return { total: countRows[0]?.count ?? 0, ncs };
+  }
+
+  // ── registrarTratamento ───────────────────────────────────────────────────────
+
+  async registrarTratamento(
+    tenantId: number,
+    fichaId: number,
+    ncId: number,
+    userId: number,
+    dto: {
+      descricao: string;
+      acaoCorretiva: string;
+      responsavelId: number;
+      prazo: string;
+      evidencias?: { gedVersaoId: number; descricao?: string }[];
+    },
+  ): Promise<void> {
+    await this.getFichaOuFalhar(tenantId, fichaId);
+
+    const ncRows = await this.prisma.$queryRawUnsafe<{ id: number; status: string; ficha_id: number }[]>(
+      `SELECT id, status, ficha_id FROM fvs_nao_conformidades WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+      ncId, tenantId,
+    );
+    if (!ncRows.length) throw new NotFoundException(`NC ${ncId} não encontrada`);
+    const nc = ncRows[0];
+    if (nc.status === 'encerrada' || nc.status === 'cancelada') {
+      throw new ConflictException('NC já encerrada');
+    }
+
+    // Validar prazo
+    const hoje = new Date().toISOString().slice(0, 10);
+    if (dto.prazo < hoje) {
+      throw new BadRequestException('Prazo deve ser igual ou posterior à data atual');
+    }
+
+    // Próximo ciclo_numero
+    const cicloRows = await this.prisma.$queryRawUnsafe<{ max_ciclo: number | null }[]>(
+      `SELECT MAX(ciclo_numero) AS max_ciclo FROM fvs_nc_tratamentos WHERE nc_id = $1`,
+      ncId,
+    );
+    const cicloNumero = (cicloRows[0]?.max_ciclo ?? 0) + 1;
+
+    await this.prisma.$queryRawUnsafe(
+      `INSERT INTO fvs_nc_tratamentos
+         (tenant_id, nc_id, ciclo_numero, descricao, acao_corretiva, responsavel_id, prazo, evidencias, registrado_por)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      tenantId, ncId, cicloNumero, dto.descricao, dto.acaoCorretiva,
+      dto.responsavelId, dto.prazo,
+      dto.evidencias ? JSON.stringify(dto.evidencias) : null,
+      userId,
+    );
+
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE fvs_nao_conformidades
+       SET status = $1, responsavel_id = $2, prazo_resolucao = $3, acao_corretiva = $4, updated_at = NOW()
+       WHERE id = $5 AND tenant_id = $6`,
+      'em_tratamento', dto.responsavelId, dto.prazo, dto.acaoCorretiva, ncId, tenantId,
+    );
   }
 }
