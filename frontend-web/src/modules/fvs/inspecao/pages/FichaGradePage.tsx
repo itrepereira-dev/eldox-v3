@@ -1,43 +1,184 @@
 // frontend-web/src/modules/fvs/inspecao/pages/FichaGradePage.tsx
-import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useState, useMemo } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useFicha, usePatchFicha } from '../hooks/useFichas';
-import { useGrade } from '../hooks/useGrade';
+import { useGrade, useBulkInspecao } from '../hooks/useGrade';
 import { useSolicitarParecer } from '../hooks/useRo';
 import { RoPanel } from '../components/RoPanel';
 import { ParecerModal } from '../components/ParecerModal';
+import { GradeDrawer } from '../components/GradeDrawer';
 import type { StatusGrade } from '../../../../services/fvs.service';
+import { cn } from '@/lib/cn';
+import { ArrowLeft, X, CheckSquare } from 'lucide-react';
 
-const CELL_COLOR: Record<StatusGrade, string> = {
-  nc: '#ef4444',
-  aprovado: '#22c55e',
-  pendente: '#f59e0b',
-  nao_avaliado: '#d1d5db',
+// ── Configurações visuais ─────────────────────────────────────────────────────
+
+const CELL_CLS: Record<StatusGrade, string> = {
+  nc:           'bg-[var(--nc-text)] text-white',
+  nc_final:     'bg-red-900 text-white',
+  aprovado:     'bg-[var(--ok-text)] text-white',
+  liberado:     'bg-yellow-400 text-yellow-900',
+  pendente:     'bg-[var(--warn-text)] text-white',
+  parcial:      'bg-blue-300 text-blue-900',
+  nao_avaliado: 'bg-[var(--border-dim)] text-[var(--text-faint)]',
 };
 
 const CELL_ICON: Record<StatusGrade, string> = {
-  nc: '✗',
-  aprovado: '✓',
-  pendente: '!',
+  nc:           '✗',
+  nc_final:     '🔒',
+  aprovado:     '✓',
+  liberado:     '⚡',
+  pendente:     '!',
+  parcial:      '◐',
   nao_avaliado: '—',
 };
+
+const LEGEND: { status: StatusGrade; label: string }[] = [
+  { status: 'aprovado',     label: 'Aprovado' },
+  { status: 'nc',           label: 'NC' },
+  { status: 'nc_final',     label: 'NC Final' },
+  { status: 'liberado',     label: 'Liberado c/ Concessão' },
+  { status: 'pendente',     label: 'Pendente' },
+  { status: 'parcial',      label: 'Parcial' },
+  { status: 'nao_avaliado', label: 'Não Avaliado' },
+];
+
+// ── Componente principal ──────────────────────────────────────────────────────
 
 export function FichaGradePage() {
   const { fichaId } = useParams<{ fichaId: string }>();
   const id = Number(fichaId);
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const { data: ficha } = useFicha(id);
   const { data: grade, isLoading } = useGrade(id);
-  const patchFicha = usePatchFicha(id);
-
-  const [confirmando, setConfirmando] = useState<'iniciar' | 'concluir' | null>(null);
-  const [erroConcluso, setErroConcluso] = useState<{ message: string; itensPendentes?: any[] } | null>(null);
-  const [showParecer, setShowParecer] = useState(false);
-  const [erroSolicitacao, setErroSolicitacao] = useState<string | null>(null);
-
+  const patchFicha       = usePatchFicha(id);
   const solicitarParecer = useSolicitarParecer(id);
+  const bulk = useBulkInspecao(id);
 
+  // ── Estado local ───────────────────────────────────────────────────────────
+  const [confirmando, setConfirmando]   = useState<'iniciar' | 'concluir' | null>(null);
+  const [erroConcluso, setErroConcluso] = useState<{ message: string; itensPendentes?: any[] } | null>(null);
+  const [showParecer, setShowParecer]   = useState(false);
+  const [erroSolicitacao, setErroSolicitacao] = useState<string | null>(null);
+  const [drawer, setDrawer]             = useState<{ localId: number; servicoId: number } | null>(null);
+  const [selecionados, setSelecionados] = useState<{ servicoId: number; localId: number }[]>([]);
+  const [bulkErro, setBulkErro]         = useState<string | null>(null);
+
+  // ── Filtros (URL-synced) ───────────────────────────────────────────────────
+  const filtroPavimento = searchParams.get('pavimento') ? Number(searchParams.get('pavimento')) : null;
+  const filtroServico   = searchParams.get('servico')   ? Number(searchParams.get('servico'))   : null;
+  const filtroStatus    = searchParams.get('status') as StatusGrade | null;
+
+  function setFiltro(key: string, value: string | null) {
+    const next = new URLSearchParams(searchParams);
+    if (value) next.set(key, value);
+    else next.delete(key);
+    setSearchParams(next, { replace: true });
+    setSelecionados([]);
+  }
+
+  // ── Dados filtrados (client-side) ─────────────────────────────────────────
+  const locaisFiltrados = useMemo(() => {
+    if (!grade) return [];
+    let locs = grade.locais;
+    if (filtroPavimento) locs = locs.filter(l => l.pavimento_id === filtroPavimento);
+    return locs;
+  }, [grade, filtroPavimento]);
+
+  const servicosFiltrados = useMemo(() => {
+    if (!grade) return [];
+    let srvs = grade.servicos;
+    if (filtroServico) srvs = srvs.filter(s => s.id === filtroServico);
+    return srvs;
+  }, [grade, filtroServico]);
+
+  const pavimentos = useMemo(() => {
+    if (!grade) return [];
+    const seen = new Map<number, string>();
+    grade.locais.forEach(l => { if (l.pavimento_id) seen.set(l.pavimento_id, l.pavimento_nome ?? `Pav. ${l.pavimento_id}`); });
+    return Array.from(seen.entries()).map(([id, nome]) => ({ id, nome }));
+  }, [grade]);
+
+  function isCelulaVisivel(srvId: number, locId: number): boolean {
+    if (!filtroStatus) return true;
+    const status = grade?.celulas[srvId]?.[locId] ?? 'nao_avaliado';
+    return status === filtroStatus;
+  }
+
+  function isLocalVisivel(locId: number): boolean {
+    if (!filtroStatus || !grade) return true;
+    return servicosFiltrados.some(srv => (grade.celulas[srv.id]?.[locId] ?? 'nao_avaliado') === filtroStatus);
+  }
+
+  const locaisVisiveis = useMemo(
+    () => locaisFiltrados.filter(l => isLocalVisivel(l.id)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [locaisFiltrados, filtroStatus, servicosFiltrados, grade],
+  );
+
+  // ── Grupos por pavimento (para cabeçalho agrupado) ────────────────────────
+  const gruposPavimento = useMemo(() => {
+    const grupos: { pavNome: string | null; locais: typeof locaisVisiveis }[] = [];
+    for (const loc of locaisVisiveis) {
+      const last = grupos[grupos.length - 1];
+      if (!last || last.pavNome !== loc.pavimento_nome) {
+        grupos.push({ pavNome: loc.pavimento_nome, locais: [loc] });
+      } else {
+        last.locais.push(loc);
+      }
+    }
+    return grupos;
+  }, [locaisVisiveis]);
+
+  const temAgrupamento = gruposPavimento.length > 1 || !!gruposPavimento[0]?.pavNome;
+
+  // ── Seleção ────────────────────────────────────────────────────────────────
+  function toggleLocalSelecionado(localId: number) {
+    const células = servicosFiltrados.map(s => ({ servicoId: s.id, localId }));
+    const todasSelecionadas = células.every(c => selecionados.some(s => s.servicoId === c.servicoId && s.localId === c.localId));
+    if (todasSelecionadas) {
+      setSelecionados(prev => prev.filter(s => s.localId !== localId));
+    } else {
+      setSelecionados(prev => {
+        const filtered = prev.filter(s => s.localId !== localId);
+        return [...filtered, ...células];
+      });
+    }
+  }
+
+  function toggleServicoSelecionado(servicoId: number) {
+    const células = locaisVisiveis.map(l => ({ servicoId, localId: l.id }));
+    const todasSelecionadas = células.every(c => selecionados.some(s => s.servicoId === c.servicoId && s.localId === c.localId));
+    if (todasSelecionadas) {
+      setSelecionados(prev => prev.filter(s => s.servicoId !== servicoId));
+    } else {
+      setSelecionados(prev => {
+        const filtered = prev.filter(s => s.servicoId !== servicoId);
+        return [...filtered, ...células];
+      });
+    }
+  }
+
+  async function handleBulk(status: 'conforme' | 'excecao') {
+    setBulkErro(null);
+    const porServico = new Map<number, number[]>();
+    selecionados.forEach(({ servicoId, localId }) => {
+      if (!porServico.has(servicoId)) porServico.set(servicoId, []);
+      porServico.get(servicoId)!.push(localId);
+    });
+    try {
+      for (const [servicoId, localIds] of porServico) {
+        await bulk.mutateAsync({ servicoId, localIds, status });
+      }
+      setSelecionados([]);
+    } catch (e: any) {
+      setBulkErro(e?.response?.data?.message ?? 'Erro ao inspecionar em massa');
+    }
+  }
+
+  // ── Status change ──────────────────────────────────────────────────────────
   async function handleStatusChange(novoStatus: 'em_inspecao' | 'concluida') {
     setErroConcluso(null);
     try {
@@ -51,135 +192,208 @@ export function FichaGradePage() {
 
   async function handleSolicitarParecer() {
     setErroSolicitacao(null);
-    try {
-      await solicitarParecer.mutateAsync();
-    } catch (e: any) {
-      setErroSolicitacao(e?.response?.data?.message ?? 'Erro ao solicitar parecer.');
-    }
+    try { await solicitarParecer.mutateAsync(); }
+    catch (e: any) { setErroSolicitacao(e?.response?.data?.message ?? 'Erro ao solicitar parecer.'); }
   }
 
-  if (isLoading || !grade || !ficha) return <div style={{ padding: 24 }}>Carregando...</div>;
+  const canClick  = ficha?.status === 'em_inspecao';
+  const canSelect = ficha?.status === 'em_inspecao' && !filtroStatus;
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  if (isLoading || !grade || !ficha) {
+    return (
+      <div className="flex items-center justify-center h-48 text-[var(--text-faint)] text-sm">
+        Carregando...
+      </div>
+    );
+  }
+
+  const progresso = grade.resumo.progresso_pct;
 
   return (
-    <div style={{ padding: 24 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-        <button onClick={() => navigate('/fvs/fichas')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20 }}>←</button>
-        <div>
-          <h2 style={{ margin: 0, fontSize: 18 }}>{ficha.nome}</h2>
-          <span style={{ fontSize: 12, color: '#6b7280' }}>
-            {ficha.regime.toUpperCase()} · {ficha.status.replace('_', ' ')} · {ficha.progresso ?? 0}% concluído
-          </span>
+    <div className="p-6">
+      {/* Cabeçalho + Progresso */}
+      <div className="flex items-start gap-3 mb-4">
+        <button
+          onClick={() => navigate('/fvs/fichas')}
+          className="mt-0.5 p-1.5 rounded-md text-[var(--text-faint)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-high)] transition-colors"
+        >
+          <ArrowLeft size={16} />
+        </button>
+        <div className="flex-1">
+          <h2 className="text-xl font-semibold text-[var(--text-high)] m-0 mb-0.5">{ficha.nome}</h2>
+          <p className="text-xs text-[var(--text-faint)] m-0">
+            {ficha.regime.toUpperCase()} · {ficha.status.replace(/_/g, ' ')}
+          </p>
+          {/* Barra de progresso */}
+          <div className="mt-2 flex items-center gap-2">
+            <div className="flex-1 h-2 bg-[var(--border-dim)] rounded-full overflow-hidden max-w-xs">
+              <div
+                className="h-full bg-[var(--ok-text)] rounded-full transition-all duration-300"
+                style={{ width: `${progresso}%` }}
+              />
+            </div>
+            <span className="text-xs text-[var(--text-faint)] font-mono">
+              {progresso}% aprovadas ({grade.resumo.aprovadas}/{grade.resumo.total_celulas})
+            </span>
+          </div>
         </div>
       </div>
 
-      <div style={{ marginBottom: 16, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+      {/* Ações de ciclo */}
+      <div className="flex gap-2 flex-wrap items-center mb-4">
         {ficha.status === 'rascunho' && (
-          <button onClick={() => setConfirmando('iniciar')} style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 16px', cursor: 'pointer' }}>
+          <button onClick={() => setConfirmando('iniciar')} className="px-4 py-2 text-sm rounded-md bg-[var(--accent)] text-white font-medium hover:opacity-90 transition-opacity">
             Iniciar Inspeção
           </button>
         )}
         {ficha.status === 'em_inspecao' && (
-          <button onClick={() => setConfirmando('concluir')} style={{ background: '#22c55e', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 16px', cursor: 'pointer' }}>
+          <button onClick={() => setConfirmando('concluir')} className="px-4 py-2 text-sm rounded-md bg-[var(--ok-text)] text-white font-medium hover:opacity-90 transition-opacity">
             Concluir Ficha
           </button>
         )}
         {ficha.status === 'concluida' && (
-          <button
-            onClick={handleSolicitarParecer}
-            disabled={solicitarParecer.isPending}
-            style={{ background: '#f97316', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 16px', cursor: 'pointer', opacity: solicitarParecer.isPending ? 0.7 : 1 }}
-          >
+          <button onClick={handleSolicitarParecer} disabled={solicitarParecer.isPending} className="px-4 py-2 text-sm rounded-md bg-[var(--warn-text)] text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50">
             {solicitarParecer.isPending ? 'Solicitando...' : 'Solicitar Parecer'}
           </button>
         )}
         {ficha.status === 'aguardando_parecer' && (
-          <button
-            onClick={() => setShowParecer(true)}
-            style={{ background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 16px', cursor: 'pointer' }}
-          >
+          <button onClick={() => setShowParecer(true)} className="px-4 py-2 text-sm rounded-md bg-purple-600 text-white font-medium hover:opacity-90 transition-opacity">
             Emitir Parecer
           </button>
         )}
         {ficha.status === 'aprovada' && (
-          <span style={{
-            background: '#14532d', color: '#22c55e', border: '1px solid #15803d',
-            borderRadius: 6, padding: '8px 16px', fontSize: 14, fontWeight: 600,
-          }}>
+          <span className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-[var(--ok-bg)] text-[var(--ok-text)] border border-[var(--ok-border)]">
             ✓ Ficha Aprovada
           </span>
         )}
       </div>
 
       {erroSolicitacao && (
-        <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 6, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#ef4444' }}>
-          {erroSolicitacao}
-        </div>
+        <p className="text-sm text-[var(--nc-text)] px-3 py-2 rounded-md bg-[var(--nc-bg)] border border-[var(--nc-border)] mb-4">{erroSolicitacao}</p>
       )}
 
-      {confirmando && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
-          <div style={{ background: '#fff', borderRadius: 10, padding: 24, maxWidth: 400, width: '90%' }}>
-            <h3 style={{ margin: '0 0 12px' }}>{confirmando === 'iniciar' ? 'Iniciar Inspeção?' : 'Concluir Ficha?'}</h3>
-            <p style={{ color: '#6b7280', fontSize: 14, marginBottom: 20 }}>
-              {confirmando === 'iniciar'
-                ? 'A ficha passará para o status "Em Inspeção" e os registros poderão ser gravados.'
-                : ficha.regime === 'pbqph'
-                  ? 'Itens críticos NC sem evidência fotográfica serão verificados antes de concluir.'
-                  : 'A ficha será marcada como concluída.'}
-            </p>
-            {erroConcluso && (
-              <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 6, padding: 12, marginBottom: 16 }}>
-                <p style={{ color: '#ef4444', margin: 0, fontSize: 13, fontWeight: 600 }}>{erroConcluso.message}</p>
-                {erroConcluso.itensPendentes?.map((ip: any) => (
-                  <p key={ip.item_id} style={{ color: '#7f1d1d', fontSize: 12, margin: '4px 0 0' }}>• {ip.descricao}</p>
-                ))}
-              </div>
-            )}
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button onClick={() => { setConfirmando(null); setErroConcluso(null); }} style={{ padding: '8px 16px', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer' }}>Cancelar</button>
-              <button
-                onClick={() => handleStatusChange(confirmando === 'iniciar' ? 'em_inspecao' : 'concluida')}
-                disabled={patchFicha.isPending}
-                style={{ padding: '8px 16px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}
-              >
-                {patchFicha.isPending ? '...' : 'Confirmar'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Filtros */}
+      <div className="flex flex-wrap gap-2 mb-4 p-3 rounded-lg bg-[var(--bg-raised)] border border-[var(--border-dim)]">
+        <select
+          value={filtroPavimento ?? ''}
+          onChange={e => setFiltro('pavimento', e.target.value || null)}
+          className="px-2 py-1.5 text-xs rounded-md border border-[var(--border-dim)] bg-[var(--bg-base)] text-[var(--text-high)] focus:outline-none focus:border-[var(--accent)]"
+        >
+          <option value="">Todos os Pavimentos</option>
+          {pavimentos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+        </select>
 
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ borderCollapse: 'collapse', fontSize: 13 }}>
+        <select
+          value={filtroServico ?? ''}
+          onChange={e => setFiltro('servico', e.target.value || null)}
+          className="px-2 py-1.5 text-xs rounded-md border border-[var(--border-dim)] bg-[var(--bg-base)] text-[var(--text-high)] focus:outline-none focus:border-[var(--accent)]"
+        >
+          <option value="">Todos os Serviços</option>
+          {grade.servicos.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
+        </select>
+
+        <select
+          value={filtroStatus ?? ''}
+          onChange={e => setFiltro('status', e.target.value || null)}
+          className="px-2 py-1.5 text-xs rounded-md border border-[var(--border-dim)] bg-[var(--bg-base)] text-[var(--text-high)] focus:outline-none focus:border-[var(--accent)]"
+        >
+          <option value="">Todos os Status</option>
+          {LEGEND.map(l => <option key={l.status} value={l.status}>{l.label}</option>)}
+        </select>
+
+        {(filtroPavimento || filtroServico || filtroStatus) && (
+          <button
+            onClick={() => { setFiltro('pavimento', null); setFiltro('servico', null); setFiltro('status', null); }}
+            className="px-2 py-1.5 text-xs rounded-md text-[var(--text-faint)] hover:text-[var(--text-high)] border border-[var(--border-dim)] hover:bg-[var(--bg-hover)] transition-colors"
+          >
+            Limpar filtros
+          </button>
+        )}
+      </div>
+
+      {/* Grade */}
+      <div className="border border-[var(--border-dim)] rounded-lg overflow-auto mb-4">
+        <table className="border-collapse text-sm">
           <thead>
-            <tr>
-              <th style={{ textAlign: 'left', padding: '8px 16px', minWidth: 220, borderBottom: '1px solid #e5e7eb', color: '#6b7280' }}>Serviço</th>
-              {grade.locais.map(loc => (
-                <th key={loc.id} style={{ padding: '8px 6px', textAlign: 'center', borderBottom: '1px solid #e5e7eb', color: '#6b7280', whiteSpace: 'nowrap', maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', fontSize: 12 }}>
+            {temAgrupamento && (
+              <tr className="bg-[var(--bg-raised)] border-b border-[var(--border-dim)]">
+                <th />
+                {gruposPavimento.map((grupo, gi) => (
+                  <th
+                    key={gi}
+                    colSpan={grupo.locais.length}
+                    className="text-center px-3 py-1.5 text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-widest border-l border-[var(--border-dim)] first:border-l-0"
+                  >
+                    {grupo.pavNome ?? 'Sem Pavimento'}
+                  </th>
+                ))}
+              </tr>
+            )}
+            <tr className="bg-[var(--bg-raised)] border-b border-[var(--border-dim)]">
+              <th className="text-left px-4 py-2.5 min-w-[200px] text-xs font-semibold text-[var(--text-faint)] uppercase tracking-wide">
+                Serviço
+              </th>
+              {locaisVisiveis.map(loc => (
+                <th
+                  key={loc.id}
+                  onClick={() => canSelect && toggleLocalSelecionado(loc.id)}
+                  className={cn(
+                    'px-3 py-2.5 text-center text-xs font-semibold text-[var(--text-faint)] uppercase tracking-wide whitespace-nowrap max-w-[90px] overflow-hidden text-ellipsis',
+                    canSelect ? 'cursor-pointer hover:bg-[var(--bg-hover)] hover:text-[var(--accent)] transition-colors' : '',
+                    selecionados.some(s => s.localId === loc.id) ? 'text-[var(--accent)] bg-[var(--accent-subtle,#eff6ff)]' : '',
+                  )}
+                >
                   {loc.nome}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {grade.servicos.map((srv, i) => (
-              <tr key={srv.id} style={{ background: i % 2 === 0 ? '#f9fafb' : '#fff' }}>
-                <td style={{ padding: '10px 16px', fontWeight: 500, color: '#111827' }}>{srv.nome}</td>
-                {grade.locais.map(loc => {
+            {servicosFiltrados.map((srv, i) => (
+              <tr
+                key={srv.id}
+                className={cn('border-b border-[var(--border-dim)] last:border-0', i % 2 === 0 ? 'bg-[var(--bg-base)]' : 'bg-[var(--bg-raised)]')}
+              >
+                <td
+                  onClick={() => canSelect && toggleServicoSelecionado(srv.id)}
+                  className={cn(
+                    'px-4 py-2.5 font-medium',
+                    canSelect ? 'cursor-pointer hover:text-[var(--accent)] transition-colors' : '',
+                    selecionados.some(s => s.servicoId === srv.id) ? 'text-[var(--accent)]' : 'text-[var(--text-high)]',
+                  )}
+                >
+                  {srv.nome}
+                </td>
+                {locaisVisiveis.map(loc => {
                   const status: StatusGrade = grade.celulas[srv.id]?.[loc.id] ?? 'nao_avaliado';
-                  const canClick = ficha.status === 'em_inspecao';
+                  if (!isCelulaVisivel(srv.id, loc.id)) {
+                    return <td key={loc.id} className="px-3 py-2 text-center"><span className="inline-flex items-center justify-center w-8 h-8 rounded-md opacity-10 bg-[var(--border-dim)]">—</span></td>;
+                  }
+                  const isSelected = selecionados.some(s => s.servicoId === srv.id && s.localId === loc.id);
                   return (
-                    <td key={loc.id} style={{ textAlign: 'center', padding: '6px' }}>
+                    <td key={loc.id} className="px-3 py-2 text-center">
                       <span
-                        onClick={() => { if (canClick) navigate(`/fvs/fichas/${id}/inspecao?servicoId=${srv.id}&localId=${loc.id}`); }}
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                          width: 32, height: 32, borderRadius: 6,
-                          background: CELL_COLOR[status], color: '#fff', fontSize: 14, fontWeight: 700,
-                          cursor: canClick ? 'pointer' : 'default',
-                          opacity: ficha.status === 'rascunho' ? 0.5 : 1,
+                        onClick={() => {
+                          if (canSelect) {
+                            setSelecionados(prev => {
+                              const idx = prev.findIndex(s => s.servicoId === srv.id && s.localId === loc.id);
+                              return idx >= 0 ? prev.filter((_, ii) => ii !== idx) : [...prev, { servicoId: srv.id, localId: loc.id }];
+                            });
+                          } else if (status !== 'nao_avaliado') {
+                            setDrawer({ localId: loc.id, servicoId: srv.id });
+                          } else if (canClick) {
+                            navigate(`/fvs/fichas/${id}/inspecao?servicoId=${srv.id}&localId=${loc.id}`);
+                          }
                         }}
                         title={`${srv.nome} — ${loc.nome}: ${status}`}
+                        className={cn(
+                          'inline-flex items-center justify-center w-8 h-8 rounded-md text-xs font-bold transition-all',
+                          CELL_CLS[status],
+                          (canClick || status !== 'nao_avaliado') ? 'cursor-pointer hover:opacity-80' : 'cursor-default',
+                          ficha.status === 'rascunho' ? 'opacity-40' : '',
+                          isSelected ? 'ring-2 ring-[var(--accent)] ring-offset-1' : '',
+                        )}
                       >
                         {CELL_ICON[status]}
                       </span>
@@ -192,11 +406,12 @@ export function FichaGradePage() {
         </table>
       </div>
 
-      <div style={{ display: 'flex', gap: 20, marginTop: 16, fontSize: 12, color: '#6b7280' }}>
-        {(Object.entries(CELL_COLOR) as [StatusGrade, string][]).map(([status, color]) => (
-          <span key={status} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ width: 10, height: 10, borderRadius: 2, background: color, display: 'inline-block' }} />
-            {status === 'nc' ? 'Não Conforme' : status === 'aprovado' ? 'Aprovado' : status === 'pendente' ? 'Pendente' : 'Não Avaliado'}
+      {/* Legenda */}
+      <div className="flex flex-wrap gap-4 mb-6">
+        {LEGEND.map(({ status, label }) => (
+          <span key={status} className="flex items-center gap-1.5 text-xs text-[var(--text-faint)]">
+            <span className={cn('w-3 h-3 rounded-sm inline-block', CELL_CLS[status])} />
+            {label}
           </span>
         ))}
       </div>
@@ -205,13 +420,84 @@ export function FichaGradePage() {
         <RoPanel fichaId={id} regime={ficha.regime} />
       )}
 
+      {/* Barra flutuante de seleção em massa */}
+      {selecionados.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--bg-base)] border border-[var(--border-dim)] shadow-2xl">
+          <CheckSquare size={14} className="text-[var(--accent)]" />
+          <span className="text-sm font-medium text-[var(--text-high)]">
+            {selecionados.length} célula{selecionados.length !== 1 ? 's' : ''} selecionada{selecionados.length !== 1 ? 's' : ''}
+          </span>
+          <div className="w-px h-4 bg-[var(--border-dim)] mx-1" />
+          <button
+            onClick={() => handleBulk('conforme')}
+            disabled={bulk.isPending}
+            className="px-3 py-1 text-xs rounded-md bg-[var(--ok-text)] text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-40"
+          >
+            ✓ Marcar Conforme
+          </button>
+          <button
+            onClick={() => handleBulk('excecao')}
+            disabled={bulk.isPending}
+            className="px-3 py-1 text-xs rounded-md bg-[var(--bg-raised)] text-[var(--text-high)] border border-[var(--border-dim)] font-medium hover:bg-[var(--bg-hover)] transition-colors disabled:opacity-40"
+          >
+            Exceção
+          </button>
+          {bulkErro && <span className="text-xs text-[var(--nc-text)]">{bulkErro}</span>}
+          <button
+            onClick={() => setSelecionados([])}
+            className="p-1 text-[var(--text-faint)] hover:text-[var(--text-high)] transition-colors"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
+      {/* Modais */}
+      {confirmando && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <div className="bg-[var(--bg-base)] border border-[var(--border-dim)] rounded-xl shadow-2xl p-6 w-full max-w-sm">
+            <h3 className="text-base font-semibold text-[var(--text-high)] mb-2">
+              {confirmando === 'iniciar' ? 'Iniciar Inspeção?' : 'Concluir Ficha?'}
+            </h3>
+            <p className="text-sm text-[var(--text-faint)] mb-4">
+              {confirmando === 'iniciar'
+                ? 'A ficha será movida para "Em Inspeção". Confirma?'
+                : 'A ficha será concluída. Confirma?'}
+            </p>
+            {erroConcluso && (
+              <p className="text-sm text-[var(--nc-text)] px-3 py-2 rounded-md bg-[var(--nc-bg)] border border-[var(--nc-border)] mb-3">
+                {erroConcluso.message}
+              </p>
+            )}
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => { setConfirmando(null); setErroConcluso(null); }}
+                className="px-4 py-2 text-sm rounded-md border border-[var(--border-dim)] text-[var(--text-faint)] hover:bg-[var(--bg-hover)] transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => handleStatusChange(confirmando === 'iniciar' ? 'em_inspecao' : 'concluida')}
+                disabled={patchFicha.isPending}
+                className="px-4 py-2 text-sm rounded-md bg-[var(--accent)] text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+              >
+                {patchFicha.isPending ? 'Salvando...' : 'Confirmar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showParecer && (
-        <ParecerModal
+        <ParecerModal fichaId={id} onClose={() => setShowParecer(false)} />
+      )}
+
+      {drawer && (
+        <GradeDrawer
           fichaId={id}
-          regime={ficha.regime}
-          grade={grade}
-          onClose={() => setShowParecer(false)}
-          onSuccess={() => setShowParecer(false)}
+          localId={drawer.localId}
+          servicoId={drawer.servicoId}
+          onClose={() => setDrawer(null)}
         />
       )}
     </div>
