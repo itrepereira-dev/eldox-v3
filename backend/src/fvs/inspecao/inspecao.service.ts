@@ -577,7 +577,6 @@ export class InspecaoService {
     // Registros por célula — status mais recente por item+local
     type RegRow = {
       servico_id: number; obra_local_id: number; status: string;
-      itens_total: number; itens_avaliados: number; itens_nc: number;
       ultimo_inspetor: string | null; ultima_atividade: string | null;
     };
 
@@ -586,9 +585,6 @@ export class InspecaoService {
          r.servico_id,
          r.obra_local_id,
          r.status,
-         0::int                           AS itens_total,
-         0::int                           AS itens_avaliados,
-         0::int                           AS itens_nc,
          u.nome                           AS ultimo_inspetor,
          r.inspecionado_em::text          AS ultima_atividade
        FROM fvs_registros r
@@ -600,6 +596,7 @@ export class InspecaoService {
 
     // Construir celulas e celulas_meta
     const gruposCelula: Record<number, Record<number, string[]>> = {};
+    // metaMap stores the most recently inspected row per cell (for inspetor/atividade)
     const metaMap: Record<number, Record<number, RegRow>> = {};
 
     for (const srv of servicos) {
@@ -614,7 +611,11 @@ export class InspecaoService {
       gruposCelula[r.servico_id]?.[r.obra_local_id]?.push(r.status);
       if (filtros?.includeMeta) {
         metaMap[r.servico_id] ??= {};
-        metaMap[r.servico_id][r.obra_local_id] = r;
+        const existing = metaMap[r.servico_id][r.obra_local_id];
+        // Keep the row with the most recent activity
+        if (!existing || (r.ultima_atividade && (!existing.ultima_atividade || r.ultima_atividade > existing.ultima_atividade))) {
+          metaMap[r.servico_id][r.obra_local_id] = r;
+        }
       }
     }
 
@@ -650,14 +651,15 @@ export class InspecaoService {
       for (const srv of servicos) {
         result.celulas_meta[srv.id] = {};
         for (const loc of locais) {
-          const meta = metaMap[srv.id]?.[loc.id];
-          if (meta) {
+          const statuses = gruposCelula[srv.id]?.[loc.id] ?? [];
+          if (statuses.length > 0) {
+            const meta = metaMap[srv.id]?.[loc.id];
             result.celulas_meta[srv.id][loc.id] = {
-              itens_total: meta.itens_total,
-              itens_avaliados: meta.itens_avaliados,
-              itens_nc: meta.itens_nc,
-              ultimo_inspetor: meta.ultimo_inspetor ?? undefined,
-              ultima_atividade: meta.ultima_atividade ?? undefined,
+              itens_total: statuses.length,
+              itens_avaliados: statuses.filter(s => s !== 'nao_avaliado').length,
+              itens_nc: statuses.filter(s => s === 'nao_conforme').length,
+              ultimo_inspetor: meta?.ultimo_inspetor ?? undefined,
+              ultima_atividade: meta?.ultima_atividade ?? undefined,
             };
           }
         }
@@ -897,47 +899,51 @@ export class InspecaoService {
     );
     const criticidade = itemRows[0]?.criticidade ?? 'menor';
 
-    // Upsert registro
-    const rows = await this.prisma.$queryRawUnsafe<FvsRegistroComCiclo[]>(
-      `INSERT INTO fvs_registros
-         (tenant_id, ficha_id, servico_id, item_id, obra_local_id, ciclo, status, observacao, inspecionado_por, inspecionado_em)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
-       ON CONFLICT (ficha_id, item_id, obra_local_id, ciclo) DO UPDATE SET
-         status           = EXCLUDED.status,
-         observacao       = EXCLUDED.observacao,
-         inspecionado_por = EXCLUDED.inspecionado_por,
-         inspecionado_em  = EXCLUDED.inspecionado_em,
-         updated_at       = NOW()
-       RETURNING *`,
-      tenantId, fichaId, dto.servicoId, dto.itemId, dto.localId, ciclo,
-      dto.status, dto.observacao ?? null, userId,
-    );
+    // Upsert + autoCreateNc + encerrarNc + auditLog em transação atômica
+    const registro = await this.prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRawUnsafe<FvsRegistroComCiclo[]>(
+        `INSERT INTO fvs_registros
+           (tenant_id, ficha_id, servico_id, item_id, obra_local_id, ciclo, status, observacao, inspecionado_por, inspecionado_em)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+         ON CONFLICT (ficha_id, item_id, obra_local_id, ciclo) DO UPDATE SET
+           status           = EXCLUDED.status,
+           observacao       = EXCLUDED.observacao,
+           inspecionado_por = EXCLUDED.inspecionado_por,
+           inspecionado_em  = EXCLUDED.inspecionado_em,
+           updated_at       = NOW()
+         RETURNING *`,
+        tenantId, fichaId, dto.servicoId, dto.itemId, dto.localId, ciclo,
+        dto.status, dto.observacao ?? null, userId,
+      );
 
-    const registro = rows[0];
+      const reg = rows[0];
 
-    // Auto-criar NC ao transicionar PARA nao_conforme
-    if (dto.status === 'nao_conforme' && statusAtual !== 'nao_conforme') {
-      await this.autoCreateNc(tenantId, fichaId, registro.id, dto, criticidade, userId, ciclo);
-    }
+      // Auto-criar NC ao transicionar PARA nao_conforme
+      if (dto.status === 'nao_conforme' && statusAtual !== 'nao_conforme') {
+        await this.autoCreateNc(tx, tenantId, fichaId, reg.id, dto, criticidade, userId, ciclo);
+      }
 
-    // Encerrar NC ao transicionar DE nao_conforme
-    if (
-      statusAtual === 'nao_conforme' &&
-      ['conforme_apos_reinspecao', 'liberado_com_concessao', 'nc_apos_reinspecao'].includes(dto.status)
-    ) {
-      await this.encerrarNc(tenantId, registro.id, dto.status, userId);
-    }
+      // Encerrar NC ao transicionar DE nao_conforme
+      if (
+        statusAtual === 'nao_conforme' &&
+        ['conforme_apos_reinspecao', 'liberado_com_concessao', 'nc_apos_reinspecao'].includes(dto.status)
+      ) {
+        await this.encerrarNc(tx, tenantId, reg.id, dto.status, userId);
+      }
 
-    // Audit log — todos os regimes para status críticos
-    if (ficha.regime === 'pbqph' || ['nao_conforme', 'conforme_apos_reinspecao', 'nc_apos_reinspecao', 'liberado_com_concessao'].includes(dto.status)) {
-      await this.gravarAuditLog(this.prisma, {
-        tenantId, fichaId, usuarioId: userId,
-        acao: 'inspecao', registroId: registro.id, ip,
-        statusDe: statusAtual !== dto.status ? statusAtual : undefined,
-        statusPara: dto.status,
-        detalhes: { itemId: dto.itemId, localId: dto.localId, criticidade, ciclo },
-      });
-    }
+      // Audit log — todos os regimes para status críticos
+      if (ficha.regime === 'pbqph' || ['nao_conforme', 'conforme_apos_reinspecao', 'nc_apos_reinspecao', 'liberado_com_concessao'].includes(dto.status)) {
+        await this.gravarAuditLog(tx, {
+          tenantId, fichaId, usuarioId: userId,
+          acao: 'inspecao', registroId: reg.id, ip,
+          statusDe: statusAtual !== dto.status ? statusAtual : undefined,
+          statusPara: dto.status,
+          detalhes: { itemId: dto.itemId, localId: dto.localId, criticidade, ciclo },
+        });
+      }
+
+      return reg;
+    });
 
     // Sprint 3: se ciclo > 1 (reinspeção), verificar avanço do RO
     if (ciclo > 1) {
@@ -948,6 +954,7 @@ export class InspecaoService {
   }
 
   private async autoCreateNc(
+    tx: { $queryRawUnsafe: (...args: any[]) => Promise<any> },
     tenantId: number,
     fichaId: number,
     registroId: number,
@@ -957,7 +964,7 @@ export class InspecaoService {
     ciclo: number,
   ): Promise<void> {
     // Verificar se já existe NC para este registro + ciclo (idempotente)
-    const existentes = await this.prisma.$queryRawUnsafe<{ id: number }[]>(
+    const existentes = await tx.$queryRawUnsafe<{ id: number }[]>(
       `SELECT id FROM fvs_nao_conformidades
        WHERE registro_id = $1 AND ciclo_numero = $2 AND tenant_id = $3 AND deleted_at IS NULL`,
       registroId, ciclo, tenantId,
@@ -965,21 +972,21 @@ export class InspecaoService {
     if (existentes.length > 0) return;
 
     // Próximo seq para esta ficha
-    const seqRows = await this.prisma.$queryRawUnsafe<{ seq: number }[]>(
+    const seqRows = await tx.$queryRawUnsafe<{ seq: number }[]>(
       `SELECT COUNT(*)::int + 1 AS seq FROM fvs_nao_conformidades WHERE ficha_id = $1 AND tenant_id = $2`,
       fichaId, tenantId,
     );
     const seq = seqRows[0]?.seq ?? 1;
 
     // Código do serviço para formar o número da NC
-    const svcRows = await this.prisma.$queryRawUnsafe<{ codigo: string | null }[]>(
+    const svcRows = await tx.$queryRawUnsafe<{ codigo: string | null }[]>(
       `SELECT codigo FROM fvs_catalogo_servicos WHERE id = $1 AND tenant_id IN (0, $2)`,
       dto.servicoId, tenantId,
     );
     const codigoServico = svcRows[0]?.codigo ?? String(dto.servicoId);
     const numero = `NC-${fichaId}-${codigoServico}-${String(seq).padStart(3, '0')}`;
 
-    await this.prisma.$queryRawUnsafe(
+    await tx.$queryRawUnsafe(
       `INSERT INTO fvs_nao_conformidades
          (tenant_id, ficha_id, registro_id, numero, servico_id, item_id, obra_local_id,
           criticidade, status, ciclo_numero, criado_por)
@@ -991,12 +998,13 @@ export class InspecaoService {
   }
 
   private async encerrarNc(
+    tx: { $queryRawUnsafe: (...args: any[]) => Promise<any> },
     tenantId: number,
     registroId: number,
     resultadoFinal: string,
     userId: number,
   ): Promise<void> {
-    await this.prisma.$queryRawUnsafe(
+    await tx.$queryRawUnsafe(
       `UPDATE fvs_nao_conformidades
        SET status = $1, resultado_final = $2, encerrada_em = NOW(), encerrada_por = $3, updated_at = NOW()
        WHERE registro_id = $4 AND tenant_id = $5 AND status NOT IN ('encerrada', 'cancelada')`,
@@ -1247,7 +1255,7 @@ export class InspecaoService {
        FROM fvs_nao_conformidades nc
        LEFT JOIN fvs_catalogo_servicos s  ON s.id = nc.servico_id
        LEFT JOIN fvs_catalogo_itens    i  ON i.id = nc.item_id
-       LEFT JOIN obra_locais           ol ON ol.id = nc.obra_local_id
+       LEFT JOIN "ObraLocal"            ol ON ol.id = nc.obra_local_id
        WHERE ${where}
        ORDER BY nc.criado_em DESC`,
       ...params,
@@ -1296,8 +1304,8 @@ export class InspecaoService {
 
     // Próximo ciclo_numero
     const cicloRows = await this.prisma.$queryRawUnsafe<{ max_ciclo: number | null }[]>(
-      `SELECT MAX(ciclo_numero) AS max_ciclo FROM fvs_nc_tratamentos WHERE nc_id = $1`,
-      ncId,
+      `SELECT MAX(ciclo_numero) AS max_ciclo FROM fvs_nc_tratamentos WHERE nc_id = $1 AND tenant_id = $2`,
+      ncId, tenantId,
     );
     const cicloNumero = (cicloRows[0]?.max_ciclo ?? 0) + 1;
 

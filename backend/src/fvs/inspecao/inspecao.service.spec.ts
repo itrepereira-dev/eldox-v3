@@ -385,6 +385,7 @@ describe('InspecaoService', () => {
     });
 
     it('regime=pbqph, status=nao_conforme COM observacao → salva e grava audit_log', async () => {
+      mockPrisma.$transaction.mockImplementation(async (fn: any) => fn(mockPrisma));
       mockPrisma.$queryRawUnsafe
         .mockResolvedValueOnce([FICHA_EM_INSPECAO])              // getFichaOuFalhar
         .mockResolvedValueOnce([{ status: 'nao_avaliado' }])     // buscar status atual
@@ -413,6 +414,7 @@ describe('InspecaoService', () => {
     });
 
     it('regime=livre, status=nao_conforme COM observacao → salva sem audit_log', async () => {
+      mockPrisma.$transaction.mockImplementation(async (fn: any) => fn(mockPrisma));
       mockPrisma.$queryRawUnsafe
         .mockResolvedValueOnce([{ ...FICHA_EM_INSPECAO, regime: 'livre' }])
         .mockResolvedValueOnce([{ status: 'nao_avaliado' }])    // status atual
@@ -604,6 +606,7 @@ describe('InspecaoService', () => {
   // ── putRegistro com ciclo > 1 ─────────────────────────────────────────────────
   describe('putRegistro() com ciclo > 1 (reinspeção)', () => {
     it('salva registro com ciclo=2 e chama checkAndAdvanceRoStatus', async () => {
+      mockPrisma.$transaction.mockImplementation(async (fn: any) => fn(mockPrisma));
       mockPrisma.$queryRawUnsafe
         .mockResolvedValueOnce([FICHA_EM_INSPECAO])          // getFichaOuFalhar
         .mockResolvedValueOnce([{ status: 'nao_avaliado' }]) // buscar status atual
@@ -646,6 +649,7 @@ describe('InspecaoService', () => {
   // ── autoCreateNc via putRegistro ─────────────────────────────────────────────
   describe('putRegistro() — auto-criação de NC', () => {
     it('cria fvs_nao_conformidades ao transicionar para nao_conforme', async () => {
+      mockPrisma.$transaction.mockImplementation(async (fn: any) => fn(mockPrisma));
       mockPrisma.$queryRawUnsafe
         .mockResolvedValueOnce([FICHA_EM_INSPECAO])           // getFichaOuFalhar
         .mockResolvedValueOnce([])                             // registroAtual (nao_avaliado)
@@ -673,6 +677,7 @@ describe('InspecaoService', () => {
     });
 
     it('encerra NC ao transicionar para conforme_apos_reinspecao', async () => {
+      mockPrisma.$transaction.mockImplementation(async (fn: any) => fn(mockPrisma));
       mockPrisma.$queryRawUnsafe
         .mockResolvedValueOnce([FICHA_EM_INSPECAO])
         .mockResolvedValueOnce([{ status: 'nao_conforme' }])   // status atual
