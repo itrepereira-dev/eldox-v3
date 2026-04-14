@@ -1,4 +1,16 @@
+// backend/src/fvs/inspecao/dto/put-registro.dto.ts
 import { IsNumber, IsEnum, IsOptional, IsString, IsInt, Min } from 'class-validator';
+
+const STATUS_REGISTRO_VALORES = [
+  'nao_avaliado',
+  'conforme',
+  'nao_conforme',
+  'excecao',
+  'conforme_apos_reinspecao',
+  'nc_apos_reinspecao',
+  'liberado_com_concessao',
+  'retrabalho',
+] as const;
 
 export class PutRegistroDto {
   @IsNumber()
@@ -10,8 +22,8 @@ export class PutRegistroDto {
   @IsNumber()
   localId: number;
 
-  @IsEnum(['nao_avaliado', 'conforme', 'nao_conforme', 'excecao'])
-  status: 'nao_avaliado' | 'conforme' | 'nao_conforme' | 'excecao';
+  @IsEnum(STATUS_REGISTRO_VALORES)
+  status: typeof STATUS_REGISTRO_VALORES[number];
 
   @IsOptional()
   @IsString()
@@ -20,5 +32,5 @@ export class PutRegistroDto {
   @IsOptional()
   @IsInt()
   @Min(1)
-  ciclo?: number; // Sprint 3: default 1, reinspeções usam ciclo > 1
+  ciclo?: number;
 }
