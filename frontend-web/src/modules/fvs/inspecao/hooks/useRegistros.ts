@@ -56,7 +56,7 @@ export function useCreateEvidencia() {
 export function useDeleteEvidencia() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, registroId }: { id: number; registroId: number }) =>
+    mutationFn: ({ id, registroId: _registroId }: { id: number; registroId: number }) =>
       fvsService.deleteEvidencia(id),
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ['fvs-evidencias', vars.registroId] });

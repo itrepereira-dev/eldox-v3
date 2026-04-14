@@ -9,28 +9,30 @@ import {
   useDeleteRoEvidencia,
 } from '../hooks/useRo';
 import type { RoServicoNc } from '../../../../services/fvs.service';
+import { cn } from '@/lib/cn';
+import { ChevronDown, ChevronUp, Paperclip } from 'lucide-react';
 
 const CAUSA_6M_OPTIONS = [
-  { value: '', label: '— Selecione —' },
-  { value: 'mao_obra', label: 'Mão de Obra' },
-  { value: 'maquina', label: 'Máquina / Equipamento' },
-  { value: 'material', label: 'Material' },
-  { value: 'metodo', label: 'Método' },
-  { value: 'medida', label: 'Medição / Medida' },
+  { value: '',            label: '— Selecione —' },
+  { value: 'mao_obra',    label: 'Mão de Obra' },
+  { value: 'maquina',     label: 'Máquina / Equipamento' },
+  { value: 'material',    label: 'Material' },
+  { value: 'metodo',      label: 'Método' },
+  { value: 'medida',      label: 'Medição / Medida' },
   { value: 'meio_ambiente', label: 'Meio Ambiente' },
-  { value: 'gestao', label: 'Gestão' },
+  { value: 'gestao',      label: 'Gestão' },
 ];
 
-const STATUS_BADGE: Record<string, { label: string; bg: string; color: string }> = {
-  pendente:     { label: 'Pendente',    bg: '#fef3c7', color: '#92400e' },
-  desbloqueado: { label: 'Desbloqueado', bg: '#dbeafe', color: '#1e40af' },
-  verificado:   { label: 'Verificado',  bg: '#dcfce7', color: '#166534' },
+const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
+  pendente:     { label: 'Pendente',     cls: 'bg-[var(--warn-bg)] text-[var(--warn-text)] border border-[var(--warn-border)]' },
+  desbloqueado: { label: 'Desbloqueado', cls: 'bg-blue-50 text-blue-700 border border-blue-200' },
+  verificado:   { label: 'Verificado',   cls: 'bg-[var(--ok-bg)] text-[var(--ok-text)] border border-[var(--ok-border)]' },
 };
 
-const CRIT_BADGE: Record<string, { label: string; bg: string; color: string }> = {
-  critico: { label: 'Crítico', bg: '#fee2e2', color: '#991b1b' },
-  maior:   { label: 'Maior',   bg: '#fef3c7', color: '#92400e' },
-  menor:   { label: 'Menor',   bg: '#f3f4f6', color: '#6b7280' },
+const CRIT_BADGE: Record<string, { label: string; cls: string }> = {
+  critico: { label: 'Crítico', cls: 'bg-[var(--nc-bg)] text-[var(--nc-text)] border border-[var(--nc-border)]' },
+  maior:   { label: 'Maior',   cls: 'bg-[var(--warn-bg)] text-[var(--warn-text)] border border-[var(--warn-border)]' },
+  menor:   { label: 'Menor',   cls: 'bg-[var(--bg-raised)] text-[var(--text-faint)] border border-[var(--border-dim)]' },
 };
 
 interface RoPanelProps {
@@ -48,11 +50,11 @@ function ServicoAccordion({ servico, fichaId }: ServicoAccordionProps) {
   const [desbloqueioErro, setDesbloqueioErro] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const patchServico = usePatchServicoNc(fichaId);
+  const patchServico   = usePatchServicoNc(fichaId);
   const createEvidencia = useCreateRoEvidencia(fichaId);
   const deleteEvidencia = useDeleteRoEvidencia(fichaId);
 
-  const statusInfo = STATUS_BADGE[servico.status] ?? { label: servico.status, bg: '#f3f4f6', color: '#6b7280' };
+  const statusInfo = STATUS_BADGE[servico.status] ?? { label: servico.status, cls: 'bg-[var(--bg-raised)] text-[var(--text-faint)] border border-[var(--border-dim)]' };
 
   async function handleAcaoCorretiva(value: string) {
     await patchServico.mutateAsync({ servicoNcId: servico.id, payload: { acao_corretiva: value || null } });
@@ -83,50 +85,46 @@ function ServicoAccordion({ servico, fichaId }: ServicoAccordionProps) {
     window.open(data.presignedUrl, '_blank', 'noopener,noreferrer');
   }, []);
 
+  const textareaCls = 'w-full px-3 py-2 text-sm rounded-md border border-[var(--border-dim)] bg-[var(--bg-base)] text-[var(--text-high)] focus:outline-none focus:border-[var(--accent)] resize-y transition-colors';
+
   return (
-    <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, marginBottom: 8, overflow: 'hidden' }}>
-      {/* Header do accordion */}
+    <div className="border border-[var(--warn-border)] rounded-lg overflow-hidden">
+      {/* Cabeçalho do accordion */}
       <div
         onClick={() => setOpen(o => !o)}
-        style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '10px 14px', cursor: 'pointer',
-          background: open ? '#fffbeb' : '#ffffff',
-          transition: 'background 0.15s',
-        }}
+        className={cn(
+          'flex items-center justify-between px-4 py-3 cursor-pointer transition-colors',
+          open ? 'bg-[var(--warn-bg)]' : 'bg-[var(--bg-base)] hover:bg-[var(--bg-hover)]',
+        )}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: '#1f2937', fontFamily: 'DM Sans, sans-serif' }}>
-            {servico.servico_nome}
-          </span>
-          <span style={{
-            fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 99,
-            background: statusInfo.bg, color: statusInfo.color,
-          }}>
+        <div className="flex items-center gap-2.5">
+          <span className="text-sm font-semibold text-[var(--text-high)]">{servico.servico_nome}</span>
+          <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full', statusInfo.cls)}>
             {statusInfo.label}
           </span>
         </div>
-        <span style={{ fontSize: 16, color: '#9ca3af', userSelect: 'none' }}>{open ? '▲' : '▼'}</span>
+        <span className="text-[var(--text-faint)]">
+          {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        </span>
       </div>
 
       {open && (
-        <div style={{ padding: '14px', borderTop: '1px solid #f3f4f6', background: '#fffbeb' }}>
+        <div className="p-4 border-t border-[var(--warn-border)] bg-[var(--warn-bg)] flex flex-col gap-4">
           {/* Itens NC */}
           {servico.itens && servico.itens.length > 0 && (
-            <div style={{ marginBottom: 14 }}>
-              <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 700, color: '#7A96B2', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Itens Não Conformes</p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div>
+              <p className="text-[10px] font-semibold text-[var(--warn-text)] uppercase tracking-wide mb-2">
+                Itens Não Conformes
+              </p>
+              <div className="flex flex-col gap-1.5">
                 {servico.itens.map(item => {
-                  const critInfo = CRIT_BADGE[item.item_criticidade] ?? { label: item.item_criticidade, bg: '#f3f4f6', color: '#6b7280' };
+                  const critInfo = CRIT_BADGE[item.item_criticidade] ?? CRIT_BADGE.menor;
                   return (
-                    <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{
-                        fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4,
-                        background: critInfo.bg, color: critInfo.color, whiteSpace: 'nowrap',
-                      }}>
+                    <div key={item.id} className="flex items-center gap-2">
+                      <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0', critInfo.cls)}>
                         {critInfo.label}
                       </span>
-                      <span style={{ fontSize: 13, color: '#374151' }}>{item.item_descricao}</span>
+                      <span className="text-sm text-[var(--text-high)]">{item.item_descricao}</span>
                     </div>
                   );
                 })}
@@ -135,8 +133,8 @@ function ServicoAccordion({ servico, fichaId }: ServicoAccordionProps) {
           )}
 
           {/* Ação Corretiva */}
-          <div style={{ marginBottom: 14 }}>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#7A96B2', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+          <div>
+            <label className="block text-[10px] font-semibold text-[var(--warn-text)] uppercase tracking-wide mb-1.5">
               Ação Corretiva
             </label>
             <textarea
@@ -144,42 +142,29 @@ function ServicoAccordion({ servico, fichaId }: ServicoAccordionProps) {
               onBlur={e => handleAcaoCorretiva(e.target.value)}
               rows={3}
               placeholder="Descreva a ação corretiva tomada..."
-              style={{
-                width: '100%', boxSizing: 'border-box',
-                border: '1px solid #d1d5db', borderRadius: 6,
-                padding: '8px 10px', fontSize: 13, resize: 'vertical',
-                fontFamily: 'DM Sans, sans-serif', color: '#1f2937',
-                background: '#fff',
-              }}
+              className={textareaCls}
             />
           </div>
 
           {/* Evidências */}
-          <div style={{ marginBottom: 14 }}>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#7A96B2', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+          <div>
+            <label className="block text-[10px] font-semibold text-[var(--warn-text)] uppercase tracking-wide mb-1.5">
               Evidências
             </label>
             {servico.evidencias && servico.evidencias.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+              <div className="flex flex-wrap gap-2 mb-2">
                 {servico.evidencias.map(ev => (
-                  <div key={ev.id} style={{
-                    position: 'relative', border: '1px solid #e5e7eb', borderRadius: 6,
-                    padding: '6px 10px', background: '#fff', display: 'flex', alignItems: 'center', gap: 8,
-                  }}>
+                  <div key={ev.id} className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[var(--bg-base)] border border-[var(--border-dim)]">
                     <button
                       onClick={() => handleDownloadEvidencia(ev.versao_ged_id)}
-                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 12, color: '#3b82f6', textDecoration: 'underline' }}
+                      className="text-xs text-[var(--accent)] hover:underline"
                     >
                       {ev.nome_original ?? `Evidência ${ev.id}`}
                     </button>
                     <button
                       onClick={() => handleDeleteEvidencia(ev.id)}
                       disabled={deleteEvidencia.isPending}
-                      style={{
-                        background: 'none', border: 'none', cursor: 'pointer',
-                        color: '#ef4444', fontSize: 14, lineHeight: 1, padding: 0,
-                      }}
-                      title="Remover evidência"
+                      className="text-[var(--nc-text)] text-sm hover:opacity-70 transition-opacity"
                     >
                       ×
                     </button>
@@ -192,18 +177,16 @@ function ServicoAccordion({ servico, fichaId }: ServicoAccordionProps) {
                 type="file"
                 ref={fileInputRef}
                 onChange={handleUpload}
-                style={{ display: 'none' }}
+                className="hidden"
                 accept="image/*,application/pdf"
               />
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={createEvidencia.isPending}
-                style={{
-                  background: '#fff', border: '1px dashed #d1d5db', borderRadius: 6,
-                  padding: '6px 14px', fontSize: 12, cursor: 'pointer', color: '#6b7280',
-                }}
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-dashed border-[var(--warn-border)] text-[var(--warn-text)] hover:bg-[var(--bg-hover)] transition-colors disabled:opacity-40"
               >
-                {createEvidencia.isPending ? 'Enviando...' : '+ Adicionar Evidência'}
+                <Paperclip size={11} />
+                {createEvidencia.isPending ? 'Enviando...' : 'Adicionar Evidência'}
               </button>
             </div>
           </div>
@@ -212,17 +195,14 @@ function ServicoAccordion({ servico, fichaId }: ServicoAccordionProps) {
           {servico.status === 'pendente' && (
             <div>
               {desbloqueioErro && (
-                <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 6, padding: '8px 12px', marginBottom: 8, fontSize: 13, color: '#ef4444' }}>
+                <p className="text-xs text-[var(--nc-text)] px-3 py-2 rounded-md bg-[var(--nc-bg)] border border-[var(--nc-border)] mb-2">
                   {desbloqueioErro}
-                </div>
+                </p>
               )}
               <button
                 onClick={handleDesbloquear}
                 disabled={patchServico.isPending}
-                style={{
-                  background: '#1d4ed8', color: '#fff', border: 'none',
-                  borderRadius: 6, padding: '8px 16px', cursor: 'pointer', fontSize: 13,
-                }}
+                className="px-4 py-2 text-sm rounded-md bg-[var(--accent)] text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-40"
               >
                 {patchServico.isPending ? 'Processando...' : 'Desbloquear para Reinspeção'}
               </button>
@@ -234,90 +214,56 @@ function ServicoAccordion({ servico, fichaId }: ServicoAccordionProps) {
   );
 }
 
-export function RoPanel({ fichaId, regime }: RoPanelProps) {
+export function RoPanel({ fichaId, regime: _regime }: RoPanelProps) {
   const { data: ro, isError, error } = useRo(fichaId);
   const patchRo = usePatchRo(fichaId);
 
-  // 404 ou sem RO = sem NCs = não exibe
   const isNotFound = (error as any)?.response?.status === 404;
   if (isError && isNotFound) return null;
   if (isError) return null;
   if (!ro) return null;
 
-  const servicos = ro.servicos ?? [];
+  const servicos   = ro.servicos ?? [];
   const verificados = servicos.filter(s => s.status === 'verificado').length;
-  const total = servicos.length;
+  const total      = servicos.length;
 
-  async function handleTipoChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    await patchRo.mutateAsync({ tipo: e.target.value as 'real' | 'potencial' });
-  }
-
-  async function handleCausa6MChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    await patchRo.mutateAsync({ causa_6m: e.target.value || null });
-  }
-
-  async function handleBlurField(field: 'o_que_aconteceu' | 'acao_imediata', value: string) {
-    await patchRo.mutateAsync({ [field]: value || null });
-  }
+  const selectCls = 'w-full px-3 py-2 text-sm rounded-md border border-[var(--warn-border)] bg-[var(--bg-base)] text-[var(--text-high)] focus:outline-none focus:border-[var(--accent)] transition-colors';
+  const textareaCls = 'w-full px-3 py-2 text-sm rounded-md border border-[var(--warn-border)] bg-[var(--bg-base)] text-[var(--text-high)] focus:outline-none focus:border-[var(--accent)] resize-y transition-colors';
 
   return (
-    <div style={{
-      border: '2px solid #fbbf24', borderRadius: 10, padding: 20,
-      background: '#fffbeb', marginTop: 20,
-      fontFamily: 'DM Sans, sans-serif',
-    }}>
+    <div className="border-2 border-[var(--warn-border)] rounded-xl p-5 bg-[var(--warn-bg)] mt-6">
       {/* Cabeçalho */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 16, fontWeight: 700, color: '#92400e' }}>
+      <div className="flex items-center justify-between mb-5 flex-wrap gap-2">
+        <div className="flex items-center gap-2.5">
+          <span className="text-base font-bold text-[var(--warn-text)]">
             Registro de Ocorrência — RO {ro.numero}
           </span>
-          <span style={{
-            fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 99,
-            background: ro.status === 'concluido' ? '#dcfce7' : '#fef3c7',
-            color: ro.status === 'concluido' ? '#166534' : '#92400e',
-          }}>
+          <span className={cn(
+            'text-[10px] font-bold px-2.5 py-0.5 rounded-full',
+            ro.status === 'concluido'
+              ? 'bg-[var(--ok-bg)] text-[var(--ok-text)] border border-[var(--ok-border)]'
+              : 'bg-[var(--warn-bg)] text-[var(--warn-text)] border border-[var(--warn-border)]',
+          )}>
             {ro.status === 'concluido' ? 'Concluído' : 'Aberto'}
           </span>
         </div>
-        <span style={{ fontSize: 13, color: '#92400e' }}>
+        <span className="text-sm text-[var(--warn-text)]">
           {verificados}/{total} serviços verificados
         </span>
       </div>
 
-      {/* Campos do cabeçalho */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 20 }}>
-        {/* Tipo */}
+      {/* Campos cabeçalho */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
         <div>
-          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
-            Tipo
-          </label>
-          <select
-            value={ro.tipo}
-            onChange={handleTipoChange}
-            style={{
-              width: '100%', border: '1px solid #d1d5db', borderRadius: 6,
-              padding: '7px 10px', fontSize: 13, background: '#fff', color: '#1f2937',
-            }}
-          >
+          <label className="block text-[10px] font-semibold text-[var(--warn-text)] uppercase tracking-wide mb-1.5">Tipo</label>
+          <select value={ro.tipo} onChange={e => patchRo.mutateAsync({ tipo: e.target.value as 'real' | 'potencial' })} className={selectCls}>
             <option value="real">Real</option>
             <option value="potencial">Potencial</option>
           </select>
         </div>
-
-        {/* Causa 6M */}
         <div>
-          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
-            Causa (6M)
-          </label>
-          <select
-            value={ro.causa_6m ?? ''}
-            onChange={handleCausa6MChange}
-            style={{
-              width: '100%', border: '1px solid #d1d5db', borderRadius: 6,
-              padding: '7px 10px', fontSize: 13, background: '#fff', color: '#1f2937',
-            }}
-          >
+          <label className="block text-[10px] font-semibold text-[var(--warn-text)] uppercase tracking-wide mb-1.5">Causa (6M)</label>
+          <select value={ro.causa_6m ?? ''} onChange={e => patchRo.mutateAsync({ causa_6m: e.target.value || null })} className={selectCls}>
             {CAUSA_6M_OPTIONS.map(opt => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
@@ -325,59 +271,44 @@ export function RoPanel({ fichaId, regime }: RoPanelProps) {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginBottom: 20 }}>
-        {/* O que aconteceu */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
         <div>
-          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
-            O que aconteceu
-          </label>
+          <label className="block text-[10px] font-semibold text-[var(--warn-text)] uppercase tracking-wide mb-1.5">O que aconteceu</label>
           <textarea
             key={`oqa-${ro.id}`}
             defaultValue={ro.o_que_aconteceu ?? ''}
-            onBlur={e => handleBlurField('o_que_aconteceu', e.target.value)}
+            onBlur={e => patchRo.mutateAsync({ o_que_aconteceu: e.target.value || null })}
             rows={3}
             placeholder="Descreva o ocorrido..."
-            style={{
-              width: '100%', boxSizing: 'border-box',
-              border: '1px solid #d1d5db', borderRadius: 6,
-              padding: '8px 10px', fontSize: 13, resize: 'vertical',
-              fontFamily: 'DM Sans, sans-serif', color: '#1f2937', background: '#fff',
-            }}
+            className={textareaCls}
           />
         </div>
-
-        {/* Ação imediata */}
         <div>
-          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
-            Ação Imediata
-          </label>
+          <label className="block text-[10px] font-semibold text-[var(--warn-text)] uppercase tracking-wide mb-1.5">Ação Imediata</label>
           <textarea
             key={`ai-${ro.id}`}
             defaultValue={ro.acao_imediata ?? ''}
-            onBlur={e => handleBlurField('acao_imediata', e.target.value)}
+            onBlur={e => patchRo.mutateAsync({ acao_imediata: e.target.value || null })}
             rows={3}
             placeholder="Descreva a ação imediata tomada..."
-            style={{
-              width: '100%', boxSizing: 'border-box',
-              border: '1px solid #d1d5db', borderRadius: 6,
-              padding: '8px 10px', fontSize: 13, resize: 'vertical',
-              fontFamily: 'DM Sans, sans-serif', color: '#1f2937', background: '#fff',
-            }}
+            className={textareaCls}
           />
         </div>
       </div>
 
-      {/* Lista de serviços NC */}
+      {/* Serviços NC */}
       {servicos.length === 0 ? (
-        <p style={{ color: '#92400e', fontSize: 13, margin: 0 }}>Nenhum serviço não conforme registrado.</p>
+        <p className="text-sm text-[var(--warn-text)]">Nenhum serviço não conforme registrado.</p>
       ) : (
         <div>
-          <p style={{ margin: '0 0 10px', fontSize: 11, fontWeight: 700, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          <p className="text-[10px] font-semibold text-[var(--warn-text)] uppercase tracking-wide mb-3">
             Serviços Não Conformes
           </p>
-          {servicos.map(servico => (
-            <ServicoAccordion key={servico.id} servico={servico} fichaId={fichaId} />
-          ))}
+          <div className="flex flex-col gap-2">
+            {servicos.map(servico => (
+              <ServicoAccordion key={servico.id} servico={servico} fichaId={fichaId} />
+            ))}
+          </div>
         </div>
       )}
     </div>
