@@ -44,7 +44,14 @@ CREATE INDEX IF NOT EXISTS idx_nc_status
 CREATE INDEX IF NOT EXISTS idx_nc_sla
   ON fvs_nao_conformidades (sla_status, tenant_id);
 
-ALTER TABLE fvs_nao_conformidades ADD CONSTRAINT uq_nc_numero UNIQUE (tenant_id, numero);
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE table_name = 'fvs_nao_conformidades' AND constraint_name = 'uq_nc_numero'
+  ) THEN
+    ALTER TABLE fvs_nao_conformidades ADD CONSTRAINT uq_nc_numero UNIQUE (tenant_id, numero);
+  END IF;
+END $$;
 
 -- 3. fvs_nc_tratamentos
 CREATE TABLE IF NOT EXISTS fvs_nc_tratamentos (
@@ -60,3 +67,10 @@ CREATE TABLE IF NOT EXISTS fvs_nc_tratamentos (
   registrado_por  INT NOT NULL,
   criado_em       TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- Índices adicionais para queries internas
+CREATE INDEX IF NOT EXISTS idx_nc_registro
+  ON fvs_nao_conformidades (registro_id, tenant_id);
+
+CREATE INDEX IF NOT EXISTS idx_nc_tratamentos_nc
+  ON fvs_nc_tratamentos (nc_id, ciclo_numero);
