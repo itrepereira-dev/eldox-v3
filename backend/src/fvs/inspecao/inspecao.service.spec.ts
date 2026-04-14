@@ -296,7 +296,7 @@ describe('InspecaoService', () => {
       expect(result.celulas[1][10]).toBe('nao_avaliado');
     });
 
-    it('mix de conforme e nao_avaliado (sem NC) = pendente', async () => {
+    it('mix de conforme e nao_avaliado (sem NC) = parcial', async () => {
       mockPrisma.$queryRawUnsafe
         .mockResolvedValueOnce([FICHA_EM_INSPECAO])
         .mockResolvedValueOnce([{ id: 1, nome: 'Alvenaria' }])
@@ -307,7 +307,7 @@ describe('InspecaoService', () => {
         ]);
 
       const result = await svc.getGrade(TENANT_ID, 1);
-      expect(result.celulas[1][10]).toBe('pendente');
+      expect(result.celulas[1][10]).toBe('parcial');
     });
 
     it('excecao alone = aprovado', async () => {
