@@ -790,11 +790,11 @@ export class InspecaoService {
     await this.prisma.$queryRawUnsafe(
       `INSERT INTO fvs_nao_conformidades
          (tenant_id, ficha_id, registro_id, numero, servico_id, item_id, obra_local_id,
-          criticidade, status, ciclo_numero, criado_por, descricao)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'aberta', $9, $10, $11)`,
+          criticidade, status, ciclo_numero, criado_por)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'aberta', $9, $10)`,
       tenantId, fichaId, registroId, numero,
       dto.servicoId, dto.itemId, dto.localId,
-      criticidade, ciclo, userId, dto.observacao ?? null,
+      criticidade, ciclo, userId,
     );
   }
 

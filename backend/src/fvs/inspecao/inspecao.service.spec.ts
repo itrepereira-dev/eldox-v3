@@ -643,7 +643,7 @@ describe('InspecaoService', () => {
         expect.anything(), expect.anything(), expect.anything(),
         expect.anything(), expect.anything(), expect.anything(),
         expect.anything(), expect.anything(), expect.anything(),
-        expect.anything(), expect.anything(),
+        expect.anything(),
       );
     });
 
