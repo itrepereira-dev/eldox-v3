@@ -44,6 +44,8 @@ CREATE INDEX IF NOT EXISTS idx_nc_status
 CREATE INDEX IF NOT EXISTS idx_nc_sla
   ON fvs_nao_conformidades (sla_status, tenant_id);
 
+ALTER TABLE fvs_nao_conformidades ADD CONSTRAINT uq_nc_numero UNIQUE (tenant_id, numero);
+
 -- 3. fvs_nc_tratamentos
 CREATE TABLE IF NOT EXISTS fvs_nc_tratamentos (
   id              SERIAL PRIMARY KEY,
