@@ -32,6 +32,8 @@ export interface FvsItem {
   servico_id: number;
   descricao: string;
   criterio_aceite: string | null;
+  tolerancia: string | null;
+  metodo_verificacao: string | null;
   criticidade: Criticidade;
   foto_modo: FotoModo;
   foto_minimo: number;
@@ -45,8 +47,24 @@ export interface FvsItem {
 
 export type RegimeFicha = 'pbqph' | 'norma_tecnica' | 'livre';
 export type StatusFicha = 'rascunho' | 'em_inspecao' | 'concluida' | 'aguardando_parecer' | 'aprovada';
-export type StatusRegistro = 'nao_avaliado' | 'conforme' | 'nao_conforme' | 'excecao';
-export type StatusGrade = 'nao_avaliado' | 'aprovado' | 'nc' | 'pendente';
+export type StatusRegistro =
+  | 'nao_avaliado'
+  | 'conforme'
+  | 'nao_conforme'
+  | 'excecao'
+  | 'conforme_apos_reinspecao'
+  | 'nc_apos_reinspecao'
+  | 'liberado_com_concessao'
+  | 'retrabalho';
+
+export type StatusGrade =
+  | 'nao_avaliado'
+  | 'parcial'
+  | 'aprovado'
+  | 'nc'
+  | 'nc_final'
+  | 'liberado'
+  | 'pendente';
 
 export interface FichaFvs {
   id: number;
@@ -284,4 +302,52 @@ export interface ObraModeloFvs {
   // joined
   modelo_nome?: string;
   obra_nome?: string;
+}
+
+// ─── Sprint 4b: NCs Explícitas ───────────────────────────────────────────────
+
+export type StatusNc = 'aberta' | 'em_tratamento' | 'aguardando_reinspecao' | 'encerrada' | 'cancelada';
+export type SlaStatus = 'no_prazo' | 'alerta' | 'vencido';
+
+export interface FvsNaoConformidade {
+  id: number;
+  tenant_id: number;
+  ficha_id: number;
+  registro_id: number;
+  numero: string;
+  servico_id: number;
+  item_id: number;
+  obra_local_id: number;
+  criticidade: Criticidade;
+  status: StatusNc;
+  ciclo_numero: number;
+  responsavel_id: number | null;
+  prazo_resolucao: string | null;
+  acao_corretiva: string | null;
+  causa_raiz: string | null;
+  sla_prazo_dias: number | null;
+  sla_status: SlaStatus;
+  encerrada_em: Date | null;
+  encerrada_por: number | null;
+  resultado_final: string | null;
+  criado_em: Date;
+  criado_por: number;
+  // joined
+  servico_nome?: string;
+  item_descricao?: string;
+  local_nome?: string;
+}
+
+export interface FvsNcTratamento {
+  id: number;
+  tenant_id: number;
+  nc_id: number;
+  ciclo_numero: number;
+  descricao: string;
+  acao_corretiva: string | null;
+  responsavel_id: number;
+  prazo: string | null;
+  evidencias: { ged_versao_id: number; descricao?: string }[] | null;
+  registrado_por: number;
+  criado_em: Date;
 }
