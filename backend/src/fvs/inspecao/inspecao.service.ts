@@ -756,16 +756,60 @@ export class InspecaoService {
   }
 
   private async autoCreateNc(
-    _tenantId: number, _fichaId: number, _registroId: number,
-    _dto: any, _criticidade: string, _userId: number, _ciclo: number,
+    tenantId: number,
+    fichaId: number,
+    registroId: number,
+    dto: { servicoId: number; itemId: number; localId: number; observacao?: string },
+    criticidade: string,
+    userId: number,
+    ciclo: number,
   ): Promise<void> {
-    // implementado na Task 6
+    // Verificar se já existe NC para este registro + ciclo (idempotente)
+    const existentes = await this.prisma.$queryRawUnsafe<{ id: number }[]>(
+      `SELECT id FROM fvs_nao_conformidades
+       WHERE registro_id = $1 AND ciclo_numero = $2 AND tenant_id = $3 AND deleted_at IS NULL`,
+      registroId, ciclo, tenantId,
+    );
+    if (existentes.length > 0) return;
+
+    // Próximo seq para esta ficha
+    const seqRows = await this.prisma.$queryRawUnsafe<{ seq: number }[]>(
+      `SELECT COUNT(*)::int + 1 AS seq FROM fvs_nao_conformidades WHERE ficha_id = $1 AND tenant_id = $2`,
+      fichaId, tenantId,
+    );
+    const seq = seqRows[0]?.seq ?? 1;
+
+    // Código do serviço para formar o número da NC
+    const svcRows = await this.prisma.$queryRawUnsafe<{ codigo: string | null }[]>(
+      `SELECT codigo FROM fvs_catalogo_servicos WHERE id = $1 AND tenant_id IN (0, $2)`,
+      dto.servicoId, tenantId,
+    );
+    const codigoServico = svcRows[0]?.codigo ?? String(dto.servicoId);
+    const numero = `NC-${fichaId}-${codigoServico}-${String(seq).padStart(3, '0')}`;
+
+    await this.prisma.$queryRawUnsafe(
+      `INSERT INTO fvs_nao_conformidades
+         (tenant_id, ficha_id, registro_id, numero, servico_id, item_id, obra_local_id,
+          criticidade, status, ciclo_numero, criado_por, descricao)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'aberta', $9, $10, $11)`,
+      tenantId, fichaId, registroId, numero,
+      dto.servicoId, dto.itemId, dto.localId,
+      criticidade, ciclo, userId, dto.observacao ?? null,
+    );
   }
 
   private async encerrarNc(
-    _tenantId: number, _registroId: number, _resultadoFinal: string, _userId: number,
+    tenantId: number,
+    registroId: number,
+    resultadoFinal: string,
+    userId: number,
   ): Promise<void> {
-    // implementado na Task 6
+    await this.prisma.$queryRawUnsafe(
+      `UPDATE fvs_nao_conformidades
+       SET status = $1, resultado_final = $2, encerrada_em = NOW(), encerrada_por = $3, updated_at = NOW()
+       WHERE registro_id = $4 AND tenant_id = $5 AND status NOT IN ('encerrada', 'cancelada')`,
+      'encerrada', resultadoFinal, userId, registroId, tenantId,
+    );
   }
 
   // ── createEvidencia ──────────────────────────────────────────────────────────

@@ -617,4 +617,55 @@ describe('InspecaoService', () => {
       expect(mockRoService.checkAndAdvanceRoStatus).not.toHaveBeenCalled();
     });
   });
+
+  // ── autoCreateNc via putRegistro ─────────────────────────────────────────────
+  describe('putRegistro() — auto-criação de NC', () => {
+    it('cria fvs_nao_conformidades ao transicionar para nao_conforme', async () => {
+      mockPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce([FICHA_EM_INSPECAO])           // getFichaOuFalhar
+        .mockResolvedValueOnce([])                             // registroAtual (nao_avaliado)
+        .mockResolvedValueOnce([{ criticidade: 'maior' }])    // buscar criticidade
+        .mockResolvedValueOnce([{ id: 7, ficha_id: 1, status: 'nao_conforme', ciclo: 1 }]) // upsert registro
+        // autoCreateNc:
+        .mockResolvedValueOnce([])                             // verificar NC existente
+        .mockResolvedValueOnce([{ seq: 1 }])                  // próximo seq
+        .mockResolvedValueOnce([{ codigo: 'ALV' }])           // codigo do serviço
+        .mockResolvedValueOnce([{ id: 1, numero: 'NC-1-ALV-001' }]); // INSERT NC
+
+      mockPrisma.$executeRawUnsafe.mockResolvedValue(undefined); // audit_log
+
+      await svc.putRegistro(TENANT_ID, 1, USER_ID, {
+        servicoId: 1, itemId: 1, localId: 1, status: 'nao_conforme', observacao: 'Junta fora da tolerância',
+      }, '127.0.0.1');
+
+      expect(mockPrisma.$queryRawUnsafe).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO fvs_nao_conformidades'),
+        expect.anything(), expect.anything(), expect.anything(),
+        expect.anything(), expect.anything(), expect.anything(),
+        expect.anything(), expect.anything(), expect.anything(),
+        expect.anything(), expect.anything(),
+      );
+    });
+
+    it('encerra NC ao transicionar para conforme_apos_reinspecao', async () => {
+      mockPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce([FICHA_EM_INSPECAO])
+        .mockResolvedValueOnce([{ status: 'nao_conforme' }])   // status atual
+        .mockResolvedValueOnce([{ criticidade: 'menor' }])
+        .mockResolvedValueOnce([{ id: 9, ficha_id: 1, status: 'conforme_apos_reinspecao', ciclo: 2 }]) // upsert
+        .mockResolvedValueOnce([{ id: 3 }]);                  // encerrarNc: UPDATE NC
+
+      mockPrisma.$executeRawUnsafe.mockResolvedValue(undefined);
+
+      await svc.putRegistro(TENANT_ID, 1, USER_ID, {
+        servicoId: 1, itemId: 1, localId: 1, status: 'conforme_apos_reinspecao', observacao: 'Corrigido', ciclo: 2,
+      }, '127.0.0.1');
+
+      expect(mockPrisma.$queryRawUnsafe).toHaveBeenCalledWith(
+        expect.stringContaining('UPDATE fvs_nao_conformidades'),
+        'encerrada', 'conforme_apos_reinspecao',
+        expect.anything(), expect.anything(), expect.anything(),
+      );
+    });
+  });
 });
