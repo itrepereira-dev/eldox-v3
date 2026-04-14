@@ -17,8 +17,9 @@ import { PutRegistroDto } from './dto/put-registro.dto';
 import { UpdateLocalDto } from './dto/update-local.dto';
 import { AddServicoDto } from './dto/add-servico.dto';
 import { SubmitParecerDto } from './dto/submit-parecer.dto';
+import { BulkInspecaoDto } from './dto/bulk-inspecao.dto';
 
-interface JwtUser { sub: number; tenantId: number; role: string }
+interface JwtUser { id: number; tenantId: number; role: string }
 
 @Controller('api/v1/fvs')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -39,7 +40,7 @@ export class InspecaoController {
     @Body() dto: CreateFichaDto,
     @Ip() ip: string,
   ) {
-    return this.inspecao.createFicha(tenantId, user.sub, dto, ip);
+    return this.inspecao.createFicha(tenantId, user.id, dto, ip);
   }
 
   @Get('fichas')
@@ -71,7 +72,7 @@ export class InspecaoController {
     @Body() dto: UpdateFichaDto,
     @Ip() ip: string,
   ) {
-    return this.inspecao.patchFicha(tenantId, id, user.sub, dto, ip);
+    return this.inspecao.patchFicha(tenantId, id, user.id, dto, ip);
   }
 
   @Delete('fichas/:id')
@@ -119,7 +120,7 @@ export class InspecaoController {
     @Body() dto: PutRegistroDto,
     @Ip() ip: string,
   ) {
-    return this.inspecao.putRegistro(tenantId, fichaId, user.sub, dto, ip);
+    return this.inspecao.putRegistro(tenantId, fichaId, user.id, dto, ip);
   }
 
   // ─── Locais ──────────────────────────────────────────────────────────────────
@@ -174,7 +175,7 @@ export class InspecaoController {
     @UploadedFile() file: Express.Multer.File,
     @Ip() ip: string,
   ) {
-    return this.inspecao.createEvidencia(tenantId, registroId, user.sub, file, ip);
+    return this.inspecao.createEvidencia(tenantId, registroId, user.id, file, ip);
   }
 
   @Get('registros/:id/evidencias')
@@ -195,7 +196,7 @@ export class InspecaoController {
     @Param('id', ParseIntPipe) id: number,
     @Ip() ip: string,
   ) {
-    return this.inspecao.deleteEvidencia(tenantId, id, user.sub, ip);
+    return this.inspecao.deleteEvidencia(tenantId, id, user.id, ip);
   }
 
   // ─── Parecer ─────────────────────────────────────────────────────────────────
@@ -209,7 +210,7 @@ export class InspecaoController {
     @Param('id', ParseIntPipe) id: number,
     @Ip() ip: string,
   ) {
-    return this.parecer.solicitarParecer(tenantId, id, user.sub, ip);
+    return this.parecer.solicitarParecer(tenantId, id, user.id, ip);
   }
 
   @Post('fichas/:id/parecer')
@@ -222,6 +223,19 @@ export class InspecaoController {
     @Body() dto: SubmitParecerDto,
     @Ip() ip: string,
   ) {
-    return this.parecer.submitParecer(tenantId, id, user.sub, dto, ip);
+    return this.parecer.submitParecer(tenantId, id, user.id, dto, ip);
+  }
+
+  @Post('fichas/:fichaId/registros/bulk')
+  @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO')
+  @HttpCode(HttpStatus.OK)
+  bulkInspecaoLocais(
+    @TenantId() tenantId: number,
+    @CurrentUser() user: JwtUser,
+    @Param('fichaId', ParseIntPipe) fichaId: number,
+    @Body() dto: BulkInspecaoDto,
+    @Ip() ip: string,
+  ) {
+    return this.inspecao.bulkInspecaoLocais(tenantId, fichaId, user.id, dto, ip);
   }
 }

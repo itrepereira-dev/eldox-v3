@@ -829,6 +829,76 @@ export class InspecaoService {
     );
   }
 
+  // ── bulkInspecaoLocais ───────────────────────────────────────────────────────
+
+  async bulkInspecaoLocais(
+    tenantId: number,
+    fichaId: number,
+    userId: number,
+    dto: { servicoId: number; localIds: number[]; status: 'conforme' | 'excecao'; observacao?: string },
+    ip?: string,
+  ): Promise<{ processados: number; ignorados: number; erros: number }> {
+    if ((dto.status as string) === 'nao_conforme') {
+      throw new BadRequestException('Inspeção em massa não permite não conformidade');
+    }
+
+    const ficha = await this.getFichaOuFalhar(tenantId, fichaId);
+    if (ficha.status !== 'em_inspecao') {
+      throw new ConflictException('Registros só podem ser gravados com ficha em_inspecao');
+    }
+
+    // Buscar todos os itens do serviço para esta ficha
+    const itensRows = await this.prisma.$queryRawUnsafe<{ id: number }[]>(
+      `SELECT i.id
+       FROM fvs_catalogo_itens i
+       JOIN fvs_ficha_servicos fs ON fs.servico_id = $1 AND fs.ficha_id = $2 AND fs.tenant_id = $3
+       WHERE i.servico_id = $1 AND i.tenant_id IN (0, $3) AND i.ativo = true
+         AND (fs.itens_excluidos IS NULL OR NOT (i.id = ANY(fs.itens_excluidos)))`,
+      dto.servicoId, fichaId, tenantId,
+    );
+    const itemIds = itensRows.map(r => r.id);
+    if (itemIds.length === 0) return { processados: 0, ignorados: 0, erros: 0 };
+
+    let processados = 0;
+    let ignorados = 0;
+
+    for (const localId of dto.localIds) {
+      // Buscar registros atuais para este local
+      const regsAtuais = await this.prisma.$queryRawUnsafe<{ item_id: number; status: string }[]>(
+        `SELECT DISTINCT ON (item_id) item_id, status
+         FROM fvs_registros
+         WHERE ficha_id = $1 AND servico_id = $2 AND obra_local_id = $3 AND tenant_id = $4
+         ORDER BY item_id, ciclo DESC`,
+        fichaId, dto.servicoId, localId, tenantId,
+      );
+
+      const statusPorItem: Record<number, string> = {};
+      regsAtuais.forEach(r => { statusPorItem[r.item_id] = r.status; });
+
+      // Verificar se todos os itens estão nao_avaliado
+      const todosNaoAvaliados = itemIds.every(id => !statusPorItem[id] || statusPorItem[id] === 'nao_avaliado');
+      if (!todosNaoAvaliados) {
+        ignorados++;
+        continue;
+      }
+
+      // Inserir todos os itens como conforme/excecao
+      for (const itemId of itemIds) {
+        await this.prisma.$executeRawUnsafe(
+          `INSERT INTO fvs_registros
+             (tenant_id, ficha_id, servico_id, item_id, obra_local_id, ciclo, status, observacao, inspecionado_por, inspecionado_em)
+           VALUES ($1, $2, $3, $4, $5, 1, $6, $7, $8, NOW())
+           ON CONFLICT (ficha_id, item_id, obra_local_id, ciclo) DO NOTHING`,
+          tenantId, fichaId, dto.servicoId, itemId, localId,
+          dto.status, dto.observacao ?? null, userId,
+        );
+      }
+      processados++;
+    }
+
+    return { processados, ignorados, erros: 0 };
+  }
+
   // ── createEvidencia ──────────────────────────────────────────────────────────
 
   async createEvidencia(

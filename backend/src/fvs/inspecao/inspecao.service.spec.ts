@@ -699,4 +699,33 @@ describe('InspecaoService', () => {
       expect((svc as any).calcularStatusCelula(['liberado_com_concessao', 'conforme_apos_reinspecao'])).toBe('aprovado');
     });
   });
+
+  // ── bulkInspecaoLocais ────────────────────────────────────────────────────────
+  describe('bulkInspecaoLocais()', () => {
+    it('lança BadRequestException se status=nao_conforme', async () => {
+      await expect(
+        svc.bulkInspecaoLocais(TENANT_ID, 1, USER_ID, {
+          servicoId: 1, localIds: [1, 2], status: 'nao_conforme' as any,
+        }, '127.0.0.1'),
+      ).rejects.toThrow('Inspeção em massa não permite não conformidade');
+    });
+
+    it('processa apenas locais nao_avaliado, ignora os avaliados', async () => {
+      mockPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce([FICHA_EM_INSPECAO])  // getFichaOuFalhar
+        .mockResolvedValueOnce([{ id: 10 }, { id: 11 }])  // getItensDoServico
+        .mockResolvedValueOnce([{ item_id: 10, obra_local_id: 1, status: 'conforme' }, { item_id: 11, obra_local_id: 1, status: 'conforme' }])  // local 1 já avaliado
+        .mockResolvedValueOnce([]);  // local 2 sem registros = nao_avaliado
+
+      mockPrisma.$executeRawUnsafe.mockResolvedValue(undefined);
+
+      const result = await svc.bulkInspecaoLocais(TENANT_ID, 1, USER_ID, {
+        servicoId: 1, localIds: [1, 2], status: 'conforme',
+      }, '127.0.0.1');
+
+      expect(result.processados).toBe(1);
+      expect(result.ignorados).toBe(1);
+      expect(result.erros).toBe(0);
+    });
+  });
 });
