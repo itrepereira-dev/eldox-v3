@@ -582,6 +582,95 @@ export class InspecaoService {
     return { servicos, locais, celulas };
   }
 
+  // ── getGradePreview ───────────────────────────────────────────────────────────
+
+  async getGradePreview(
+    tenantId: number,
+    fichaId: number,
+    localId: number,
+    servicoId: number,
+  ): Promise<{
+    servico_nome: string;
+    local_nome: string;
+    status_geral: StatusGrade;
+    inspetor_nome: string | null;
+    ultima_atividade: string | null;
+    itens: {
+      id: number;
+      descricao: string;
+      criterio_aceite: string | null;
+      criticidade: string;
+      status: string;
+      observacao: string | null;
+    }[];
+  }> {
+    await this.getFichaOuFalhar(tenantId, fichaId);
+
+    const rows = await this.prisma.$queryRawUnsafe<{
+      item_id: number;
+      descricao: string;
+      criterio_aceite: string | null;
+      criticidade: string;
+      status: string;
+      observacao: string | null;
+      servico_nome: string;
+      local_nome: string;
+      inspetor_nome: string | null;
+      inspecionado_em: string | null;
+    }[]>(
+      `SELECT
+         i.id          AS item_id,
+         i.descricao,
+         i.criterio_aceite,
+         i.criticidade,
+         COALESCE(r.status, 'nao_avaliado') AS status,
+         r.observacao,
+         s.nome  AS servico_nome,
+         ol.nome AS local_nome,
+         u.nome  AS inspetor_nome,
+         r.inspecionado_em::text AS inspecionado_em
+       FROM fvs_catalogo_itens i
+       JOIN fvs_ficha_servicos fs
+         ON fs.servico_id = $2 AND fs.ficha_id = $1 AND fs.tenant_id = $3
+       JOIN fvs_catalogo_servicos s ON s.id = $2
+       JOIN "ObraLocal" ol ON ol.id = $4
+       LEFT JOIN LATERAL (
+         SELECT status, observacao, inspecionado_por, inspecionado_em
+         FROM fvs_registros r2
+         WHERE r2.item_id = i.id AND r2.ficha_id = $1 AND r2.obra_local_id = $4 AND r2.tenant_id = $3
+         ORDER BY r2.ciclo DESC LIMIT 1
+       ) r ON true
+       LEFT JOIN "Usuario" u ON u.id = r.inspecionado_por
+       WHERE i.servico_id = $2 AND i.tenant_id IN (0, $3) AND i.ativo = true
+         AND (fs.itens_excluidos IS NULL OR NOT (i.id = ANY(fs.itens_excluidos)))
+       ORDER BY i.ordem ASC`,
+      fichaId, servicoId, tenantId, localId,
+    );
+
+    if (!rows.length) throw new NotFoundException(`Serviço ${servicoId} não encontrado na ficha`);
+
+    const statusGeral = this.calcularStatusCelula(rows.map(r => r.status));
+    const ultima = rows
+      .filter(r => r.inspecionado_em)
+      .sort((a, b) => (b.inspecionado_em ?? '') > (a.inspecionado_em ?? '') ? 1 : -1)[0];
+
+    return {
+      servico_nome: rows[0].servico_nome,
+      local_nome: rows[0].local_nome,
+      status_geral: statusGeral,
+      inspetor_nome: ultima?.inspetor_nome ?? null,
+      ultima_atividade: ultima?.inspecionado_em ?? null,
+      itens: rows.map(r => ({
+        id: r.item_id,
+        descricao: r.descricao,
+        criterio_aceite: r.criterio_aceite,
+        criticidade: r.criticidade,
+        status: r.status,
+        observacao: r.observacao,
+      })),
+    };
+  }
+
   private calcularStatusCelula(statuses: string[]): StatusGrade {
     if (!statuses.length) return 'nao_avaliado';
 

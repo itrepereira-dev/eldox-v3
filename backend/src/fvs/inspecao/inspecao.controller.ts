@@ -273,4 +273,17 @@ export class InspecaoController {
       evidencias: dto.evidencias?.map(e => ({ gedVersaoId: e.gedVersaoId, descricao: e.descricao })),
     });
   }
+
+  // ─── Grade Preview ───────────────────────────────────────────────────────────
+
+  @Get('fichas/:fichaId/locais/:localId/servico/:servicoId/preview')
+  @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO', 'VISITANTE')
+  getGradePreview(
+    @TenantId() tenantId: number,
+    @Param('fichaId', ParseIntPipe) fichaId: number,
+    @Param('localId', ParseIntPipe) localId: number,
+    @Param('servicoId', ParseIntPipe) servicoId: number,
+  ) {
+    return this.inspecao.getGradePreview(tenantId, fichaId, localId, servicoId);
+  }
 }
