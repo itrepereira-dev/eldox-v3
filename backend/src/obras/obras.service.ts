@@ -75,6 +75,39 @@ export class ObrasService {
   // OBRAS — CRUD
   // ─────────────────────────────────────────
 
+  private async contarInspecoesEFotos(
+    tenantId: number,
+    obraIds: number[],
+  ): Promise<Map<number, { totalInspecoes: number; totalFotos: number }>> {
+    if (obraIds.length === 0) return new Map();
+
+    const rows = await this.prisma.$queryRaw<
+      { obra_id: number; total_inspecoes: bigint; total_fotos: bigint }[]
+    >`
+      SELECT
+        f.obra_id,
+        COUNT(DISTINCT f.id)::bigint AS total_inspecoes,
+        COUNT(e.id)::bigint          AS total_fotos
+      FROM fvs_fichas f
+      LEFT JOIN fvs_registros r ON r.ficha_id = f.id AND r.tenant_id = f.tenant_id
+      LEFT JOIN fvs_evidencias e ON e.registro_id = r.id AND e.tenant_id = f.tenant_id
+      WHERE f.tenant_id = ${tenantId}
+        AND f.obra_id = ANY(${obraIds}::int[])
+        AND f.deleted_at IS NULL
+      GROUP BY f.obra_id
+    `;
+
+    return new Map(
+      rows.map((r) => [
+        Number(r.obra_id),
+        {
+          totalInspecoes: Number(r.total_inspecoes),
+          totalFotos:     Number(r.total_fotos),
+        },
+      ]),
+    );
+  }
+
   async findAll(
     tenantId: number,
     params: { status?: string; page?: number; limit?: number },
@@ -103,12 +136,21 @@ export class ObrasService {
       this.prisma.obra.count({ where }),
     ]);
 
+    const obraIds = items.map((o) => o.id);
+    const contagens = await this.contarInspecoesEFotos(tenantId, obraIds);
+
     return {
-      items: items.map((o) => ({
-        ...o,
-        totalLocais: o._count.locais,
-        _count: undefined,
-      })),
+      items: items.map((o) => {
+        const c = contagens.get(o.id) ?? { totalInspecoes: 0, totalFotos: 0 };
+        return {
+          ...o,
+          totalLocais:    o._count.locais,
+          totalInspecoes: c.totalInspecoes,
+          totalFotos:     c.totalFotos,
+          fotoCapaUrl:    o.fotoCapa ?? null, // will be replaced with presigned URL in Task 3
+          _count: undefined,
+        };
+      }),
       total,
       page,
       limit: limitEfetivo,
@@ -165,6 +207,8 @@ export class ObrasService {
           ? new Date(dto.dataFimPrevista)
           : undefined,
         dadosExtras: dto.dadosExtras as Prisma.InputJsonValue,
+        latitude: dto.latitude,
+        longitude: dto.longitude,
       },
       include: {
         obraTipo: { select: { id: true, nome: true, slug: true, totalNiveis: true } },
@@ -204,6 +248,8 @@ export class ObrasService {
         ...(dto.dadosExtras !== undefined && {
           dadosExtras: dto.dadosExtras as Prisma.InputJsonValue,
         }),
+        ...(dto.latitude !== undefined && { latitude: dto.latitude }),
+        ...(dto.longitude !== undefined && { longitude: dto.longitude }),
       },
       include: {
         obraTipo: { select: { id: true, nome: true, slug: true } },
@@ -271,11 +317,11 @@ export class ObrasService {
   async findLocais(
     tenantId: number,
     obraId: number,
-    params: { parentId?: number | null; nivel?: number },
+    params: { parentId?: number | null; nivel?: number; search?: string },
   ) {
     await this.findOne(tenantId, obraId); // garante existência
 
-    const { parentId, nivel } = params;
+    const { parentId, nivel, search } = params;
 
     const where: Prisma.ObraLocalWhereInput = {
       tenantId,
@@ -283,6 +329,13 @@ export class ObrasService {
       deletadoEm: null,
       ...(nivel !== undefined && { nivel }),
       ...(parentId !== undefined && { parentId: parentId ?? null }),
+      ...(search && {
+        OR: [
+          { nome: { contains: search, mode: 'insensitive' } },
+          { codigo: { contains: search, mode: 'insensitive' } },
+          { nomeCompleto: { contains: search, mode: 'insensitive' } },
+        ],
+      }),
     };
 
     const locais = await this.prisma.obraLocal.findMany({
@@ -377,8 +430,13 @@ export class ObrasService {
   ) {
     const local = await this.prisma.obraLocal.findFirst({
       where: { id: localId, obraId, tenantId, deletadoEm: null },
+      include: { obra: { select: { obraTipoId: true } } },
     });
     if (!local) throw new NotFoundException('Local não encontrado nesta obra');
+
+    if (dto.dadosExtras !== undefined) {
+      await this.validarDadosExtras(local.obra.obraTipoId, local.nivel, dto.dadosExtras);
+    }
 
     const nomeAtualizado = dto.nome !== undefined && dto.nome !== local.nome;
 
@@ -399,6 +457,7 @@ export class ObrasService {
             : null,
         }),
         ...(dto.plantaBaixaId !== undefined && { plantaBaixaId: dto.plantaBaixaId }),
+        ...(dto.status !== undefined && { status: dto.status }),
       },
     });
 
@@ -582,12 +641,141 @@ export class ObrasService {
     });
   }
 
-  // Stub: valida dadosExtras contra ObraTipoCampo (implementação futura)
+  // ─────────────────────────────────────────
+  // QUALITY CONFIG
+  // ─────────────────────────────────────────
+
+  async getQualityConfig(tenantId: number, obraId: number) {
+    await this.findOne(tenantId, obraId); // garante existência e tenant
+    const config = await this.prisma.obraQualityConfig.findUnique({
+      where: { obraId },
+    });
+    return config ?? { obraId, modoQualidade: null, slaAprovacaoHoras: null, exigeAssinaturaFVS: false, exigeAssinaturaDiario: false };
+  }
+
+  async upsertQualityConfig(
+    tenantId: number,
+    obraId: number,
+    dto: { modoQualidade?: string; slaAprovacaoHoras?: number; exigeAssinaturaFVS?: boolean; exigeAssinaturaDiario?: boolean },
+  ) {
+    await this.findOne(tenantId, obraId); // garante existência e tenant
+
+    return this.prisma.obraQualityConfig.upsert({
+      where: { obraId },
+      create: {
+        obraId,
+        ...(dto.modoQualidade && { modoQualidade: dto.modoQualidade as any }),
+        ...(dto.slaAprovacaoHoras !== undefined && { slaAprovacaoHoras: dto.slaAprovacaoHoras }),
+        ...(dto.exigeAssinaturaFVS !== undefined && { exigeAssinaturaFVS: dto.exigeAssinaturaFVS }),
+        ...(dto.exigeAssinaturaDiario !== undefined && { exigeAssinaturaDiario: dto.exigeAssinaturaDiario }),
+      },
+      update: {
+        ...(dto.modoQualidade && { modoQualidade: dto.modoQualidade as any }),
+        ...(dto.slaAprovacaoHoras !== undefined && { slaAprovacaoHoras: dto.slaAprovacaoHoras }),
+        ...(dto.exigeAssinaturaFVS !== undefined && { exigeAssinaturaFVS: dto.exigeAssinaturaFVS }),
+        ...(dto.exigeAssinaturaDiario !== undefined && { exigeAssinaturaDiario: dto.exigeAssinaturaDiario }),
+      },
+    });
+  }
+
+  /**
+   * Valida `dadosExtras` contra o schema `ObraTipoCampo` do tipo de obra.
+   *
+   * - Nível 0 → campos da Obra (chamado em create/update de Obra)
+   * - Nível 1-6 → campos do ObraLocal naquele nível (chamado em createLocal)
+   *
+   * Regras aplicadas:
+   * 1. Campos obrigatórios (obrigatorio=true) devem estar presentes e não-nulos.
+   * 2. Tipo do valor deve bater com o `tipo` do campo:
+   *    - "string"  → typeof value === 'string'
+   *    - "number"  → typeof value === 'number' (e não NaN)
+   *    - "boolean" → typeof value === 'boolean'
+   *    - "date"    → string válida no formato ISO 8601
+   *    - "enum"    → valor deve estar na lista `opcoes` (array no JSON do campo)
+   * 3. Chaves desconhecidas (não mapeadas em ObraTipoCampo) são ignoradas — não geram erro.
+   */
   private async validarDadosExtras(
-    _obraTipoId: number,
-    _nivel: number,
-    _dados: Record<string, unknown> | undefined,
+    obraTipoId: number,
+    nivel: number,
+    dados: Record<string, unknown> | undefined,
   ): Promise<void> {
-    // TODO: implementar validação de campos obrigatórios por nível
+    const campos = await this.prisma.obraTipoCampo.findMany({
+      where: { obraTipoId, nivel },
+    });
+
+    // Sem campos definidos para este tipo/nível: nada a validar
+    if (campos.length === 0) return;
+
+    const dadosEfetivos = dados ?? {};
+
+    for (const campo of campos) {
+      const valor = dadosEfetivos[campo.chave];
+      const presente = valor !== undefined && valor !== null;
+
+      // 1. Obrigatoriedade
+      if (campo.obrigatorio && !presente) {
+        throw new BadRequestException(
+          `Campo obrigatório ausente: "${campo.label}" (chave: "${campo.chave}")`,
+        );
+      }
+
+      // Se o campo está ausente mas não é obrigatório, pula as demais validações
+      if (!presente) continue;
+
+      // 2. Validação de tipo
+      switch (campo.tipo) {
+        case 'string': {
+          if (typeof valor !== 'string') {
+            throw new BadRequestException(
+              `Campo "${campo.label}" deve ser texto (string). Recebido: ${typeof valor}`,
+            );
+          }
+          break;
+        }
+
+        case 'number': {
+          if (typeof valor !== 'number' || Number.isNaN(valor)) {
+            throw new BadRequestException(
+              `Campo "${campo.label}" deve ser numérico (number). Recebido: ${typeof valor}`,
+            );
+          }
+          break;
+        }
+
+        case 'boolean': {
+          if (typeof valor !== 'boolean') {
+            throw new BadRequestException(
+              `Campo "${campo.label}" deve ser verdadeiro/falso (boolean). Recebido: ${typeof valor}`,
+            );
+          }
+          break;
+        }
+
+        case 'date': {
+          if (typeof valor !== 'string' || isNaN(Date.parse(valor as string))) {
+            throw new BadRequestException(
+              `Campo "${campo.label}" deve ser uma data válida no formato ISO 8601 (ex: "2026-04-15"). Recebido: "${valor}"`,
+            );
+          }
+          break;
+        }
+
+        case 'enum': {
+          const opcoes = Array.isArray(campo.opcoes) ? (campo.opcoes as unknown[]) : [];
+          if (!opcoes.includes(valor)) {
+            throw new BadRequestException(
+              `Campo "${campo.label}" contém valor inválido: "${valor}". Opções permitidas: ${opcoes.map((o) => `"${o}"`).join(', ')}`,
+            );
+          }
+          break;
+        }
+
+        default: {
+          // Tipo desconhecido no schema — não bloqueia, mas emite aviso no log
+          // (não usar console.warn em produção; aqui deixamos passar silenciosamente)
+          break;
+        }
+      }
+    }
   }
 }
