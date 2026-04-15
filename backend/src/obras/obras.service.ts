@@ -5,6 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { MinioService } from '../ged/storage/minio.service';
 import { CreateObraDto } from './dto/create-obra.dto';
 import { UpdateObraDto } from './dto/update-obra.dto';
 import { CreateObraLocalDto } from './dto/create-obra-local.dto';
@@ -17,11 +18,13 @@ import { EdificacaoStrategy } from './strategies/edificacao.strategy';
 import { LinearStrategy } from './strategies/linear.strategy';
 import { InstalacaoStrategy } from './strategies/instalacao.strategy';
 import { GerarCascataDto } from './dto/gerar-cascata.dto';
+import sharp from 'sharp';
 
 @Injectable()
 export class ObrasService {
   constructor(
     private prisma: PrismaService,
+    private minio: MinioService,
     private genericaStrategy: GenericaStrategy,
     private edificacaoStrategy: EdificacaoStrategy,
     private linearStrategy: LinearStrategy,
@@ -139,6 +142,17 @@ export class ObrasService {
     const obraIds = items.map((o) => o.id);
     const contagens = await this.contarInspecoesEFotos(tenantId, obraIds);
 
+    // Gerar presigned URLs para fotos de capa
+    const presignedUrls = new Map<number, string>();
+    await Promise.all(
+      items
+        .filter((o) => o.fotoCapa)
+        .map(async (o) => {
+          const url = await this.minio.getPresignedUrl(o.fotoCapa!, 3600);
+          presignedUrls.set(o.id, url);
+        }),
+    );
+
     return {
       items: items.map((o) => {
         const c = contagens.get(o.id) ?? { totalInspecoes: 0, totalFotos: 0 };
@@ -147,7 +161,7 @@ export class ObrasService {
           totalLocais:    o._count.locais,
           totalInspecoes: c.totalInspecoes,
           totalFotos:     c.totalFotos,
-          fotoCapaUrl:    o.fotoCapa ?? null, // will be replaced with presigned URL in Task 3
+          fotoCapaUrl:    presignedUrls.get(o.id) ?? null,
           _count: undefined,
         };
       }),
@@ -156,6 +170,50 @@ export class ObrasService {
       limit: limitEfetivo,
       totalPages: Math.ceil(total / limitEfetivo),
     };
+  }
+
+  async uploadFotoCapa(
+    tenantId: number,
+    obraId: number,
+    file: Express.Multer.File,
+  ): Promise<{ fotoCapaUrl: string }> {
+    const obra = await this.findOne(tenantId, obraId);
+
+    // Validar formato
+    const formatosPermitidos = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
+    if (!formatosPermitidos.includes(file.mimetype)) {
+      throw new BadRequestException(
+        'Formato inválido. Use JPEG, PNG, WebP ou HEIC.',
+      );
+    }
+
+    // Processar com sharp: redimensionar + converter para WebP
+    const buffer = await sharp(file.buffer)
+      .resize({ width: 800, withoutEnlargement: true })
+      .webp({ quality: 80 })
+      .toBuffer();
+
+    // Deletar foto antiga do MinIO se existir
+    if (obra.fotoCapa) {
+      await this.minio.deleteFile(obra.fotoCapa).catch(() => {
+        // Ignorar erro — arquivo pode já não existir no MinIO
+      });
+    }
+
+    // Upload para MinIO
+    const key = `${tenantId}/obras/${obraId}/capa/${Date.now()}.webp`;
+    await this.minio.uploadFile(buffer, key, 'image/webp');
+
+    // Salvar key no banco
+    await this.prisma.obra.update({
+      where: { id: obraId },
+      data: { fotoCapa: key },
+    });
+
+    // Gerar presigned URL (1h de validade)
+    const url = await this.minio.getPresignedUrl(key, 3600);
+
+    return { fotoCapaUrl: url };
   }
 
   async findOne(tenantId: number, id: number) {

@@ -9,6 +9,8 @@ import {
   Matches,
   Min,
   IsObject,
+  IsNumber,
+  Max,
 } from 'class-validator';
 import { ModoQualidade } from '@prisma/client';
 
@@ -53,6 +55,18 @@ export class CreateObraDto {
   @IsOptional()
   @IsDateString()
   dataFimPrevista?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  latitude?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  longitude?: number;
 
   @IsOptional()
   @IsObject()

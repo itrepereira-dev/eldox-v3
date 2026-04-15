@@ -46,7 +46,7 @@ import { GedClassifierWorker } from './workers/ged-classifier.worker';
     GedClassifierWorker,
   ],
   controllers: [GedController],
-  // GedService exportado para uso em outros módulos (FVS, NCs, Transmittals)
-  exports: [GedService],
+  // GedService e MinioService exportados para uso em outros módulos (FVS, NCs, Transmittals, Ensaios)
+  exports: [GedService, MinioService],
 })
 export class GedModule {}

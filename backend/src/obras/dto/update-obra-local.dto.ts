@@ -1,9 +1,13 @@
-import { IsString, IsOptional, IsInt, IsObject } from 'class-validator';
+import { IsString, IsOptional, IsInt, IsObject, IsEnum } from 'class-validator';
 
 export class UpdateObraLocalDto {
   @IsOptional()
   @IsString()
   nome?: string;
+
+  @IsOptional()
+  @IsEnum(['PENDENTE', 'EM_EXECUCAO', 'CONCLUIDO', 'ENTREGUE', 'SUSPENSO'])
+  status?: 'PENDENTE' | 'EM_EXECUCAO' | 'CONCLUIDO' | 'ENTREGUE' | 'SUSPENSO';
 
   @IsOptional()
   @IsInt()

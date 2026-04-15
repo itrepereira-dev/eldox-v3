@@ -1,7 +1,7 @@
 import {
   IsString, IsNotEmpty, IsEnum, IsArray, ValidateNested,
   IsOptional, IsInt, IsBoolean, Min, Max, MaxLength,
-  IsNumber, ArrayMinSize,
+  IsNumber, ArrayMinSize, IsObject,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -157,5 +157,6 @@ export class GerarCascataDto {
   @IsEnum(['generica', 'edificacao', 'linear', 'instalacao'])
   estrategia: EstrategiaGeracao;
 
+  @IsObject()
   payload: GerarGenericaDto | GerarEdificacaoDto | GerarLinearDto | GerarInstalacaoDto;
 }
