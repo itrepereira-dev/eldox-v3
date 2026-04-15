@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { obrasService, type Obra } from '../../services/obras.service';
@@ -45,6 +45,14 @@ const CARD_GRADIENTS = [
   'linear-gradient(135deg, #3a1a1a, #6a2d2d)',
   'linear-gradient(135deg, #1a1a3a, #2d2d6a)',
 ];
+
+const BADGE_CLS: Record<string, string> = {
+  EM_EXECUCAO:  'bg-green-500/20 text-green-400 border border-green-500/40',
+  PARALISADA:   'bg-red-500/20 text-red-400 border border-red-500/40',
+  CONCLUIDA:    'bg-blue-400/20 text-blue-300 border border-blue-400/40',
+  ENTREGUE:     'bg-sky-400/20 text-sky-300 border border-sky-400/40',
+  PLANEJAMENTO: 'bg-gray-500/20 text-gray-300 border border-gray-500/40',
+};
 
 // ── Página principal ──────────────────────────────────────────────────────────
 
@@ -384,23 +392,22 @@ function ObraCard({ obra, onVer, onRemover }: {
   obra: Obra; onVer: () => void; onRemover: () => void;
 }) {
   const gradient = CARD_GRADIENTS[obra.id % CARD_GRADIENTS.length];
-  const prazo = calcPrazo(obra.dataInicioPrevista, obra.dataFimPrevista);
-  const [imgError, setImgError] = useState(false);
-  const usarFoto = !!obra.fotoCapaUrl && !imgError;
-
-  const badgeCls: Record<string, string> = {
-    EM_EXECUCAO:  'bg-green-500/20 text-green-400 border border-green-500/40',
-    PARALISADA:   'bg-red-500/20 text-red-400 border border-red-500/40',
-    CONCLUIDA:    'bg-blue-400/20 text-blue-300 border border-blue-400/40',
-    ENTREGUE:     'bg-sky-400/20 text-sky-300 border border-sky-400/40',
-    PLANEJAMENTO: 'bg-gray-500/20 text-gray-300 border border-gray-500/40',
-  };
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const usarFoto = !!obra.fotoCapaUrl && obra.fotoCapaUrl !== failedUrl;
+  const prazo = useMemo(
+    () => calcPrazo(obra.dataInicioPrevista, obra.dataFimPrevista),
+    [obra.dataInicioPrevista, obra.dataFimPrevista],
+  );
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-label={`Ver obra ${obra.nome}`}
       className="rounded-xl border border-[var(--border-dim)] overflow-hidden cursor-pointer transition-all duration-150 hover:-translate-y-0.5"
       style={{ background: 'var(--bg-raised)' }}
       onClick={onVer}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onVer(); } }}
       onMouseEnter={e => {
         (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--accent)';
         (e.currentTarget as HTMLDivElement).style.boxShadow = '0 8px 24px rgba(0,0,0,.3)';
@@ -417,7 +424,7 @@ function ObraCard({ obra, onVer, onRemover }: {
             src={obra.fotoCapaUrl!}
             alt={obra.nome}
             className="absolute inset-0 w-full h-full object-cover"
-            onError={() => setImgError(true)}
+            onError={() => setFailedUrl(obra.fotoCapaUrl!)}
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center text-white/10">
@@ -425,7 +432,7 @@ function ObraCard({ obra, onVer, onRemover }: {
           </div>
         )}
         <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,.1) 0%, rgba(0,0,0,.55) 100%)' }} />
-        <span className={cn('absolute top-2.5 left-2.5 text-[9.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider', badgeCls[obra.status] ?? badgeCls.PLANEJAMENTO)}>
+        <span className={cn('absolute top-2.5 left-2.5 text-[9.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider', BADGE_CLS[obra.status] ?? BADGE_CLS.PLANEJAMENTO)}>
           {STATUS_LABEL[obra.status]}
         </span>
         {obra.modoQualidade === 'PBQPH' && (
@@ -476,7 +483,14 @@ function ObraCard({ obra, onVer, onRemover }: {
               </span>
               <span style={{ color: prazo.cor }}>{prazo.texto}</span>
             </div>
-            <div className="h-1 rounded-full bg-[var(--bg-hover)] overflow-hidden">
+            <div
+              role="progressbar"
+              aria-valuenow={Math.round(prazo.pct)}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Progresso do prazo"
+              className="h-1 rounded-full bg-[var(--bg-hover)] overflow-hidden"
+            >
               <div
                 className="h-full rounded-full transition-all duration-300"
                 style={{ width: `${prazo.pct}%`, background: prazo.cor }}
