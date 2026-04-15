@@ -417,7 +417,11 @@ export function CadastroObraWizard() {
                     <img src={fotoPreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     <button
                       type="button"
-                      onClick={() => { setFotoCapa(null); setFotoPreview(null); }}
+                      onClick={() => {
+                        if (fotoPreview) URL.revokeObjectURL(fotoPreview);
+                        setFotoCapa(null);
+                        setFotoPreview(null);
+                      }}
                       style={{
                         position: 'absolute', top: '6px', right: '6px',
                         background: 'rgba(0,0,0,0.6)', border: 'none', color: '#fff',
@@ -441,6 +445,7 @@ export function CadastroObraWizard() {
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (!file) return;
+                        if (fotoPreview) URL.revokeObjectURL(fotoPreview);
                         setFotoCapa(file);
                         setFotoPreview(URL.createObjectURL(file));
                       }}
