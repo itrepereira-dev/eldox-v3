@@ -19,6 +19,7 @@ import { LinearStrategy } from './strategies/linear.strategy';
 import { InstalacaoStrategy } from './strategies/instalacao.strategy';
 import { GerarCascataDto } from './dto/gerar-cascata.dto';
 import sharp from 'sharp';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class ObrasService {
@@ -142,14 +143,14 @@ export class ObrasService {
     const obraIds = items.map((o) => o.id);
     const contagens = await this.contarInspecoesEFotos(tenantId, obraIds);
 
-    // Gerar presigned URLs para fotos de capa
+    // Gerar presigned URLs para fotos de capa (falha individual não derruba a lista)
     const presignedUrls = new Map<number, string>();
     await Promise.all(
       items
         .filter((o) => o.fotoCapa)
         .map(async (o) => {
-          const url = await this.minio.getPresignedUrl(o.fotoCapa!, 3600);
-          presignedUrls.set(o.id, url);
+          const url = await this.minio.getPresignedUrl(o.fotoCapa!, 3600).catch(() => null);
+          if (url) presignedUrls.set(o.id, url);
         }),
     );
 
@@ -188,10 +189,15 @@ export class ObrasService {
     }
 
     // Processar com sharp: redimensionar + converter para WebP
-    const buffer = await sharp(file.buffer)
-      .resize({ width: 800, withoutEnlargement: true })
-      .webp({ quality: 80 })
-      .toBuffer();
+    let buffer: Buffer;
+    try {
+      buffer = await sharp(file.buffer)
+        .resize({ width: 800, withoutEnlargement: true })
+        .webp({ quality: 80 })
+        .toBuffer();
+    } catch {
+      throw new BadRequestException('Imagem inválida ou corrompida.');
+    }
 
     // Deletar foto antiga do MinIO se existir
     if (obra.fotoCapa) {
@@ -201,14 +207,19 @@ export class ObrasService {
     }
 
     // Upload para MinIO
-    const key = `${tenantId}/obras/${obraId}/capa/${Date.now()}.webp`;
+    const key = `${tenantId}/obras/${obraId}/capa/${randomUUID()}.webp`;
     await this.minio.uploadFile(buffer, key, 'image/webp');
 
-    // Salvar key no banco
-    await this.prisma.obra.update({
-      where: { id: obraId },
-      data: { fotoCapa: key },
-    });
+    // Salvar key no banco — se falhar, remover o objeto recém-enviado para evitar orfão
+    try {
+      await this.prisma.obra.update({
+        where: { id: obraId },
+        data: { fotoCapa: key },
+      });
+    } catch (err) {
+      await this.minio.deleteFile(key).catch(() => {});
+      throw err;
+    }
 
     // Gerar presigned URL (1h de validade)
     const url = await this.minio.getPresignedUrl(key, 3600);
