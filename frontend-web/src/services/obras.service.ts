@@ -29,6 +29,9 @@ export interface Obra {
   dataInicioPrevista?: string;
   dataFimPrevista?: string;
   totalLocais: number;
+  totalInspecoes: number;
+  totalFotos: number;
+  fotoCapaUrl?: string | null;
   criadoEm: string;
   obraTipo: { id: number; nome: string; slug: string };
 }
@@ -36,6 +39,8 @@ export interface Obra {
 export interface ObraDetalhe extends Obra {
   endereco?: string;
   cep?: string;
+  latitude?: number;
+  longitude?: number;
   dadosExtras?: Record<string, unknown>;
   niveisConfig: { nivel: number; labelSingular: string; labelPlural: string }[];
 }
@@ -84,6 +89,8 @@ export interface GerarMassaPayload {
   inicioEm?: number;
 }
 
+export type EstrategiaGeracao = 'generica' | 'edificacao' | 'linear' | 'instalacao';
+
 export const obrasService = {
   // Tipos
   async getTipos(): Promise<ObraTipo[]> {
@@ -117,13 +124,24 @@ export const obrasService = {
     return data.data ?? data;
   },
 
+  async uploadFotoCapa(obraId: number, file: File): Promise<{ fotoCapaUrl: string }> {
+    const form = new FormData();
+    form.append('file', file);
+    const { data } = await api.post(`/obras/${obraId}/foto-capa`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data.data ?? data;
+  },
+
   // Locais
-  async getLocais(obraId: number, params?: { parentId?: number | null; nivel?: number }) {
+  async getLocais(obraId: number, params?: { parentId?: number | null; nivel?: number; search?: string }) {
     const query: Record<string, string> = {};
     if (params?.parentId !== undefined)
       query.parentId = params.parentId === null ? 'null' : String(params.parentId);
     if (params?.nivel !== undefined)
       query.nivel = String(params.nivel);
+    if (params?.search)
+      query.search = params.search;
     const { data } = await api.get(`/obras/${obraId}/locais`, { params: query });
     return (data.data ?? data) as ObraLocal[];
   },
@@ -138,10 +156,18 @@ export const obrasService = {
     return data.data ?? data;
   },
 
+  async gerarCascata(obraId: number, estrategia: EstrategiaGeracao, payload: unknown) {
+    const { data } = await api.post(`/obras/${obraId}/locais/gerar-cascata`, {
+      estrategia,
+      payload: { estrategia, ...(payload as object) },
+    });
+    return data.data ?? data;
+  },
+
   async updateLocal(
     obraId: number,
     localId: number,
-    payload: Partial<Pick<CreateLocalPayload, 'nome' | 'ordem' | 'dataInicioPrevista' | 'dataFimPrevista'>>,
+    payload: Partial<Pick<CreateLocalPayload, 'nome' | 'ordem' | 'dataInicioPrevista' | 'dataFimPrevista'>> & { status?: string },
   ): Promise<ObraLocal> {
     const { data } = await api.put(`/obras/${obraId}/locais/${localId}`, payload);
     return data.data ?? data;
@@ -149,6 +175,29 @@ export const obrasService = {
 
   async removeLocal(obraId: number, localId: number) {
     const { data } = await api.delete(`/obras/${obraId}/locais/${localId}`);
+    return data.data ?? data;
+  },
+
+  async saveNiveisConfig(
+    obraId: number,
+    niveis: { nivel: number; labelSingular: string; labelPlural: string }[],
+  ) {
+    const { data } = await api.patch(`/obras/${obraId}/niveis-config`, { niveis });
+    return data.data ?? data;
+  },
+
+  async getQualityConfig(obraId: number) {
+    const { data } = await api.get(`/obras/${obraId}/quality-config`);
+    return data.data ?? data;
+  },
+
+  async upsertQualityConfig(obraId: number, payload: {
+    modoQualidade?: 'SIMPLES' | 'PBQPH';
+    slaAprovacaoHoras?: number;
+    exigeAssinaturaFVS?: boolean;
+    exigeAssinaturaDiario?: boolean;
+  }) {
+    const { data } = await api.put(`/obras/${obraId}/quality-config`, payload);
     return data.data ?? data;
   },
 };
