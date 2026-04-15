@@ -33,8 +33,10 @@ model Tenant {
   criadoEm   DateTime  @default(now())
   deletadoEm DateTime?
 
-  usuarios  Usuario[]
-  obras     Obra[]
+  usuarios            Usuario[]
+  obras               Obra[]
+  workflowTemplates   WorkflowTemplate[]
+  aprovacaoInstancias AprovacaoInstancia[]
 }
 
 // ─────────────────────────────────────────
@@ -61,6 +63,11 @@ model Usuario {
   ativo      Boolean   @default(true)
   criadoEm  DateTime  @default(now())
   deletadoEm DateTime?
+
+  rdosCriados      Rdo[]           @relation("RdoCriadoPor")
+  rdosAprovados    Rdo[]           @relation("RdoAprovadoPor")
+  rdoAssinaturas   RdoAssinatura[] @relation("RdoAssinaturas")
+  rdoLogEdicoes    RdoLogEdicao[]  @relation("RdoLogEdicoes")
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -154,6 +161,9 @@ model Obra {
   latitude  Decimal?  @db.Decimal(10, 7)
   longitude Decimal?  @db.Decimal(10, 7)
 
+  // Foto de capa
+  fotoCapa  String?   // MinIO key (nunca expor ao frontend diretamente)
+
   // Datas
   dataInicioPrevista DateTime?
   dataFimPrevista    DateTime?
@@ -163,6 +173,9 @@ model Obra {
   // Dados extras validados contra ObraTipoCampo nível 0
   dadosExtras Json?
 
+  // Responsável pela obra (usado no workflow de aprovações)
+  responsavelId Int?      @map("responsavel_id")
+
   ativo        Boolean   @default(true)
   criadoEm    DateTime  @default(now())
   atualizadoEm DateTime  @updatedAt
@@ -171,6 +184,7 @@ model Obra {
   locais        ObraLocal[]
   niveisConfig  ObraNivelConfig[]
   qualityConfig ObraQualityConfig?
+  rdos          Rdo[]
 
   @@index([tenantId])
   @@index([tenantId, deletadoEm])
@@ -254,4 +268,591 @@ model ObraQualityConfig {
   exigeAssinaturaDiario Boolean       @default(false)
   criadoEm             DateTime      @default(now())
   atualizadoEm         DateTime      @updatedAt
+}
+
+// ─────────────────────────────────────────
+// RDO — DIÁRIO DE OBRA
+// Spec: SPEC-RDO-001
+// ─────────────────────────────────────────
+
+enum RdoStatus {
+  PREENCHENDO
+  REVISAO
+  APROVADO
+}
+
+enum RdoPeriodo {
+  MANHA
+  TARDE
+  NOITE
+}
+
+enum RdoCondicaoClima {
+  CLARO
+  NUBLADO
+  CHUVOSO
+}
+
+enum RdoTipoMaoDeObra {
+  CATALOGO
+  PERSONALIZADA
+}
+
+enum RdoPapelAssinatura {
+  TECNICO
+  FISCAL
+  GESTOR
+  OUTRO
+}
+
+model Rdo {
+  id               Int       @id @default(autoincrement())
+  tenantId         Int       @map("tenant_id")
+  obraId           Int       @map("obra_id")
+  obra             Obra      @relation(fields: [obraId], references: [id])
+  data             DateTime  @db.Date @map("data")
+  numero           Int       @map("numero") // sequencial por obra
+  status           RdoStatus @default(PREENCHENDO)
+
+  criadoPorId      Int       @map("criado_por")
+  criadoPor        Usuario   @relation("RdoCriadoPor", fields: [criadoPorId], references: [id])
+  aprovadoPorId    Int?      @map("aprovado_por")
+  aprovadoPor      Usuario?  @relation("RdoAprovadoPor", fields: [aprovadoPorId], references: [id])
+  aprovadoEm       DateTime? @map("aprovado_em")
+
+  // Cópia inteligente
+  copiadoDeId      Int?      @map("copiado_de_id")
+  copiadoDe        Rdo?      @relation("RdoCopia", fields: [copiadoDeId], references: [id])
+  copias           Rdo[]     @relation("RdoCopia")
+
+  // IA
+  resumoIa         String?   @db.Text @map("resumo_ia")
+  resumoIaEditado  Boolean   @default(false) @map("resumo_ia_editado")
+
+  // Canal de entrada
+  geradoViaCampo   Boolean   @default(false) @map("gerado_via_campo")
+
+  // PDF gerado
+  pdfPath          String?   @db.VarChar(500) @map("pdf_path")
+
+  criadoEm        DateTime  @default(now()) @map("created_at")
+  atualizadoEm    DateTime  @updatedAt @map("updated_at")
+  deletadoEm      DateTime? @map("deleted_at")
+
+  // Relações
+  climas          RdoClima[]
+  maosDeObra      RdoMaoDeObra[]
+  equipamentos    RdoEquipamento[]
+  atividades      RdoAtividade[]
+  ocorrencias     RdoOcorrencia[]
+  checklistItens  RdoChecklistItem[]
+  fotos           RdoFoto[]
+  assinaturas     RdoAssinatura[]
+  sugestoesIa     RdoSugestaoIa[]
+  logEdicoes      RdoLogEdicao[]
+
+  @@unique([tenantId, obraId, data], map: "uq_rdos_tenant_obra_data")
+  @@index([tenantId], map: "idx_rdos_tenant")
+  @@index([tenantId, obraId], map: "idx_rdos_tenant_obra")
+  @@index([tenantId, obraId, status], map: "idx_rdos_tenant_obra_status")
+  @@map("rdos")
+}
+
+model RdoClima {
+  id                   Int              @id @default(autoincrement())
+  tenantId             Int              @map("tenant_id")
+  rdoId                Int              @map("rdo_id")
+  rdo                  Rdo              @relation(fields: [rdoId], references: [id])
+  periodo              RdoPeriodo
+  condicao             RdoCondicaoClima
+  praticavel           Boolean
+  chuvaMm              Decimal?         @db.Decimal(4, 1) @map("chuva_mm")
+
+  // IA
+  sugeridoPorIa        Boolean          @default(false) @map("sugerido_por_ia")
+  confiancaIa          Decimal?         @db.Decimal(3, 2) @map("confianca_ia")
+  fonteIa              String?          @db.VarChar(100) @map("fonte_ia")
+  aplicadoPeloUsuario  Boolean          @default(false) @map("aplicado_pelo_usuario")
+
+  @@unique([tenantId, rdoId, periodo], map: "uq_rdo_clima_tenant_rdo_periodo")
+  @@index([tenantId], map: "idx_rdo_clima_tenant")
+  @@index([tenantId, rdoId], map: "idx_rdo_clima_tenant_rdo")
+  @@map("rdo_clima")
+}
+
+model RdoMaoDeObra {
+  id                   Int              @id @default(autoincrement())
+  tenantId             Int              @map("tenant_id")
+  rdoId                Int              @map("rdo_id")
+  rdo                  Rdo              @relation(fields: [rdoId], references: [id])
+  tipo                 RdoTipoMaoDeObra
+  funcao               String           @db.VarChar(150)
+  quantidade           Int
+  nomePersonalizado    String?          @db.VarChar(150) @map("nome_personalizado")
+  horaEntrada          DateTime?        @db.Time @map("hora_entrada")
+  horaSaida            DateTime?        @db.Time @map("hora_saida")
+
+  // IA
+  sugeridoPorIa        Boolean          @default(false) @map("sugerido_por_ia")
+  confiancaIa          Decimal?         @db.Decimal(3, 2) @map("confianca_ia")
+  aplicadoPeloUsuario  Boolean          @default(false) @map("aplicado_pelo_usuario")
+
+  @@index([tenantId], map: "idx_rdo_mao_de_obra_tenant")
+  @@index([tenantId, rdoId], map: "idx_rdo_mao_de_obra_tenant_rdo")
+  @@map("rdo_mao_de_obra")
+}
+
+model RdoEquipamento {
+  id            Int     @id @default(autoincrement())
+  tenantId      Int     @map("tenant_id")
+  rdoId         Int     @map("rdo_id")
+  rdo           Rdo     @relation(fields: [rdoId], references: [id])
+  nome          String  @db.VarChar(150)
+  quantidade    Int
+  doCatalogoId  Int?    @map("do_catalogo_id") // FK futura para catálogo de equipamentos
+
+  @@index([tenantId], map: "idx_rdo_equipamentos_tenant")
+  @@index([tenantId, rdoId], map: "idx_rdo_equipamentos_tenant_rdo")
+  @@map("rdo_equipamentos")
+}
+
+model RdoAtividade {
+  id                    Int       @id @default(autoincrement())
+  tenantId              Int       @map("tenant_id")
+  rdoId                 Int       @map("rdo_id")
+  rdo                   Rdo       @relation(fields: [rdoId], references: [id])
+  descricao             String    @db.Text
+  etapaTarefaId         Int?      @map("etapa_tarefa_id") // FK futura para tabela de tarefas
+  horaInicio            DateTime? @db.Time @map("hora_inicio")
+  horaFim               DateTime? @db.Time @map("hora_fim")
+  progressoPct          Int       @default(0) @map("progresso_pct")      // 0-100
+  progressoPctAnterior  Int?      @map("progresso_pct_anterior")
+  ordem                 Int       @default(0)
+  fotosIds              Int[]     @map("fotos_ids") // array de IDs do GED
+
+  // IA
+  sugeridoPorIa         Boolean   @default(false) @map("sugerido_por_ia")
+  prioridadeIa          Int?      @map("prioridade_ia") // ranking do AGENTE-ATIVIDADE
+  aplicadoPeloUsuario   Boolean   @default(false) @map("aplicado_pelo_usuario")
+
+  fotos                 RdoFoto[]
+
+  @@index([tenantId], map: "idx_rdo_atividades_tenant")
+  @@index([tenantId, rdoId], map: "idx_rdo_atividades_tenant_rdo")
+  @@map("rdo_atividades")
+}
+
+model RdoOcorrencia {
+  id                 Int      @id @default(autoincrement())
+  tenantId           Int      @map("tenant_id")
+  rdoId              Int      @map("rdo_id")
+  rdo                Rdo      @relation(fields: [rdoId], references: [id])
+  descricao          String   @db.Text
+  tags               String[] @map("tags") // array de tags livre
+  tipoOcorrenciaId   Int?     @map("tipo_ocorrencia_id") // FK futura para catálogo de tipos
+
+  @@index([tenantId], map: "idx_rdo_ocorrencias_tenant")
+  @@index([tenantId, rdoId], map: "idx_rdo_ocorrencias_tenant_rdo")
+  @@map("rdo_ocorrencias")
+}
+
+model RdoChecklistItem {
+  id             Int     @id @default(autoincrement())
+  tenantId       Int     @map("tenant_id")
+  rdoId          Int     @map("rdo_id")
+  rdo            Rdo     @relation(fields: [rdoId], references: [id])
+  descricao      String  @db.Text
+  marcado        Boolean @default(false)
+  templateItemId Int?    @map("template_item_id") // FK futura para templates
+  ordem          Int     @default(0)
+
+  @@index([tenantId], map: "idx_rdo_checklist_itens_tenant")
+  @@index([tenantId, rdoId], map: "idx_rdo_checklist_itens_tenant_rdo")
+  @@map("rdo_checklist_itens")
+}
+
+model RdoFoto {
+  id               Int          @id @default(autoincrement())
+  tenantId         Int          @map("tenant_id")
+  rdoId            Int          @map("rdo_id")
+  rdo              Rdo          @relation(fields: [rdoId], references: [id])
+  atividadeId      Int?         @map("atividade_id")
+  atividade        RdoAtividade? @relation(fields: [atividadeId], references: [id])
+  gedDocumentoId   Int?         @map("ged_documento_id") // FK GED
+  legenda          String       @db.VarChar(300)
+  classificacaoIa  String?      @db.VarChar(150) @map("classificacao_ia") // visão computacional
+  ordem            Int          @default(0)
+
+  @@index([tenantId], map: "idx_rdo_fotos_tenant")
+  @@index([tenantId, rdoId], map: "idx_rdo_fotos_tenant_rdo")
+  @@map("rdo_fotos")
+}
+
+model RdoAssinatura {
+  id               Int                @id @default(autoincrement())
+  tenantId         Int                @map("tenant_id")
+  rdoId            Int                @map("rdo_id")
+  rdo              Rdo                @relation(fields: [rdoId], references: [id])
+  papel            RdoPapelAssinatura
+  usuarioId        Int                @map("usuario_id")
+  usuario          Usuario            @relation("RdoAssinaturas", fields: [usuarioId], references: [id])
+  assinaturaBase64 String             @db.Text @map("assinatura_base64")
+  assinadoEm      DateTime           @map("assinado_em")
+
+  @@index([tenantId], map: "idx_rdo_assinaturas_tenant")
+  @@index([tenantId, rdoId], map: "idx_rdo_assinaturas_tenant_rdo")
+  @@map("rdo_assinaturas")
+}
+
+model RdoSugestaoIa {
+  id             Int      @id @default(autoincrement())
+  tenantId       Int      @map("tenant_id")
+  rdoId          Int      @map("rdo_id")
+  rdo            Rdo      @relation(fields: [rdoId], references: [id])
+  agente         String   @db.VarChar(50)  // 'clima'|'equipe'|'atividade'|'validador'
+  campoAfetado   String   @db.VarChar(100) @map("campo_afetado")
+  valorSugerido  Json     @map("valor_sugerido")
+  valorAplicado  Json?    @map("valor_aplicado")
+  acao           String?  @db.VarChar(20)  // 'aplicou'|'ignorou'|'editou'
+
+  criadoEm      DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId], map: "idx_rdo_sugestoes_ia_tenant")
+  @@index([tenantId, rdoId], map: "idx_rdo_sugestoes_ia_tenant_rdo")
+  @@index([tenantId, rdoId, agente], map: "idx_rdo_sugestoes_ia_tenant_rdo_agente")
+  @@map("rdo_sugestoes_ia")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SPRINT 8 — CONCRETAGEM · SPEC 7: Croqui de Rastreabilidade
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ConcretagemCroqui {
+  id           Int       @id @default(autoincrement())
+  tenantId     Int       @map("tenant_id")
+  obraId       Int       @map("obra_id")
+  obraLocalId  Int?      @map("obra_local_id")
+  nome         String    @db.VarChar(200)
+  elementos    Json      // { eixos_x: string[], eixos_y: string[], elementos: ElementoCroqui[] }
+  iaConfianca  Decimal?  @db.Decimal(3, 2) @map("ia_confianca")
+  criadoPorId  Int       @map("criado_por")
+  criadoEm     DateTime  @default(now()) @map("created_at")
+  atualizadoEm DateTime  @updatedAt @map("updated_at")
+  deletadoEm   DateTime? @map("deleted_at")
+
+  @@unique([tenantId, obraId, obraLocalId], map: "uq_croqui_obra_local")
+  @@index([tenantId], map: "idx_croqui_tenant")
+  @@index([tenantId, obraId], map: "idx_croqui_tenant_obra")
+  @@map("concretagem_croquis")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SPRINT 7 — SEMÁFORO PBQP-H (cache materializado por módulo)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model SemaforoPbqphCache {
+  id          Int      @id @default(autoincrement())
+  tenantId    Int      @map("tenant_id")
+  obraId      Int      @map("obra_id")
+  modulo      String   @db.VarChar(30)   // 'fvs' | 'fvm' | 'ensaios' | 'ncs'
+  score       Decimal  @db.Decimal(5, 2) // 0.00–100.00
+  semaforo    String   @db.VarChar(10)   // 'verde' | 'amarelo' | 'vermelho'
+  detalhes    Json                       // { total, conformes, nao_conformes, ... }
+  calculadoEm DateTime @default(now())   @map("calculado_em")
+  expiradoEm  DateTime                   @map("expirado_em") // TTL: +1h
+
+  @@unique([tenantId, obraId, modulo])
+  @@index([tenantId, obraId])
+  @@map("semaforo_pbqph_cache")
+}
+
+// ─────────────────────────────────────────
+// NÃO CONFORMIDADES (NCs) — módulo unificado
+// ─────────────────────────────────────────
+
+enum NcCategoria {
+  CONCRETAGEM
+  FVS
+  FVM
+  ENSAIO
+  GERAL
+}
+
+enum NcCriticidade {
+  ALTA
+  MEDIA
+  BAIXA
+}
+
+enum NcStatus {
+  ABERTA
+  EM_ANALISE
+  TRATAMENTO
+  VERIFICACAO
+  FECHADA
+  CANCELADA
+}
+
+model NaoConformidade {
+  id             Int          @id @default(autoincrement())
+  tenantId       Int          @map("tenant_id")
+  obraId         Int          @map("obra_id")
+  numero         String       @db.VarChar(30) @map("numero")
+  categoria      NcCategoria  @default(GERAL)
+  criticidade    NcCriticidade @default(MEDIA)
+  titulo         String       @db.VarChar(200)
+  descricao      String?      @db.Text
+  status         NcStatus     @default(ABERTA)
+
+  // Referências de origem (nullable — NC manual não tem)
+  caminhaoId    Int?         @map("caminhao_id")
+  cpId          Int?         @map("cp_id")
+  fvsFichaId    Int?         @map("fvs_ficha_id")
+  fvmLoteId     Int?         @map("fvm_lote_id")
+  ensaioId      Int?         @map("ensaio_id")
+
+  // Gestão
+  abertaPor      Int          @default(0) @map("aberta_por")
+  responsavelId  Int?         @map("responsavel_id")
+  prazo          DateTime?    @db.Timestamp(3)
+  dataFechamento DateTime?    @db.Timestamp(3) @map("data_fechamento")
+  evidenciaUrl   String?      @db.VarChar(500) @map("evidencia_url")
+  observacoes    String?      @db.Text
+
+  deletedAt  DateTime? @map("deleted_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  @@unique([tenantId, numero], map: "uq_nc_numero")
+  @@index([tenantId], map: "idx_ncs_tenant")
+  @@index([tenantId, obraId], map: "idx_ncs_tenant_obra")
+  @@index([tenantId, status], map: "idx_ncs_tenant_status")
+  @@map("nao_conformidades")
+}
+
+// Log imutável — sem updated_at, sem deleted_at
+model RdoLogEdicao {
+  id             Int      @id @default(autoincrement())
+  tenantId       Int      @map("tenant_id")
+  rdoId          Int      @map("rdo_id")
+  rdo            Rdo      @relation(fields: [rdoId], references: [id])
+  usuarioId      Int?     @map("usuario_id") // nullable — pode ser ação de IA
+  usuario        Usuario? @relation("RdoLogEdicoes", fields: [usuarioId], references: [id])
+  campo          String   @db.VarChar(100)
+  valorAnterior  Json?    @map("valor_anterior")
+  valorNovo      Json?    @map("valor_novo")
+  via            String   @db.VarChar(20)  // 'web'|'whatsapp'|'ia'|'api'
+  ipOrigem       String?  @db.VarChar(45) @map("ip_origem")
+
+  criadoEm      DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId], map: "idx_rdo_log_edicoes_tenant")
+  @@index([tenantId, rdoId], map: "idx_rdo_log_edicoes_tenant_rdo")
+  @@index([tenantId, rdoId, campo], map: "idx_rdo_log_edicoes_tenant_rdo_campo")
+  @@map("rdo_log_edicoes")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SPRINT 9 — WORKFLOW DE APROVAÇÕES
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum AprovacaoStatus {
+  PENDENTE
+  EM_APROVACAO
+  APROVADO
+  REPROVADO
+  CANCELADO
+}
+
+enum AprovacaoModulo {
+  FVS
+  FVM
+  RDO
+  NC
+  GED
+  ENSAIO
+  CONCRETAGEM
+  ALMOXARIFADO
+}
+
+enum TipoAprovador {
+  RESPONSAVEL_OBRA
+  ROLE
+  USUARIO_FIXO
+}
+
+enum AcaoVencimento {
+  ESCALAR
+  AVANCAR
+  BLOQUEAR
+}
+
+enum AcaoRejeicao {
+  RETORNAR_SOLICITANTE
+  RETORNAR_ETAPA_1
+  RETORNAR_ETAPA_ANTERIOR
+  BLOQUEAR
+}
+
+model WorkflowTemplate {
+  id           Int                     @id @default(autoincrement())
+  tenantId     Int                     @map("tenant_id")
+  nome         String                  @db.VarChar(200)
+  modulo       AprovacaoModulo
+  descricao    String?                 @db.Text
+  ativo        Boolean                 @default(true)
+  criadoEm     DateTime                @default(now()) @map("created_at")
+  atualizadoEm DateTime                @updatedAt @map("updated_at")
+  deletadoEm   DateTime?               @map("deleted_at")
+  tenant       Tenant                  @relation(fields: [tenantId], references: [id])
+  etapas       WorkflowTemplateEtapa[]
+  instancias   AprovacaoInstancia[]
+
+  @@index([tenantId, modulo, ativo])
+  @@map("workflow_templates")
+}
+
+model WorkflowTemplateEtapa {
+  id             Int              @id @default(autoincrement())
+  templateId     Int              @map("template_id")
+  ordem          Int
+  nome           String           @db.VarChar(200)
+  tipoAprovador  TipoAprovador    @map("tipo_aprovador")
+  role           String?          @db.VarChar(50)
+  usuarioFixoId  Int?             @map("usuario_fixo_id")
+  condicao       Json?
+  prazoHoras     Int              @default(48) @map("prazo_horas")
+  acaoVencimento AcaoVencimento   @default(ESCALAR) @map("acao_vencimento")
+  acaoRejeicao   AcaoRejeicao     @default(RETORNAR_SOLICITANTE) @map("acao_rejeicao")
+  template       WorkflowTemplate @relation(fields: [templateId], references: [id])
+
+  @@unique([templateId, ordem])
+  @@map("workflow_template_etapas")
+}
+
+model AprovacaoInstancia {
+  id                     Int                @id @default(autoincrement())
+  tenantId               Int                @map("tenant_id")
+  templateId             Int                @map("template_id")
+  modulo                 AprovacaoModulo
+  entidadeId             Int                @map("entidade_id")
+  entidadeTipo           String             @db.VarChar(50) @map("entidade_tipo")
+  obraId                 Int?               @map("obra_id")
+  snapshotJson           Json               @map("snapshot_json")
+  etapaAtual             Int                @map("etapa_atual")
+  status                 AprovacaoStatus    @default(PENDENTE)
+  titulo                 String             @db.VarChar(300)
+  solicitanteId          Int                @map("solicitante_id")
+  alertaEscalacaoEnviado Boolean            @default(false) @map("alerta_escalacao_enviado")
+  criadoEm               DateTime           @default(now()) @map("created_at")
+  atualizadoEm           DateTime           @updatedAt @map("updated_at")
+  deletadoEm             DateTime?          @map("deleted_at")
+  tenant                 Tenant             @relation(fields: [tenantId], references: [id])
+  template               WorkflowTemplate   @relation(fields: [templateId], references: [id])
+  decisoes               AprovacaoDecisao[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, modulo, status])
+  @@index([tenantId, obraId, status])
+  @@index([tenantId, solicitanteId])
+  @@map("aprovacao_instancias")
+}
+
+model AprovacaoDecisao {
+  id           Int                @id @default(autoincrement())
+  tenantId     Int                @map("tenant_id")
+  instanciaId  Int                @map("instancia_id")
+  etapaOrdem   Int                @map("etapa_ordem")
+  usuarioId    Int                @map("usuario_id")
+  decisao      String             @db.VarChar(30)
+  observacao   String?            @db.Text
+  criadoEm     DateTime           @default(now()) @map("created_at")
+  instancia    AprovacaoInstancia @relation(fields: [instanciaId], references: [id])
+
+  @@index([tenantId, instanciaId])
+  @@map("aprovacao_decisoes")
+}
+
+// ─────────────────────────────────────────
+// EFETIVO
+// ─────────────────────────────────────────
+
+enum Turno {
+  INTEGRAL
+  MANHA
+  TARDE
+  NOITE
+}
+
+enum TipoEmpresa {
+  PROPRIA
+  SUBCONTRATADA
+}
+
+model EmpresaEfetivo {
+  id       Int         @id @default(autoincrement())
+  tenantId Int
+  nome     String      @db.VarChar(200)
+  tipo     TipoEmpresa @default(SUBCONTRATADA)
+  cnpj     String?     @db.VarChar(18)
+  ativa    Boolean     @default(true)
+  criadoEm DateTime   @default(now()) @map("criado_em")
+
+  itens    ItemEfetivo[]
+
+  @@unique([tenantId, cnpj])
+  @@index([tenantId])
+  @@map("empresas_efetivo")
+}
+
+model FuncaoEfetivo {
+  id       Int      @id @default(autoincrement())
+  tenantId Int
+  nome     String   @db.VarChar(100)
+  ativa    Boolean  @default(true)
+  criadoEm DateTime @default(now()) @map("criado_em")
+
+  itens    ItemEfetivo[]
+
+  @@unique([tenantId, nome])
+  @@index([tenantId])
+  @@map("funcoes_efetivo")
+}
+
+model RegistroEfetivo {
+  id           Int       @id @default(autoincrement())
+  tenantId     Int
+  obraId       Int
+  data         DateTime  @db.Date
+  turno        Turno     @default(INTEGRAL)
+  fechado      Boolean   @default(false)
+  fechadoPor   Int?
+  fechadoEm    DateTime?
+  criadoPor    Int
+  criadoEm     DateTime  @default(now()) @map("criado_em")
+  atualizadoEm DateTime  @updatedAt @map("atualizado_em")
+  rdoId        Int?
+
+  itens        ItemEfetivo[]
+
+  @@unique([tenantId, obraId, data, turno])
+  @@index([tenantId, obraId, data])
+  @@map("registros_efetivo")
+}
+
+model ItemEfetivo {
+  id                Int            @id @default(autoincrement())
+  tenantId          Int
+  registroEfetivoId Int
+  registroEfetivo   RegistroEfetivo @relation(fields: [registroEfetivoId], references: [id], onDelete: Cascade)
+  empresaId         Int
+  empresa           EmpresaEfetivo  @relation(fields: [empresaId], references: [id])
+  funcaoId          Int
+  funcao            FuncaoEfetivo   @relation(fields: [funcaoId], references: [id])
+  quantidade        Int
+  observacao        String?
+
+  @@index([registroEfetivoId])
+  @@index([tenantId])
+  @@map("itens_efetivo")
 }
