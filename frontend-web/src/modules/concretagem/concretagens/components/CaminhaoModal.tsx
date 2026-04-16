@@ -1,11 +1,11 @@
-// frontend-web/src/modules/concretagem/betonadas/components/CaminhaoModal.tsx
+// frontend-web/src/modules/concretagem/concretagens/components/CaminhaoModal.tsx
 import { useState, useRef } from 'react';
 import { X, Camera, Loader2 } from 'lucide-react';
-import { useRegistrarCaminhao, useOcrNf } from '../hooks/useBetonadas';
+import { useRegistrarCaminhao, useOcrNf } from '../hooks/useConcretagens';
 import type { CreateCaminhaoPayload } from '@/services/concretagem.service';
 
 interface Props {
-  betonadaId: number;
+  concrtagemId: number;
   obraId: number;
   onClose: () => void;
   /** Optional: list of element labels from the croqui for multi-select */
@@ -18,7 +18,7 @@ const labelCls = 'block text-xs font-medium text-[var(--text-faint)] mb-1';
 
 type SobraTipo = 'NENHUMA' | 'APROVEITADO' | 'DESCARTADO' | 'NAO_PAGAR';
 
-export default function CaminhaoModal({ betonadaId, obraId, onClose, elementosDisponiveis = [] }: Props) {
+export default function CaminhaoModal({ concrtagemId, obraId, onClose, elementosDisponiveis = [] }: Props) {
   // Core NF fields
   const [numeroNf, setNumeroNf] = useState('');
   const [dataEmissaoNf, setDataEmissaoNf] = useState('');
@@ -67,7 +67,7 @@ export default function CaminhaoModal({ betonadaId, obraId, onClose, elementosDi
   const fileInputRef = useRef<HTMLInputElement>(null);
   const ocrMutation = useOcrNf();
 
-  const mutation = useRegistrarCaminhao(obraId, betonadaId);
+  const mutation = useRegistrarCaminhao(obraId, concrtagemId);
 
   async function handleOcrSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];

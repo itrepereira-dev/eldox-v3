@@ -1,36 +1,39 @@
-// frontend-web/src/modules/concretagem/betonadas/pages/BetonadasListPage.tsx
-// Listagem de Betonadas — Sprint 8
+// frontend-web/src/modules/concretagem/concretagens/pages/ConcrtagensListPage.tsx
+// Listagem de Concretagens — Sprint 8 (renomeado de Betonadas)
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Plus, Layers, Calendar } from 'lucide-react';
 import { cn } from '@/lib/cn';
-import type { StatusBetonada } from '@/services/concretagem.service';
-import { useListarBetonadas } from '../hooks/useBetonadas';
-import { BetonadaFormModal } from '../components/BetonadaFormModal';
+import type { StatusConcretagem } from '@/services/concretagem.service';
+import { useListarConcretagens } from '../hooks/useConcretagens';
+import { ConcrtagemFormModal } from '../components/ConcrtagemFormModal';
 
 // ── Status badge ──────────────────────────────────────────────────────────────
 
-const STATUS_LABELS: Record<StatusBetonada, string> = {
+const STATUS_LABELS: Record<StatusConcretagem, string> = {
   PROGRAMADA: 'Programada',
   EM_LANCAMENTO: 'Em Lançamento',
+  EM_RASTREABILIDADE: 'Em Rastreabilidade',
   CONCLUIDA: 'Concluída',
   CANCELADA: 'Cancelada',
 };
 
-const STATUS_COLORS: Record<StatusBetonada, string> = {
+const STATUS_COLORS: Record<StatusConcretagem, string> = {
   PROGRAMADA: 'bg-[var(--accent-dim)] text-[var(--accent)]',
   EM_LANCAMENTO: 'bg-[var(--warn-dim)] text-[var(--warn-text)]',
+  EM_RASTREABILIDADE: 'bg-[var(--ok-dim)] text-[var(--ok-text)]',
   CONCLUIDA: 'bg-[var(--ok-dim)] text-[var(--ok-text)]',
   CANCELADA: 'bg-[var(--bg-raised)] text-[var(--text-faint)]',
 };
 
-type TabKey = StatusBetonada | 'TODOS';
+type TabKey = StatusConcretagem | 'TODOS';
 
 const TABS: { key: TabKey; label: string }[] = [
-  { key: 'TODOS',         label: 'Todas' },
-  { key: 'PROGRAMADA',    label: 'Programadas' },
-  { key: 'EM_LANCAMENTO', label: 'Em Lançamento' },
-  { key: 'CONCLUIDA',     label: 'Concluídas' },
+  { key: 'TODOS',               label: 'Todas' },
+  { key: 'PROGRAMADA',          label: 'Programadas' },
+  { key: 'EM_LANCAMENTO',       label: 'Em Lançamento' },
+  { key: 'EM_RASTREABILIDADE',  label: 'Em Rastreabilidade' },
+  { key: 'CONCLUIDA',           label: 'Concluídas' },
 ];
 
 // ── Skeleton ──────────────────────────────────────────────────────────────────
@@ -60,10 +63,10 @@ function EmptyState({ onNovo }: { onNovo: () => void }) {
         <Layers size={32} className="text-[var(--accent)]" />
       </div>
       <h3 className="text-base font-semibold text-[var(--text-high)] mb-1">
-        Nenhuma betonada registrada
+        Nenhuma concretagem registrada
       </h3>
       <p className="text-sm text-[var(--text-faint)] max-w-sm mb-5">
-        Programe a primeira concretagem desta obra para iniciar o controle de betonadas.
+        Programe a primeira concretagem desta obra para iniciar o controle.
       </p>
       <button
         type="button"
@@ -71,7 +74,7 @@ function EmptyState({ onNovo }: { onNovo: () => void }) {
         className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[var(--accent)] text-white text-sm font-medium hover:opacity-90 transition-opacity"
       >
         <Plus size={15} />
-        Nova Betonada
+        Nova Concretagem
       </button>
     </div>
   );
@@ -79,7 +82,7 @@ function EmptyState({ onNovo }: { onNovo: () => void }) {
 
 // ── Componente principal ──────────────────────────────────────────────────────
 
-export default function BetonadasListPage() {
+export default function ConcrtagensListPage() {
   const { obraId } = useParams<{ obraId: string }>();
   const navigate   = useNavigate();
   const obraIdNum  = Number(obraId) || 0;
@@ -87,8 +90,8 @@ export default function BetonadasListPage() {
   const [tab, setTab]           = useState<TabKey>('TODOS');
   const [modalAberto, setModal] = useState(false);
 
-  const params = tab === 'TODOS' ? { page: 1, limit: 50 } : { status: tab as StatusBetonada, page: 1, limit: 50 };
-  const { data: result, isLoading, isError } = useListarBetonadas(obraIdNum, params);
+  const params = tab === 'TODOS' ? { page: 1, limit: 50 } : { status: tab as StatusConcretagem, page: 1, limit: 50 };
+  const { data: result, isLoading, isError } = useListarConcretagens(obraIdNum, params);
 
   const items = result?.items ?? [];
 
@@ -101,7 +104,7 @@ export default function BetonadasListPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-[var(--text-high)] m-0">Betonadas</h1>
+          <h1 className="text-xl font-semibold text-[var(--text-high)] m-0">Concretagens</h1>
           <p className="text-sm text-[var(--text-faint)] mt-0.5 m-0">
             Programação e controle de concretagens da obra
           </p>
@@ -112,7 +115,7 @@ export default function BetonadasListPage() {
           className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--accent)] text-white text-sm font-medium hover:opacity-90 transition-opacity"
         >
           <Plus size={15} />
-          Nova Betonada
+          Nova Concretagem
         </button>
       </div>
 
@@ -138,7 +141,7 @@ export default function BetonadasListPage() {
       {/* Tabela */}
       {isError ? (
         <div className="text-center py-12 text-sm text-[var(--nc-text)]">
-          Erro ao carregar betonadas
+          Erro ao carregar concretagens
         </div>
       ) : isLoading ? (
         <table className="w-full text-sm border-collapse">
@@ -165,7 +168,7 @@ export default function BetonadasListPage() {
                 <tr
                   key={b.id}
                   className="border-b border-[var(--border-dim)] hover:bg-[var(--bg-raised)] cursor-pointer"
-                  onClick={() => navigate(`/obras/${obraIdNum}/concretagem/betonadas/${b.id}`)}
+                  onClick={() => navigate(`/obras/${obraIdNum}/concretagem/concretagens/${b.id}`)}
                 >
                   <td className="px-4 py-3 font-mono text-xs text-[var(--text-high)]">{b.numero}</td>
                   <td className="px-4 py-3 text-[var(--text-high)] max-w-[200px] truncate">{b.elemento_estrutural}</td>
@@ -189,7 +192,7 @@ export default function BetonadasListPage() {
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        navigate(`/obras/${obraIdNum}/concretagem/betonadas/${b.id}`);
+                        navigate(`/obras/${obraIdNum}/concretagem/concretagens/${b.id}`);
                       }}
                       className="text-xs text-[var(--accent)] hover:underline"
                     >
@@ -203,14 +206,14 @@ export default function BetonadasListPage() {
 
           {/* Contador */}
           <p className="text-xs text-[var(--text-faint)] mt-3 px-1">
-            {result?.total ?? 0} betonada(s) encontrada(s)
+            {result?.total ?? 0} concretagem(s) encontrada(s)
           </p>
         </div>
       )}
 
       {/* Modal criar */}
       {modalAberto && (
-        <BetonadaFormModal
+        <ConcrtagemFormModal
           obraId={obraIdNum}
           onClose={() => setModal(false)}
         />

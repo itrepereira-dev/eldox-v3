@@ -1,5 +1,5 @@
 // frontend-web/src/services/concretagem.service.ts
-// Serviço de Concretagem — Croqui (SPEC 7) + Betonadas/Caminhões/CPs/Dashboard (Sprint 8)
+// Serviço de Concretagem — Croqui (SPEC 7) + Concretagens/Caminhões/CPs/Dashboard (Sprint 8)
 import { api } from './api';
 
 // ─── Tipos Croqui ─────────────────────────────────────────────────────────────
@@ -62,13 +62,39 @@ export interface CreateCroquiPayload {
 
 export type UpdateCroquiPayload = Partial<Omit<CreateCroquiPayload, 'ia_confianca'>>;
 
-// ─── Tipos Betonadas ──────────────────────────────────────────────────────────
+// ─── Tipos Concretagens ───────────────────────────────────────────────────────
 
-export type StatusBetonada = 'PROGRAMADA' | 'EM_LANCAMENTO' | 'CONCLUIDA' | 'CANCELADA';
+export type StatusConcretagem = 'PROGRAMADA' | 'EM_LANCAMENTO' | 'EM_RASTREABILIDADE' | 'CONCLUIDA' | 'CANCELADA';
+// Alias para compatibilidade com código legado
+export type StatusBetonada = StatusConcretagem;
+
 export type StatusCaminhao = 'CHEGOU' | 'EM_LANCAMENTO' | 'CONCLUIDO' | 'REJEITADO';
 export type StatusCp = 'AGUARDANDO_RUPTURA' | 'ROMPIDO_APROVADO' | 'ROMPIDO_REPROVADO' | 'CANCELADO';
 
-export interface BetonadaResumo {
+export interface Concretagem {
+  id: number;
+  numero: string;
+  elemento_estrutural: string;
+  obra_local_id: number | null;
+  volume_previsto: string;
+  fck_especificado: number;
+  fornecedor_id: number | null;
+  data_programada: string;
+  status: StatusConcretagem;
+  responsavel_id: number | null;
+  observacoes: string | null;
+  created_at: string;
+  updated_at: string;
+  cp_total: number;
+  cp_rompidos: number;
+  proxima_ruptura_data: string | null;
+  caminhao_total: number;
+}
+
+// Alias para compatibilidade com código legado
+export type BetonadaResumo = ConcrtagemResumo;
+
+export interface ConcrtagemResumo {
   id: number;
   numero: string;
   elemento_estrutural: string;
@@ -77,7 +103,7 @@ export interface BetonadaResumo {
   fck_especificado: number;
   fornecedor_id: number;
   data_programada: string;
-  status: StatusBetonada;
+  status: StatusConcretagem;
   responsavel_id: number | null;
   observacoes: string | null;
   created_at: string;
@@ -130,7 +156,7 @@ export interface CorpoDeProva {
   created_at: string;
 }
 
-export interface BetonadaDetalhe extends BetonadaResumo {
+export interface ConcrtagemDetalhe extends ConcrtagemResumo {
   obra_id: number;
   traco_especificado: string | null;
   cancelamento_solicitante: string | null;
@@ -139,21 +165,30 @@ export interface BetonadaDetalhe extends BetonadaResumo {
   corpos_de_prova: CorpoDeProva[];
 }
 
-export interface ListBetonadasParams {
-  status?: StatusBetonada;
+// Alias para compatibilidade com código legado
+export type BetonadaDetalhe = ConcrtagemDetalhe;
+
+export interface ListConcrtagensParams {
+  status?: StatusConcretagem;
   search?: string;
   page?: number;
   limit?: number;
 }
 
-export interface ListBetonadasResult {
-  items: BetonadaResumo[];
+// Alias para compatibilidade com código legado
+export type ListBetonadasParams = ListConcrtagensParams;
+
+export interface ListConcrtagensResult {
+  items: ConcrtagemResumo[];
   total: number;
   page: number;
   limit: number;
 }
 
-export interface CreateBetonadaPayload {
+// Alias para compatibilidade com código legado
+export type ListBetonadasResult = ListConcrtagensResult;
+
+export interface CreateConcrtagemPayload {
   elemento_estrutural: string;
   obra_local_id?: number;
   volume_previsto: number;
@@ -168,7 +203,13 @@ export interface CreateBetonadaPayload {
   intervalo_min_caminhoes?: number;
 }
 
-export type UpdateBetonadaPayload = Partial<CreateBetonadaPayload & { status: StatusBetonada }>;
+// Alias para compatibilidade com código legado
+export type CreateBetonadaPayload = CreateConcrtagemPayload;
+
+export type UpdateConcrtagemPayload = Partial<CreateConcrtagemPayload & { status: StatusConcretagem }>;
+
+// Alias para compatibilidade com código legado
+export type UpdateBetonadaPayload = UpdateConcrtagemPayload;
 
 export interface CreateCaminhaoPayload {
   numero_nf: string;
@@ -216,10 +257,13 @@ export interface RegistrarRupturaPayload {
   observacoes?: string;
 }
 
-export interface CancelBetonadaPayload {
+export interface CancelConcrtagemPayload {
   solicitante?: 'OBRA' | 'CONCRETEIRA';
   multa?: boolean;
 }
+
+// Alias para compatibilidade com código legado
+export type CancelBetonadaPayload = CancelConcrtagemPayload;
 
 export interface PatchCaminhaoPayload {
   fator_ac?: number;
@@ -362,7 +406,7 @@ export interface DashboardFinanceiro {
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 const CROQUI_BASE = (obraId: number) => `/obras/${obraId}/croquis`;
-const BETONADAS_BASE = (obraId: number) => `/obras/${obraId}/concretagem/betonadas`;
+const CONCRETAGENS_BASE = (obraId: number) => `/obras/${obraId}/concretagem/concretagens`;
 const CONC_BASE = '/concretagem';
 
 export const concretagemService = {
@@ -414,52 +458,66 @@ export const concretagemService = {
     concretagemService.atualizarCroqui(obraId, croquiId, payload),
   deletar: (obraId: number, croquiId: number) => concretagemService.deletarCroqui(obraId, croquiId),
 
-  // ── Betonadas ────────────────────────────────────────────────────────────────
+  // ── Concretagens ─────────────────────────────────────────────────────────────
 
-  listarBetonadas: (obraId: number, params?: ListBetonadasParams) =>
+  listarConcretagens: (obraId: number, params?: ListConcrtagensParams) =>
     api
-      .get<{ status: string; data: ListBetonadasResult }>(BETONADAS_BASE(obraId), { params })
+      .get<{ status: string; data: ListConcrtagensResult }>(CONCRETAGENS_BASE(obraId), { params })
       .then((r) => r.data.data),
 
-  buscarBetonada: (obraId: number, id: number) =>
+  buscarConcretagem: (obraId: number, id: number) =>
     api
-      .get<{ status: string; data: BetonadaDetalhe }>(`${BETONADAS_BASE(obraId)}/${id}`)
+      .get<{ status: string; data: ConcrtagemDetalhe }>(`${CONCRETAGENS_BASE(obraId)}/${id}`)
       .then((r) => r.data.data),
 
-  criarBetonada: (obraId: number, payload: CreateBetonadaPayload) =>
+  criarConcretagem: (obraId: number, payload: CreateConcrtagemPayload) =>
     api
-      .post<{ status: string; data: BetonadaDetalhe }>(BETONADAS_BASE(obraId), payload)
+      .post<{ status: string; data: ConcrtagemDetalhe }>(CONCRETAGENS_BASE(obraId), payload)
       .then((r) => r.data.data),
 
-  atualizarBetonada: (obraId: number, id: number, payload: UpdateBetonadaPayload) =>
+  atualizarConcretagem: (obraId: number, id: number, payload: UpdateConcrtagemPayload) =>
     api
-      .patch<{ status: string; data: BetonadaDetalhe }>(`${BETONADAS_BASE(obraId)}/${id}`, payload)
+      .patch<{ status: string; data: ConcrtagemDetalhe }>(`${CONCRETAGENS_BASE(obraId)}/${id}`, payload)
       .then((r) => r.data.data),
 
-  cancelarBetonada: (obraId: number, id: number) =>
+  cancelarConcretagem: (obraId: number, id: number) =>
     api
-      .delete<{ status: string; data: { id: number } }>(`${BETONADAS_BASE(obraId)}/${id}`)
+      .delete<{ status: string; data: { id: number } }>(`${CONCRETAGENS_BASE(obraId)}/${id}`)
       .then((r) => r.data.data),
 
-  cancelarBetonadaComMotivo: (obraId: number, id: number, payload?: CancelBetonadaPayload) =>
+  cancelarConcrtagemComMotivo: (obraId: number, id: number, payload?: CancelConcrtagemPayload) =>
     api
-      .delete<{ status: string; data: { id: number } }>(`${BETONADAS_BASE(obraId)}/${id}`, { data: payload })
+      .delete<{ status: string; data: { id: number } }>(`${CONCRETAGENS_BASE(obraId)}/${id}`, { data: payload })
       .then((r) => r.data.data),
 
   toggleLiberadoCarregamento: (obraId: number, id: number) =>
     api
       .post<{ status: string; data: { liberado_carregamento: boolean } }>(
-        `${BETONADAS_BASE(obraId)}/${id}/toggle-liberado`,
+        `${CONCRETAGENS_BASE(obraId)}/${id}/toggle-liberado`,
         {},
       )
       .then((r) => r.data.data),
 
+  // Aliases para compatibilidade com código legado
+  listarBetonadas: (obraId: number, params?: ListConcrtagensParams) =>
+    concretagemService.listarConcretagens(obraId, params),
+  buscarBetonada: (obraId: number, id: number) =>
+    concretagemService.buscarConcretagem(obraId, id),
+  criarBetonada: (obraId: number, payload: CreateConcrtagemPayload) =>
+    concretagemService.criarConcretagem(obraId, payload),
+  atualizarBetonada: (obraId: number, id: number, payload: UpdateConcrtagemPayload) =>
+    concretagemService.atualizarConcretagem(obraId, id, payload),
+  cancelarBetonada: (obraId: number, id: number) =>
+    concretagemService.cancelarConcretagem(obraId, id),
+  cancelarBetonadaComMotivo: (obraId: number, id: number, payload?: CancelConcrtagemPayload) =>
+    concretagemService.cancelarConcrtagemComMotivo(obraId, id, payload),
+
   // ── Caminhões ────────────────────────────────────────────────────────────────
 
-  registrarCaminhao: (betonadaId: number, payload: CreateCaminhaoPayload) =>
+  registrarCaminhao: (concrtagemId: number, payload: CreateCaminhaoPayload) =>
     api
       .post<{ status: string; data: CaminhaoConcreto }>(
-        `${CONC_BASE}/betonadas/${betonadaId}/caminhoes`,
+        `${CONC_BASE}/concretagens/${concrtagemId}/caminhoes`,
         payload,
       )
       .then((r) => r.data.data),
@@ -522,10 +580,10 @@ export const concretagemService = {
 
   // ── Corpos de Prova ──────────────────────────────────────────────────────────
 
-  moldagemCp: (betonadaId: number, payload: CreateCpPayload) =>
+  moldagemCp: (concrtagemId: number, payload: CreateCpPayload) =>
     api
       .post<{ status: string; data: CorpoDeProva[] }>(
-        `${CONC_BASE}/betonadas/${betonadaId}/cps`,
+        `${CONC_BASE}/concretagens/${concrtagemId}/cps`,
         payload,
       )
       .then((r) => r.data.data),
@@ -538,10 +596,10 @@ export const concretagemService = {
       )
       .then((r) => r.data.data),
 
-  listarCps: (betonadaId: number) =>
+  listarCps: (concrtagemId: number) =>
     api
       .get<{ status: string; data: CorpoDeProva[] }>(
-        `${CONC_BASE}/betonadas/${betonadaId}/cps`,
+        `${CONC_BASE}/concretagens/${concrtagemId}/cps`,
       )
       .then((r) => r.data.data),
 
@@ -552,10 +610,14 @@ export const concretagemService = {
       .post<{ status: string; data: Laudo }>('/concretagem/laudos', payload)
       .then((r) => r.data.data),
 
-  listarLaudosPorBetonada: (betonadaId: number) =>
+  listarLaudosPorConcretagem: (concrtagemId: number) =>
     api
-      .get<{ status: string; data: Laudo[] }>(`/concretagem/laudos/betonada/${betonadaId}`)
+      .get<{ status: string; data: Laudo[] }>(`/concretagem/laudos/concretagem/${concrtagemId}`)
       .then((r) => r.data.data),
+
+  // Alias para compatibilidade com código legado
+  listarLaudosPorBetonada: (concrtagemId: number) =>
+    concretagemService.listarLaudosPorConcretagem(concrtagemId),
 
   aprovarLaudo: (id: number) =>
     api

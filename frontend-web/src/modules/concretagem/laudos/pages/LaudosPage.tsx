@@ -6,7 +6,7 @@ import { concretagemService, type Laudo } from '@/services/concretagem.service';
 import { cn } from '@/lib/cn';
 
 interface Props {
-  betonadaId: number;
+  concrtagemId: number;
 }
 
 const RESULT_LABELS: Record<string, string> = { PENDENTE: 'Pendente', APROVADO: 'Aprovado', REPROVADO: 'Reprovado' };
@@ -16,29 +16,29 @@ const RESULT_COLORS: Record<string, string> = {
   REPROVADO: 'bg-[var(--nc-dim)] text-[var(--nc-text)]',
 };
 
-export function LaudosSection({ betonadaId }: Props) {
+export function LaudosSection({ concrtagemId }: Props) {
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ numero: '', data_emissao: '', laboratorio_nome: '', tipo: 'CONCRETO' as const });
 
   const { data: laudos = [], isLoading } = useQuery({
-    queryKey: ['laudos', betonadaId],
-    queryFn: () => concretagemService.listarLaudosPorBetonada(betonadaId),
+    queryKey: ['laudos', concrtagemId],
+    queryFn: () => concretagemService.listarLaudosPorBetonada(concrtagemId),
   });
 
   const criarMutation = useMutation({
-    mutationFn: () => concretagemService.criarLaudo({ betonada_id: betonadaId, ...form }),
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['laudos', betonadaId] }); setShowForm(false); },
+    mutationFn: () => concretagemService.criarLaudo({ betonada_id: concrtagemId, ...form }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['laudos', concrtagemId] }); setShowForm(false); },
   });
 
   const aprovarMutation = useMutation({
     mutationFn: (id: number) => concretagemService.aprovarLaudo(id),
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['laudos', betonadaId] }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['laudos', concrtagemId] }); },
   });
 
   const reprovarMutation = useMutation({
     mutationFn: (id: number) => concretagemService.reprovarLaudo(id),
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['laudos', betonadaId] }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['laudos', concrtagemId] }); },
   });
 
   const inputCls = 'w-full px-3 py-2 rounded-lg border border-[var(--border-dim)] bg-[var(--bg-raised)] text-sm text-[var(--text-high)] focus:outline-none focus:border-[var(--accent)]';

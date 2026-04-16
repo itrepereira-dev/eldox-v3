@@ -35,18 +35,18 @@ export default function CroquiDetalhePage() {
 
   const { data: croqui, isLoading, error } = useBuscarCroqui(Number(obraId), Number(croquiId));
 
-  // Busca betonadas da obra para modo rastreabilidade (coloração por caminhão)
+  // Busca concretagens da obra para modo rastreabilidade (coloração por caminhão)
   const { data: betonadasData } = useQuery({
-    queryKey: ['betonadas-rastreabilidade', Number(obraId)],
-    queryFn: () => concretagemService.listarBetonadas(Number(obraId), { limit: 50 }),
+    queryKey: ['concretagens-rastreabilidade', Number(obraId)],
+    queryFn: () => concretagemService.listarConcretagens(Number(obraId), { limit: 50 }),
     enabled: modoRastreabilidade && !!obraId,
     staleTime: 60_000,
   });
 
-  // Monta mapa de cores: busca caminhões de todas as betonadas em andamento
+  // Monta mapa de cores: busca caminhões de todas as concretagens em andamento
   const { data: betonadaDetalhe } = useQuery({
-    queryKey: ['betonada-rastreabilidade-detalhe', Number(obraId), betonadasData?.items?.[0]?.id],
-    queryFn: () => concretagemService.buscarBetonada(Number(obraId), betonadasData!.items[0].id),
+    queryKey: ['concretagem-rastreabilidade-detalhe', Number(obraId), betonadasData?.items?.[0]?.id],
+    queryFn: () => concretagemService.buscarConcretagem(Number(obraId), betonadasData!.items[0].id),
     enabled: modoRastreabilidade && !!betonadasData?.items?.length,
     staleTime: 60_000,
   });

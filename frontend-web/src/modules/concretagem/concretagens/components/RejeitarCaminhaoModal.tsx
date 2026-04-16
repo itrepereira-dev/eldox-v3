@@ -1,12 +1,13 @@
-// frontend-web/src/modules/concretagem/betonadas/components/SlumpModal.tsx
+// frontend-web/src/modules/concretagem/concretagens/components/RejeitarCaminhaoModal.tsx
 import { useState } from 'react';
 import { X } from 'lucide-react';
-import { useRegistrarSlump } from '../hooks/useBetonadas';
+import { useRejeitarCaminhao } from '../hooks/useConcretagens';
 
 interface Props {
   caminhaoId: number;
+  sequencia: number;
   obraId: number;
-  betonadaId: number;
+  concrtagemId: number;
   onClose: () => void;
 }
 
@@ -15,25 +16,24 @@ const inputCls =
 
 const labelCls = 'block text-xs font-medium text-[var(--text-faint)] mb-1';
 
-export default function SlumpModal({ caminhaoId, obraId, betonadaId, onClose }: Props) {
-  const [slumpMedido, setSlumpMedido] = useState('');
-  const [temperatura, setTemperatura] = useState('');
-  const [incidentes, setIncidentes] = useState('');
-
-  const mutation = useRegistrarSlump(obraId, betonadaId);
+export default function RejeitarCaminhaoModal({
+  caminhaoId,
+  sequencia,
+  obraId,
+  concrtagemId,
+  onClose,
+}: Props) {
+  const [motivo, setMotivo] = useState('');
+  const mutation = useRejeitarCaminhao(obraId, concrtagemId);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    await mutation.mutateAsync({
-      caminhaoId,
-      payload: {
-        slump_medido: parseFloat(slumpMedido),
-        ...(temperatura && { temperatura: parseFloat(temperatura) }),
-        ...(incidentes.trim() && { incidentes: incidentes.trim() }),
-      },
-    });
+    if (motivo.trim().length < 10) return;
+    await mutation.mutateAsync({ caminhaoId, motivo: motivo.trim() });
     onClose();
   }
+
+  const motivoInvalido = motivo.trim().length > 0 && motivo.trim().length < 10;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -47,7 +47,7 @@ export default function SlumpModal({ caminhaoId, obraId, betonadaId, onClose }: 
           style={{ borderColor: 'var(--border-dim)' }}
         >
           <h2 className="text-base font-semibold" style={{ color: 'var(--text-high)' }}>
-            Registrar Slump
+            Rejeitar Caminhão #{sequencia}
           </h2>
           <button
             type="button"
@@ -62,43 +62,26 @@ export default function SlumpModal({ caminhaoId, obraId, betonadaId, onClose }: 
         {/* Body */}
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div>
-            <label className={labelCls}>Slump Medido (cm) *</label>
-            <input
-              type="number"
-              min="0"
-              step="0.5"
-              className={inputCls}
-              value={slumpMedido}
-              onChange={(e) => setSlumpMedido(e.target.value)}
-              required
-            />
-          </div>
-
-          <div>
-            <label className={labelCls}>Temperatura (°C)</label>
-            <input
-              type="number"
-              step="0.1"
-              className={inputCls}
-              value={temperatura}
-              onChange={(e) => setTemperatura(e.target.value)}
-            />
-          </div>
-
-          <div>
-            <label className={labelCls}>Incidentes</label>
+            <label className={labelCls}>Motivo da Rejeição *</label>
             <textarea
-              rows={3}
+              rows={4}
               className={inputCls}
-              value={incidentes}
-              onChange={(e) => setIncidentes(e.target.value)}
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+              required
+              minLength={10}
               style={{ resize: 'vertical' }}
             />
+            {motivoInvalido && (
+              <p className="text-xs mt-1" style={{ color: 'var(--nc-text)' }}>
+                O motivo deve ter pelo menos 10 caracteres.
+              </p>
+            )}
           </div>
 
           {mutation.isError && (
             <p className="text-xs" style={{ color: 'var(--nc-text)' }}>
-              Erro ao registrar slump. Tente novamente.
+              Erro ao rejeitar caminhão. Tente novamente.
             </p>
           )}
 
@@ -113,11 +96,11 @@ export default function SlumpModal({ caminhaoId, obraId, betonadaId, onClose }: 
             </button>
             <button
               type="submit"
-              disabled={mutation.isPending}
+              disabled={mutation.isPending || motivo.trim().length < 10}
               className="px-4 py-2 text-sm rounded-lg font-medium disabled:opacity-50"
-              style={{ background: 'var(--accent)', color: 'var(--text-high)' }}
+              style={{ background: 'var(--nc-bg)', color: 'var(--nc-text)' }}
             >
-              {mutation.isPending ? 'Salvando…' : 'Registrar'}
+              {mutation.isPending ? 'Rejeitando…' : 'Rejeitar'}
             </button>
           </div>
         </form>

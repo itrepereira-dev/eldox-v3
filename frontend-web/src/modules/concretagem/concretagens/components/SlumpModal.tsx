@@ -1,14 +1,12 @@
-// frontend-web/src/modules/concretagem/betonadas/components/RupturaModal.tsx
+// frontend-web/src/modules/concretagem/concretagens/components/SlumpModal.tsx
 import { useState } from 'react';
 import { X } from 'lucide-react';
-import { useRegistrarRuptura } from '../hooks/useBetonadas';
+import { useRegistrarSlump } from '../hooks/useConcretagens';
 
 interface Props {
-  cpId: number;
-  numero: string;
-  idadeDias: number;
+  caminhaoId: number;
   obraId: number;
-  betonadaId: number;
+  concrtagemId: number;
   onClose: () => void;
 }
 
@@ -17,21 +15,21 @@ const inputCls =
 
 const labelCls = 'block text-xs font-medium text-[var(--text-faint)] mb-1';
 
-export default function RupturaModal({ cpId, numero, idadeDias, obraId, betonadaId, onClose }: Props) {
-  const [resistencia, setResistencia] = useState('');
-  const [dataRupturaReal, setDataRupturaReal] = useState('');
-  const [observacoes, setObservacoes] = useState('');
+export default function SlumpModal({ caminhaoId, obraId, concrtagemId, onClose }: Props) {
+  const [slumpMedido, setSlumpMedido] = useState('');
+  const [temperatura, setTemperatura] = useState('');
+  const [incidentes, setIncidentes] = useState('');
 
-  const mutation = useRegistrarRuptura(obraId, betonadaId);
+  const mutation = useRegistrarSlump(obraId, concrtagemId);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     await mutation.mutateAsync({
-      cpId,
+      caminhaoId,
       payload: {
-        resistencia: parseFloat(resistencia),
-        ...(dataRupturaReal && { data_ruptura_real: dataRupturaReal }),
-        ...(observacoes.trim() && { observacoes: observacoes.trim() }),
+        slump_medido: parseFloat(slumpMedido),
+        ...(temperatura && { temperatura: parseFloat(temperatura) }),
+        ...(incidentes.trim() && { incidentes: incidentes.trim() }),
       },
     });
     onClose();
@@ -49,7 +47,7 @@ export default function RupturaModal({ cpId, numero, idadeDias, obraId, betonada
           style={{ borderColor: 'var(--border-dim)' }}
         >
           <h2 className="text-base font-semibold" style={{ color: 'var(--text-high)' }}>
-            Registrar Ruptura — CP {numero} ({idadeDias}d)
+            Registrar Slump
           </h2>
           <button
             type="button"
@@ -64,42 +62,43 @@ export default function RupturaModal({ cpId, numero, idadeDias, obraId, betonada
         {/* Body */}
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div>
-            <label className={labelCls}>Resistência (MPa) *</label>
+            <label className={labelCls}>Slump Medido (cm) *</label>
             <input
               type="number"
               min="0"
-              step="0.1"
+              step="0.5"
               className={inputCls}
-              value={resistencia}
-              onChange={(e) => setResistencia(e.target.value)}
+              value={slumpMedido}
+              onChange={(e) => setSlumpMedido(e.target.value)}
               required
             />
           </div>
 
           <div>
-            <label className={labelCls}>Data Ruptura Real</label>
+            <label className={labelCls}>Temperatura (°C)</label>
             <input
-              type="date"
+              type="number"
+              step="0.1"
               className={inputCls}
-              value={dataRupturaReal}
-              onChange={(e) => setDataRupturaReal(e.target.value)}
+              value={temperatura}
+              onChange={(e) => setTemperatura(e.target.value)}
             />
           </div>
 
           <div>
-            <label className={labelCls}>Observações</label>
+            <label className={labelCls}>Incidentes</label>
             <textarea
               rows={3}
               className={inputCls}
-              value={observacoes}
-              onChange={(e) => setObservacoes(e.target.value)}
+              value={incidentes}
+              onChange={(e) => setIncidentes(e.target.value)}
               style={{ resize: 'vertical' }}
             />
           </div>
 
           {mutation.isError && (
             <p className="text-xs" style={{ color: 'var(--nc-text)' }}>
-              Erro ao registrar ruptura. Tente novamente.
+              Erro ao registrar slump. Tente novamente.
             </p>
           )}
 

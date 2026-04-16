@@ -1,13 +1,14 @@
-// frontend-web/src/modules/concretagem/betonadas/components/RejeitarCaminhaoModal.tsx
+// frontend-web/src/modules/concretagem/concretagens/components/RupturaModal.tsx
 import { useState } from 'react';
 import { X } from 'lucide-react';
-import { useRejeitarCaminhao } from '../hooks/useBetonadas';
+import { useRegistrarRuptura } from '../hooks/useConcretagens';
 
 interface Props {
-  caminhaoId: number;
-  sequencia: number;
+  cpId: number;
+  numero: string;
+  idadeDias: number;
   obraId: number;
-  betonadaId: number;
+  concrtagemId: number;
   onClose: () => void;
 }
 
@@ -16,24 +17,25 @@ const inputCls =
 
 const labelCls = 'block text-xs font-medium text-[var(--text-faint)] mb-1';
 
-export default function RejeitarCaminhaoModal({
-  caminhaoId,
-  sequencia,
-  obraId,
-  betonadaId,
-  onClose,
-}: Props) {
-  const [motivo, setMotivo] = useState('');
-  const mutation = useRejeitarCaminhao(obraId, betonadaId);
+export default function RupturaModal({ cpId, numero, idadeDias, obraId, concrtagemId, onClose }: Props) {
+  const [resistencia, setResistencia] = useState('');
+  const [dataRupturaReal, setDataRupturaReal] = useState('');
+  const [observacoes, setObservacoes] = useState('');
+
+  const mutation = useRegistrarRuptura(obraId, concrtagemId);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (motivo.trim().length < 10) return;
-    await mutation.mutateAsync({ caminhaoId, motivo: motivo.trim() });
+    await mutation.mutateAsync({
+      cpId,
+      payload: {
+        resistencia: parseFloat(resistencia),
+        ...(dataRupturaReal && { data_ruptura_real: dataRupturaReal }),
+        ...(observacoes.trim() && { observacoes: observacoes.trim() }),
+      },
+    });
     onClose();
   }
-
-  const motivoInvalido = motivo.trim().length > 0 && motivo.trim().length < 10;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -47,7 +49,7 @@ export default function RejeitarCaminhaoModal({
           style={{ borderColor: 'var(--border-dim)' }}
         >
           <h2 className="text-base font-semibold" style={{ color: 'var(--text-high)' }}>
-            Rejeitar Caminhão #{sequencia}
+            Registrar Ruptura — CP {numero} ({idadeDias}d)
           </h2>
           <button
             type="button"
@@ -62,26 +64,42 @@ export default function RejeitarCaminhaoModal({
         {/* Body */}
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div>
-            <label className={labelCls}>Motivo da Rejeição *</label>
-            <textarea
-              rows={4}
+            <label className={labelCls}>Resistência (MPa) *</label>
+            <input
+              type="number"
+              min="0"
+              step="0.1"
               className={inputCls}
-              value={motivo}
-              onChange={(e) => setMotivo(e.target.value)}
+              value={resistencia}
+              onChange={(e) => setResistencia(e.target.value)}
               required
-              minLength={10}
+            />
+          </div>
+
+          <div>
+            <label className={labelCls}>Data Ruptura Real</label>
+            <input
+              type="date"
+              className={inputCls}
+              value={dataRupturaReal}
+              onChange={(e) => setDataRupturaReal(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className={labelCls}>Observações</label>
+            <textarea
+              rows={3}
+              className={inputCls}
+              value={observacoes}
+              onChange={(e) => setObservacoes(e.target.value)}
               style={{ resize: 'vertical' }}
             />
-            {motivoInvalido && (
-              <p className="text-xs mt-1" style={{ color: 'var(--nc-text)' }}>
-                O motivo deve ter pelo menos 10 caracteres.
-              </p>
-            )}
           </div>
 
           {mutation.isError && (
             <p className="text-xs" style={{ color: 'var(--nc-text)' }}>
-              Erro ao rejeitar caminhão. Tente novamente.
+              Erro ao registrar ruptura. Tente novamente.
             </p>
           )}
 
@@ -96,11 +114,11 @@ export default function RejeitarCaminhaoModal({
             </button>
             <button
               type="submit"
-              disabled={mutation.isPending || motivo.trim().length < 10}
+              disabled={mutation.isPending}
               className="px-4 py-2 text-sm rounded-lg font-medium disabled:opacity-50"
-              style={{ background: 'var(--nc-bg)', color: 'var(--nc-text)' }}
+              style={{ background: 'var(--accent)', color: 'var(--text-high)' }}
             >
-              {mutation.isPending ? 'Rejeitando…' : 'Rejeitar'}
+              {mutation.isPending ? 'Salvando…' : 'Registrar'}
             </button>
           </div>
         </form>

@@ -1,7 +1,7 @@
-// frontend-web/src/modules/concretagem/betonadas/components/MoldagemCpModal.tsx
+// frontend-web/src/modules/concretagem/concretagens/components/MoldagemCpModal.tsx
 import { useState } from 'react';
 import { X } from 'lucide-react';
-import { useMoldagemCp } from '../hooks/useBetonadas';
+import { useMoldagemCp } from '../hooks/useConcretagens';
 
 interface CaminhaoOpt {
   id: number;
@@ -10,7 +10,7 @@ interface CaminhaoOpt {
 }
 
 interface Props {
-  betonadaId: number;
+  concrtagemId: number;
   obraId: number;
   caminhoes: CaminhaoOpt[];
   onClose: () => void;
@@ -24,14 +24,14 @@ const labelCls = 'block text-xs font-medium text-[var(--text-faint)] mb-1';
 const TODAY = new Date().toISOString().split('T')[0];
 const IDADES = [3, 7, 28] as const;
 
-export default function MoldagemCpModal({ betonadaId, obraId, caminhoes, onClose }: Props) {
+export default function MoldagemCpModal({ concrtagemId, obraId, caminhoes, onClose }: Props) {
   const [caminhaoId, setCaminhaoId] = useState(caminhoes[0]?.id.toString() ?? '');
   const [dataMoldagem, setDataMoldagem] = useState(TODAY);
   const [idadesSelecionadas, setIdadesSelecionadas] = useState<Set<number>>(new Set([3, 7, 28]));
   const [laboratorioId, setLaboratorioId] = useState('');
   const [observacoes, setObservacoes] = useState('');
 
-  const mutation = useMoldagemCp(obraId, betonadaId);
+  const mutation = useMoldagemCp(obraId, concrtagemId);
 
   function toggleIdade(idade: number) {
     setIdadesSelecionadas((prev) => {

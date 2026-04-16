@@ -204,7 +204,7 @@ function ConcretagemNavGroup({ onClick }: { onClick?: () => void }) {
       label="Concretagem"
       items={[
         { to: base,                   label: 'Dashboard', end: true },
-        { to: `${base}/betonadas`,    label: 'Betonadas' },
+        { to: `${base}/concretagens`,  label: 'Concretagens' },
         { to: `${base}/croqui`,       label: 'Croqui' },
       ]}
       onClick={onClick}

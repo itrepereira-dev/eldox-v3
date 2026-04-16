@@ -1,11 +1,11 @@
-// frontend-web/src/modules/concretagem/betonadas/pages/BetonadaDetalhePage.tsx
-// Detalhe de Betonada com caminhões e CPs — Sprint 8
+// frontend-web/src/modules/concretagem/concretagens/pages/ConcrtagemDetalhePage.tsx
+// Detalhe de Concretagem com caminhões e CPs — Sprint 8 (renomeado de Betonada)
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Truck, FlaskConical, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { cn } from '@/lib/cn';
-import type { StatusBetonada, StatusCaminhao, StatusCp } from '@/services/concretagem.service';
-import { useBuscarBetonada, useConcluirCaminhao, useToggleLiberado, useSetLacre } from '../hooks/useBetonadas';
+import type { StatusConcretagem, StatusCaminhao, StatusCp } from '@/services/concretagem.service';
+import { useBuscarConcretagem, useConcluirCaminhao, useToggleLiberado, useSetLacre } from '../hooks/useConcretagens';
 import { useListarCroquis, useBuscarCroqui } from '../../croqui/hooks/useCroqui';
 import { LaudosSection } from '../../laudos/pages/LaudosPage';
 import { RacsSection } from '../../racs/pages/RacsPage';
@@ -17,12 +17,17 @@ import RupturaModal from '../components/RupturaModal';
 
 // ── Labels e cores ─────────────────────────────────────────────────────────────
 
-const BET_LABELS: Record<StatusBetonada, string> = {
-  PROGRAMADA: 'Programada', EM_LANCAMENTO: 'Em Lançamento', CONCLUIDA: 'Concluída', CANCELADA: 'Cancelada',
+const BET_LABELS: Record<StatusConcretagem, string> = {
+  PROGRAMADA: 'Programada',
+  EM_LANCAMENTO: 'Em Lançamento',
+  EM_RASTREABILIDADE: 'Em Rastreabilidade',
+  CONCLUIDA: 'Concluída',
+  CANCELADA: 'Cancelada',
 };
-const BET_COLORS: Record<StatusBetonada, string> = {
+const BET_COLORS: Record<StatusConcretagem, string> = {
   PROGRAMADA: 'bg-[var(--accent-dim)] text-[var(--accent)]',
   EM_LANCAMENTO: 'bg-[var(--warn-dim)] text-[var(--warn-text)]',
+  EM_RASTREABILIDADE: 'bg-[var(--ok-dim)] text-[var(--ok-text)]',
   CONCLUIDA: 'bg-[var(--ok-dim)] text-[var(--ok-text)]',
   CANCELADA: 'bg-[var(--bg-raised)] text-[var(--text-faint)]',
 };
@@ -61,13 +66,13 @@ function PageSkeleton() {
 
 // ── Componente principal ──────────────────────────────────────────────────────
 
-export default function BetonadaDetalhePage() {
-  const { obraId, betonadaId } = useParams<{ obraId: string; betonadaId: string }>();
+export default function ConcrtagemDetalhePage() {
+  const { obraId, concrtagemId } = useParams<{ obraId: string; concrtagemId: string }>();
   const navigate = useNavigate();
-  const obraIdNum     = Number(obraId) || 0;
-  const betonadaIdNum = Number(betonadaId) || 0;
+  const obraIdNum       = Number(obraId) || 0;
+  const concrtagemIdNum = Number(concrtagemId) || 0;
 
-  const { data, isLoading, isError, refetch } = useBuscarBetonada(obraIdNum, betonadaIdNum);
+  const { data, isLoading, isError, refetch } = useBuscarConcretagem(obraIdNum, concrtagemIdNum);
 
   // ── Modal state ─────────────────────────────────────────────────────────────
   const [caminhaoModal, setCaminhaoModal] = useState(false);
@@ -76,9 +81,9 @@ export default function BetonadaDetalhePage() {
   const [cpModal, setCpModal] = useState(false);
   const [rupturaModal, setRupturaModal] = useState<{ cpId: number; numero: string; idadeDias: number } | null>(null);
 
-  const concluirCaminhao = useConcluirCaminhao(obraIdNum, betonadaIdNum);
-  const toggleLiberado = useToggleLiberado(obraIdNum, betonadaIdNum);
-  const setLacre = useSetLacre(obraIdNum, betonadaIdNum);
+  const concluirCaminhao = useConcluirCaminhao(obraIdNum, concrtagemIdNum);
+  const toggleLiberado = useToggleLiberado(obraIdNum, concrtagemIdNum);
+  const setLacre = useSetLacre(obraIdNum, concrtagemIdNum);
 
   // Croqui elements for multi-select in CaminhaoModal
   const { data: croquis } = useListarCroquis(obraIdNum);
@@ -90,7 +95,7 @@ export default function BetonadaDetalhePage() {
   if (isError || !data) {
     return (
       <div className="p-6 text-center">
-        <p className="text-sm text-[var(--nc-text)]">Betonada não encontrada</p>
+        <p className="text-sm text-[var(--nc-text)]">Concretagem não encontrada</p>
       </div>
     );
   }
@@ -98,7 +103,7 @@ export default function BetonadaDetalhePage() {
   const formatData = (d: string) =>
     new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-  const betonadaAtiva = data.status !== 'CANCELADA' && data.status !== 'CONCLUIDA';
+  const concrtagemAtiva = data.status !== 'CANCELADA' && data.status !== 'CONCLUIDA';
 
   const caminhoesMoldagem = data.caminhoes
     .filter((c) => c.status === 'CONCLUIDO' || c.status === 'EM_LANCAMENTO')
@@ -111,11 +116,11 @@ export default function BetonadaDetalhePage() {
       <div>
         <button
           type="button"
-          onClick={() => navigate(`/obras/${obraIdNum}/concretagem/betonadas`)}
+          onClick={() => navigate(`/obras/${obraIdNum}/concretagem/concretagens`)}
           className="flex items-center gap-1.5 text-sm text-[var(--text-faint)] hover:text-[var(--accent)] mb-3"
         >
           <ArrowLeft size={14} />
-          Betonadas
+          Concretagens
         </button>
         <div className="flex items-start justify-between">
           <div>
@@ -179,7 +184,7 @@ export default function BetonadaDetalhePage() {
         <h2 className="text-base font-semibold text-[var(--text-high)] mb-3 flex items-center gap-2">
           <Truck size={16} />
           Caminhões ({data.caminhoes.length})
-          {betonadaAtiva && (
+          {concrtagemAtiva && (
             <button
               type="button"
               onClick={() => setCaminhaoModal(true)}
@@ -327,7 +332,7 @@ export default function BetonadaDetalhePage() {
         <h2 className="text-base font-semibold text-[var(--text-high)] mb-3 flex items-center gap-2">
           <FlaskConical size={16} />
           Corpos de Prova ({data.corpos_de_prova.length})
-          {betonadaAtiva && data.caminhoes.length > 0 && (
+          {concrtagemAtiva && data.caminhoes.length > 0 && (
             <button
               type="button"
               onClick={() => setCpModal(true)}
@@ -410,7 +415,7 @@ export default function BetonadaDetalhePage() {
       )}
 
       {/* Laudos de Laboratório */}
-      <LaudosSection betonadaId={betonadaIdNum} />
+      <LaudosSection concrtagemId={concrtagemIdNum} />
 
       {/* RACs */}
       <RacsSection obraId={obraIdNum} />
@@ -419,7 +424,7 @@ export default function BetonadaDetalhePage() {
 
       {caminhaoModal && (
         <CaminhaoModal
-          betonadaId={betonadaIdNum}
+          concrtagemId={concrtagemIdNum}
           obraId={obraIdNum}
           onClose={() => { setCaminhaoModal(false); void refetch(); }}
           elementosDisponiveis={elementosDisponiveis}
@@ -430,7 +435,7 @@ export default function BetonadaDetalhePage() {
         <SlumpModal
           caminhaoId={slumpModal.caminhaoId}
           obraId={obraIdNum}
-          betonadaId={betonadaIdNum}
+          concrtagemId={concrtagemIdNum}
           onClose={() => { setSlumpModal(null); void refetch(); }}
         />
       )}
@@ -440,14 +445,14 @@ export default function BetonadaDetalhePage() {
           caminhaoId={rejeitarModal.caminhaoId}
           sequencia={rejeitarModal.sequencia}
           obraId={obraIdNum}
-          betonadaId={betonadaIdNum}
+          concrtagemId={concrtagemIdNum}
           onClose={() => { setRejeitarModal(null); void refetch(); }}
         />
       )}
 
       {cpModal && (
         <MoldagemCpModal
-          betonadaId={betonadaIdNum}
+          concrtagemId={concrtagemIdNum}
           obraId={obraIdNum}
           caminhoes={caminhoesMoldagem.length > 0 ? caminhoesMoldagem : data.caminhoes.map((c) => ({ id: c.id, sequencia: c.sequencia, numero_nf: c.numero_nf }))}
           onClose={() => { setCpModal(false); void refetch(); }}
@@ -460,7 +465,7 @@ export default function BetonadaDetalhePage() {
           numero={rupturaModal.numero}
           idadeDias={rupturaModal.idadeDias}
           obraId={obraIdNum}
-          betonadaId={betonadaIdNum}
+          concrtagemId={concrtagemIdNum}
           onClose={() => { setRupturaModal(null); void refetch(); }}
         />
       )}

@@ -33,8 +33,8 @@ import { DiarioHomePage } from './modules/diario/pages/DiarioHomePage';
 import CroquiRastreabilidadePage from './modules/concretagem/croqui/pages/CroquiRastreabilidadePage';
 import CroquiDetalhePage from './modules/concretagem/croqui/pages/CroquiDetalhePage';
 import ConcretagemDashboardPage from './modules/concretagem/dashboard/pages/ConcretagemDashboardPage';
-import BetonadasListPage from './modules/concretagem/betonadas/pages/BetonadasListPage';
-import BetonadaDetalhePage from './modules/concretagem/betonadas/pages/BetonadaDetalhePage';
+import ConcrtagensListPage from './modules/concretagem/concretagens/pages/ConcrtagensListPage';
+import ConcrtagemDetalhePage from './modules/concretagem/concretagens/pages/ConcrtagemDetalhePage';
 import { RdoFormPage } from './modules/diario/pages/RdoFormPage';
 import { RdoWorkflowPage } from './modules/diario/pages/RdoWorkflowPage';
 import { AlmoxarifadoDashboard } from './modules/almoxarifado/dashboard/pages/AlmoxarifadoDashboard';
@@ -136,8 +136,8 @@ export default function App() {
 
               {/* Concretagem — Sprint 8 */}
               <Route path="/obras/:obraId/concretagem" element={<ConcretagemDashboardPage />} />
-              <Route path="/obras/:obraId/concretagem/betonadas" element={<BetonadasListPage />} />
-              <Route path="/obras/:obraId/concretagem/betonadas/:betonadaId" element={<BetonadaDetalhePage />} />
+              <Route path="/obras/:obraId/concretagem/concretagens" element={<ConcrtagensListPage />} />
+              <Route path="/obras/:obraId/concretagem/concretagens/:concrtagemId" element={<ConcrtagemDetalhePage />} />
               <Route path="/obras/:obraId/concretagem/croqui" element={<CroquiRastreabilidadePage />} />
               <Route path="/obras/:obraId/concretagem/croqui/:croquiId" element={<CroquiDetalhePage />} />
 

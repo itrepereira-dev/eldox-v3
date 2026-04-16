@@ -56,7 +56,7 @@ export default function ConcretagemDashboardPage() {
           Concretagem — Conformidade
         </h1>
         <p className="text-sm text-[var(--text-faint)] mt-0.5 m-0">
-          Indicadores de betonadas, corpos de prova e conformidade de concreto
+          Indicadores de concretagens, corpos de prova e conformidade de concreto
         </p>
       </div>
 
@@ -216,7 +216,7 @@ export default function ConcretagemDashboardPage() {
           {
             label: 'Betonadas',
             desc: 'Programar e acompanhar concretagens',
-            path: `/obras/${obraIdNum}/concretagem/betonadas`,
+            path: `/obras/${obraIdNum}/concretagem/concretagens`,
             icon: <Layers size={18} />,
           },
           {
@@ -228,7 +228,7 @@ export default function ConcretagemDashboardPage() {
           {
             label: 'Corpos de Prova',
             desc: 'Moldagens e rupturas pendentes',
-            path: `/obras/${obraIdNum}/concretagem/betonadas`,
+            path: `/obras/${obraIdNum}/concretagem/concretagens`,
             icon: <FlaskConical size={18} />,
           },
         ].map(({ label, desc, path, icon }) => (

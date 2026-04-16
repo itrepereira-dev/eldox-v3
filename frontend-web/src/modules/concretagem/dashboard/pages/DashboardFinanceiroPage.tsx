@@ -106,7 +106,7 @@ export default function DashboardFinanceiroPage() {
               <thead>
                 <tr className="text-xs text-[var(--text-faint)] bg-[var(--bg-raised)]">
                   <th className="text-left px-4 py-2.5 font-medium">Traço</th>
-                  <th className="text-right px-4 py-2.5 font-medium">Betonadas</th>
+                  <th className="text-right px-4 py-2.5 font-medium">Concretagens</th>
                   <th className="text-right px-4 py-2.5 font-medium">Prev. (m³)</th>
                   <th className="text-right px-4 py-2.5 font-medium">Real. (m³)</th>
                   <th className="text-right px-4 py-2.5 font-medium">Δ</th>

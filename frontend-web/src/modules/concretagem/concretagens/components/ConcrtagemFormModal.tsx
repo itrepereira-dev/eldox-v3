@@ -1,18 +1,18 @@
-// frontend-web/src/modules/concretagem/betonadas/components/BetonadaFormModal.tsx
+// frontend-web/src/modules/concretagem/concretagens/components/ConcrtagemFormModal.tsx
 import { useState } from 'react';
 import { X } from 'lucide-react';
-import type { CreateBetonadaPayload } from '@/services/concretagem.service';
-import { useCriarBetonada } from '../hooks/useBetonadas';
+import type { CreateConcrtagemPayload } from '@/services/concretagem.service';
+import { useCriarConcretagem } from '../hooks/useConcretagens';
 
 interface Props {
   obraId: number;
   onClose: () => void;
 }
 
-export function BetonadaFormModal({ obraId, onClose }: Props) {
-  const criar = useCriarBetonada(obraId);
+export function ConcrtagemFormModal({ obraId, onClose }: Props) {
+  const criar = useCriarConcretagem(obraId);
 
-  const [form, setForm] = useState<CreateBetonadaPayload>({
+  const [form, setForm] = useState<CreateConcrtagemPayload>({
     elemento_estrutural: '',
     volume_previsto: 0,
     fck_especificado: 25,
@@ -20,7 +20,7 @@ export function BetonadaFormModal({ obraId, onClose }: Props) {
     data_programada: new Date().toISOString().split('T')[0],
   });
 
-  const set = (key: keyof CreateBetonadaPayload, value: string | number | boolean | undefined) =>
+  const set = (key: keyof CreateConcrtagemPayload, value: string | number | boolean | undefined) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
   async function handleSubmit(e: React.FormEvent) {
@@ -38,7 +38,7 @@ export function BetonadaFormModal({ obraId, onClose }: Props) {
       <div className="bg-[var(--bg-surface)] rounded-xl shadow-2xl w-full max-w-lg">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-dim)]">
-          <h2 className="text-base font-semibold text-[var(--text-high)]">Nova Betonada</h2>
+          <h2 className="text-base font-semibold text-[var(--text-high)]">Nova Concretagem</h2>
           <button type="button" onClick={onClose} className="text-[var(--text-faint)] hover:text-[var(--text-high)]">
             <X size={18} />
           </button>
@@ -186,7 +186,7 @@ export function BetonadaFormModal({ obraId, onClose }: Props) {
           {/* Erro */}
           {criar.isError && (
             <p className="text-xs text-[var(--nc-text)]">
-              Erro ao criar betonada. Verifique os dados e tente novamente.
+              Erro ao criar concretagem. Verifique os dados e tente novamente.
             </p>
           )}
 
@@ -204,7 +204,7 @@ export function BetonadaFormModal({ obraId, onClose }: Props) {
               disabled={criar.isPending}
               className="px-4 py-2 rounded-lg bg-[var(--accent)] text-white text-sm font-medium hover:opacity-90 disabled:opacity-60 transition-opacity"
             >
-              {criar.isPending ? 'Salvando...' : 'Criar Betonada'}
+              {criar.isPending ? 'Salvando...' : 'Criar Concretagem'}
             </button>
           </div>
         </form>
