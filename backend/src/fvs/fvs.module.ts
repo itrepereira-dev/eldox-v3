@@ -16,6 +16,7 @@ import { RoController } from './inspecao/ro.controller';
 import { ParecerService } from './inspecao/parecer.service';
 import { FvsDashboardService } from './dashboard/fvs-dashboard.service';
 import { FvsDashboardController } from './dashboard/fvs-dashboard.controller';
+import { FvsGraficosService } from './dashboard/fvs-graficos.service';
 import { FvsClienteController } from './cliente/fvs-cliente.controller';
 import { AgenteDiagnosticoNc } from '../ai/agents/fvs/agente-diagnostico-nc';
 import { AgentePreditorNc } from '../ai/agents/fvs/agente-preditor-nc';
@@ -40,7 +41,7 @@ import { PlanosAcaoModule } from '../planos-acao/planos-acao.module';
   ],
   providers: [
     CatalogoService, ModeloService, InspecaoService, RoService, ParecerService,
-    FvsDashboardService, FvsPdfService,
+    FvsDashboardService, FvsGraficosService, FvsPdfService,
     AgenteDiagnosticoNc, AgentePreditorNc, AgenteAnaliseFoto,
     AgenteRelatorioFvs, AgentePriorizacaoInspecao,
     FvsProcessor,

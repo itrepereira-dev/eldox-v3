@@ -9,6 +9,8 @@ import { TenantId, CurrentUser } from '../../common/decorators/tenant.decorator'
 import { FvsDashboardService } from './fvs-dashboard.service';
 import { AgentePriorizacaoInspecao } from '../../ai/agents/fvs/agente-priorizacao-inspecao';
 import { AgenteRelatorioFvs } from '../../ai/agents/fvs/agente-relatorio-fvs';
+import { FvsGraficosService } from './fvs-graficos.service';
+import { DashboardGraficosQueryDto } from './dto/dashboard-graficos-query.dto';
 
 interface JwtUser { id: number; tenantId: number; role: string }
 
@@ -19,6 +21,7 @@ export class FvsDashboardController {
     private readonly dashboard: FvsDashboardService,
     private readonly priorizacao: AgentePriorizacaoInspecao,
     private readonly relatorio: AgenteRelatorioFvs,
+    private readonly graficos: FvsGraficosService,
   ) {}
 
   // GET /api/v1/fvs/dashboard/global
@@ -98,5 +101,16 @@ export class FvsDashboardController {
       semana_inicio: body.semana_inicio,
       semana_fim: body.semana_fim,
     });
+  }
+
+  // GET /api/v1/fvs/dashboard/obras/:obraId/dashboard-graficos
+  @Get('obras/:obraId/dashboard-graficos')
+  @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO', 'VISITANTE')
+  getDashboardGraficos(
+    @TenantId() tenantId: number,
+    @Param('obraId', ParseIntPipe) obraId: number,
+    @Query() query: DashboardGraficosQueryDto,
+  ) {
+    return this.graficos.getDashboardGraficos(tenantId, obraId, query);
   }
 }
