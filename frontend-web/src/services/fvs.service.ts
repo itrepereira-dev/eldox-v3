@@ -767,4 +767,28 @@ export const fvsService = {
     const { data } = await api.get(`/fvs/dashboard/obras/${obraId}/dashboard-graficos`, { params });
     return data;
   },
+
+  // ─── Relatórios ──────────────────────────────────────────────────────────────
+
+  async getRelatorioConformidade(
+    obraId: number,
+    params: { servico_id?: number; data_inicio?: string; data_fim?: string },
+  ) {
+    const { data } = await api.get(`/fvs/dashboard/obras/${obraId}/relatorio-conformidade`, { params });
+    return data;
+  },
+
+  async getFichaParaRelatorio(fichaId: number) {
+    // Returns FichaDetalhada — already exists as getFicha(), aliased for clarity
+    const { data } = await api.get(`/fvs/fichas/${fichaId}`);
+    return data;
+  },
+
+  async getRegistrosParaRelatorio(fichaId: number) {
+    // All registros for a ficha across all servicos/locais
+    const { data } = await api.get(`/fvs/fichas/${fichaId}/registros`, {
+      params: { todos: true },
+    });
+    return data;
+  },
 };
