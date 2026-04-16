@@ -14,6 +14,9 @@ import SlumpModal from '../components/SlumpModal';
 import RejeitarCaminhaoModal from '../components/RejeitarCaminhaoModal';
 import MoldagemCpModal from '../components/MoldagemCpModal';
 import RupturaModal from '../components/RupturaModal';
+import { CpTimeline } from '../components/CpTimeline';
+import { CpTabela } from '../components/CpTabela';
+import { CurvaResistenciaChart } from '../components/CurvaResistenciaChart';
 
 // ── Labels e cores ─────────────────────────────────────────────────────────────
 
@@ -81,6 +84,12 @@ export default function ConcrtagemDetalhePage() {
   const [cpModal, setCpModal] = useState(false);
   const [rupturaModal, setRupturaModal] = useState<{ cpId: number; numero: string; idadeDias: number } | null>(null);
 
+  const CP_VIEW_KEY = 'eldox.concretagem.cp_view';
+  const [cpView, setCpView] = useState<'timeline' | 'tabela'>(() => {
+    try { return (localStorage.getItem(CP_VIEW_KEY) as 'timeline' | 'tabela') ?? 'timeline'; }
+    catch { return 'timeline'; }
+  });
+
   const concluirCaminhao = useConcluirCaminhao(obraIdNum, concrtagemIdNum);
   const toggleLiberado = useToggleLiberado(obraIdNum, concrtagemIdNum);
   const setLacre = useSetLacre(obraIdNum, concrtagemIdNum);
@@ -108,6 +117,28 @@ export default function ConcrtagemDetalhePage() {
   const caminhoesMoldagem = data.caminhoes
     .filter((c) => c.status === 'CONCLUIDO' || c.status === 'EM_LANCAMENTO')
     .map((c) => ({ id: c.id, sequencia: c.sequencia, numero_nf: c.numero_nf }));
+
+  // Map CPs to CpItem shape (adding caminhao info)
+  const cpItems = (data.corpos_de_prova ?? []).map((cp) => {
+    const cam = data.caminhoes.find((c) => c.id === cp.caminhao_id);
+    return {
+      ...cp,
+      caminhao_numero: cam ? `NF ${cam.numero_nf}` : undefined,
+      caminhao_nf: cam?.numero_nf ?? undefined,
+      data_ruptura_real: cp.data_ruptura_real ?? null,
+      fck: data.fck_especificado,
+    };
+  });
+
+  // Map caminhoes to CaminhaoInfo shape
+  const caminhaoInfos = (data.caminhoes ?? []).map((cam) => ({
+    id: cam.id,
+    numero: `#${cam.sequencia} NF ${cam.numero_nf}`,
+    numero_nf: cam.numero_nf ?? null,
+    volume: typeof cam.volume === 'number' ? cam.volume : null,
+    hora_chegada: cam.hora_chegada ?? null,
+    cps: cpItems.filter((cp) => cp.caminhao_id === cam.id),
+  }));
 
   return (
     <div className="p-6 space-y-8">
@@ -328,83 +359,65 @@ export default function ConcrtagemDetalhePage() {
       </div>
 
       {/* Corpos de Prova */}
-      <div>
-        <h2 className="text-base font-semibold text-[var(--text-high)] mb-3 flex items-center gap-2">
-          <FlaskConical size={16} />
-          Corpos de Prova ({data.corpos_de_prova.length})
-          {concrtagemAtiva && data.caminhoes.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setCpModal(true)}
-              className="ml-auto text-xs px-3 py-1 rounded-lg font-medium"
-              style={{ background: 'var(--accent)', color: 'var(--text-high)' }}
-            >
-              + Moldar CP
-            </button>
-          )}
-        </h2>
-        {data.corpos_de_prova.length === 0 ? (
-          <p className="text-sm text-[var(--text-faint)]">Nenhum CP moldado.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr className="border-b border-[var(--border-dim)]">
-                  {['Número', 'Idade', 'Moldagem', 'Ruptura Prev.', 'Resistência', 'Status', 'Ações'].map((h) => (
-                    <th key={h} className="text-left px-3 py-2 text-[var(--text-faint)] font-medium text-xs">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {data.corpos_de_prova.map((cp) => {
-                  const vencido =
-                    cp.status === 'AGUARDANDO_RUPTURA' &&
-                    new Date(cp.data_ruptura_prev) < new Date();
-                  return (
-                    <tr key={cp.id} className="border-b border-[var(--border-dim)] hover:bg-[var(--bg-raised)]">
-                      <td className="px-3 py-2 font-mono text-xs text-[var(--text-high)]">{cp.numero}</td>
-                      <td className="px-3 py-2 text-[var(--text-med)]">{cp.idade_dias}d</td>
-                      <td className="px-3 py-2 text-[var(--text-med)]">{formatData(cp.data_moldagem)}</td>
-                      <td className="px-3 py-2">
-                        <span className={cn('text-[var(--text-med)]', vencido && 'text-[var(--nc-text)] font-medium')}>
-                          {formatData(cp.data_ruptura_prev)}
-                          {vencido && (
-                            <span className="ml-1 text-xs">
-                              <Clock size={11} className="inline -mt-0.5" /> vencido
-                            </span>
-                          )}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2 text-[var(--text-med)]">
-                        {cp.resistencia != null ? `${Number(cp.resistencia).toFixed(1)} MPa` : '—'}
-                      </td>
-                      <td className="px-3 py-2">
-                        <span className={cn('px-2 py-0.5 rounded text-xs font-medium', CP_COLORS[cp.status])}>
-                          {CP_LABELS[cp.status]}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2">
-                        {cp.status === 'AGUARDANDO_RUPTURA' ? (
-                          <button
-                            type="button"
-                            onClick={() => setRupturaModal({ cpId: cp.id, numero: cp.numero, idadeDias: cp.idade_dias })}
-                            className="text-xs px-2 py-1 rounded font-medium"
-                            style={{ background: 'var(--ok-dim)', color: 'var(--ok-text)' }}
-                          >
-                            Registrar Ruptura
-                          </button>
-                        ) : (
-                          <span className="text-xs" style={{ color: 'var(--text-faint)' }}>—</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+      <div className="bg-[var(--bg-raised)] rounded-xl p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-semibold text-[var(--text-high)] flex items-center gap-2">
+            <FlaskConical size={16} />
+            Corpos de Prova ({(data.corpos_de_prova ?? []).length})
+          </h2>
+          <div className="flex items-center gap-2">
+            {concrtagemAtiva && data.caminhoes.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setCpModal(true)}
+                className="text-xs px-3 py-1 rounded-lg font-medium"
+                style={{ background: 'var(--accent)', color: 'var(--text-high)' }}
+              >
+                + Moldar CP
+              </button>
+            )}
+            {/* Toggle timeline / tabela */}
+            <div className="flex bg-[var(--bg-base)] rounded-lg p-0.5 gap-0.5">
+              {(['timeline', 'tabela'] as const).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => {
+                    setCpView(v);
+                    try { localStorage.setItem(CP_VIEW_KEY, v); } catch { /* */ }
+                  }}
+                  className={cn(
+                    'px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                    cpView === v
+                      ? 'bg-[var(--bg-raised)] text-[var(--text-high)]'
+                      : 'text-[var(--text-faint)] hover:text-[var(--text-med)]',
+                  )}
+                >
+                  {v === 'timeline' ? '⏱ Timeline' : '☰ Tabela'}
+                </button>
+              ))}
+            </div>
           </div>
+        </div>
+
+        {cpView === 'timeline' ? (
+          <CpTimeline cps={cpItems} fck={data.fck_especificado} />
+        ) : (
+          <CpTabela cps={cpItems} fck={data.fck_especificado} />
         )}
       </div>
+
+      {/* Curva de Resistência */}
+      {cpItems.some((cp) => cp.resistencia != null) && (
+        <div className="bg-[var(--bg-raised)] rounded-xl p-5">
+          <h2 className="text-sm font-semibold text-[var(--text-high)] mb-4">Curva de Resistência</h2>
+          <CurvaResistenciaChart
+            cps={cpItems}
+            caminhoes={caminhaoInfos}
+            fck={data.fck_especificado}
+          />
+        </div>
+      )}
 
       {/* Observações */}
       {data.observacoes && (
