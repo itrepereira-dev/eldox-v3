@@ -6,6 +6,7 @@ interface CpItem {
   numero: string;
   caminhao_id: number;
   caminhao_numero?: string;
+  caminhao_nf?: string;
   idade_dias: number;
   data_ruptura_prev: string | null;
   data_ruptura_real: string | null;

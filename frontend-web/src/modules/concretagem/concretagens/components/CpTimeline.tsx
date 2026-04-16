@@ -27,7 +27,7 @@ interface CpTimelineProps {
   fck: number;
 }
 
-function DotStatus({ cp, fck }: { cp: CpItem | undefined; idade: number; fck: number }) {
+function DotStatus({ cp }: { cp: CpItem | undefined }) {
   if (!cp) {
     return (
       <div className="flex flex-col items-center gap-1 flex-1">
@@ -65,7 +65,7 @@ function DotStatus({ cp, fck }: { cp: CpItem | undefined; idade: number; fck: nu
         'w-5 h-5 rounded-full border-2 flex items-center justify-center',
         aprovado
           ? 'bg-[var(--ok)] border-[var(--ok-text)]'
-          : 'bg-[var(--nc-bg,#ef4444)] border-[var(--nc-border,#7f1d1d)]',
+          : 'bg-red-500 border-red-900',
       )}>
         <span className="text-[8px] text-white">{aprovado ? '✓' : '✗'}</span>
       </div>
@@ -119,7 +119,7 @@ export function CpTimeline({ cps, fck }: CpTimelineProps) {
               const cp = g.cps.find((c) => c.idade_dias === idade);
               return (
                 <div key={idade} className="flex flex-col items-center flex-1 z-10">
-                  <DotStatus cp={cp} idade={idade} fck={fck} />
+                  <DotStatus cp={cp} />
                   <span className="text-[10px] text-[var(--text-faint)] mt-1 font-medium">{idade}d</span>
                 </div>
               );
