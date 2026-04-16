@@ -25,9 +25,15 @@ const mockGed = {
 
 const mockRoServiceGlobal = { checkAndAdvanceRoStatus: jest.fn() };
 const mockModeloService = { getModeloParaFicha: jest.fn(), incrementFichasCount: jest.fn() };
+const mockPaService = { avaliarGatilhos: jest.fn().mockResolvedValue(undefined) };
+
+// Default stats row used by Sprint PA hook (statsRows[0]) inside patchFicha's
+// "em_inspecao → concluida" branch. Tests overriding this branch should push
+// this row before the UPDATE mock or just rely on the default when it fits.
+const DEFAULT_PA_STATS = { conformes: '0', avaliados: '0', criticos_nc: '0' };
 
 function makeService(): InspecaoService {
-  return new (InspecaoService as any)(mockPrisma, mockGed, mockRoServiceGlobal, mockModeloService);
+  return new (InspecaoService as any)(mockPrisma, mockGed, mockRoServiceGlobal, mockModeloService, mockPaService);
 }
 
 describe('InspecaoService', () => {
@@ -35,6 +41,8 @@ describe('InspecaoService', () => {
 
   beforeEach(() => {
     jest.resetAllMocks();
+    // Re-initialize paService mock (resetAllMocks clears the default resolved value)
+    mockPaService.avaliarGatilhos.mockResolvedValue(undefined);
     svc = makeService();
   });
 
@@ -236,16 +244,21 @@ describe('InspecaoService', () => {
       mockPrisma.$queryRawUnsafe
         .mockResolvedValueOnce([ficha])               // getFichaOuFalhar
         .mockResolvedValueOnce([fichaAtualizada])      // UPDATE fvs_fichas
-        .mockResolvedValueOnce([{ exige_ro: false }]); // autoCreateRo: guard SELECT exige_ro → retorna early
+        .mockResolvedValueOnce([{ exige_ro: false }])  // autoCreateRo: guard SELECT exige_ro → retorna early
+        .mockResolvedValueOnce([DEFAULT_PA_STATS]);    // Sprint PA: stats para avaliarGatilhos
       mockPrisma.$executeRawUnsafe.mockResolvedValue(undefined);
 
       await svc.patchFicha(TENANT_ID, 1, USER_ID, { status: 'concluida' }, '127.0.0.1');
-      // autoCreateRo executa guard SELECT exige_ro e retorna cedo (sem buscar NCs)
-      // Verificar: $queryRawUnsafe foi chamado 3x (buscar ficha + UPDATE + guard), sem busca de NCs
-      expect(mockPrisma.$queryRawUnsafe).toHaveBeenCalledTimes(3);
-      // Garantir que não tentou buscar itens NC (indicativo de que o RO NÃO foi criado)
+      // autoCreateRo executa guard SELECT exige_ro e retorna cedo (sem buscar NCs).
+      // $queryRawUnsafe foi chamado 4x (buscar ficha + UPDATE + guard exige_ro + stats PA).
+      expect(mockPrisma.$queryRawUnsafe).toHaveBeenCalledTimes(4);
+      // Garantir que não tentou buscar itens NC de ro_servicos (indicativo de que o RO NÃO foi criado).
       const callArgs = (mockPrisma.$queryRawUnsafe as jest.Mock).mock.calls;
-      const ncQuery = callArgs.find((call: any[]) => typeof call[0] === 'string' && call[0].includes('nao_conforme'));
+      const ncQuery = callArgs.find(
+        (call: any[]) => typeof call[0] === 'string'
+          && call[0].includes('nao_conforme')
+          && !call[0].includes('criticos_nc'), // exclui stats do PA
+      );
       expect(ncQuery).toBeUndefined();
     });
   });
@@ -553,7 +566,9 @@ describe('InspecaoService', () => {
         // INSERT ro_ocorrencias
         .mockResolvedValueOnce([{ id: 1, numero: 'RO-1-1' }])
         // INSERT ro_servicos_nc
-        .mockResolvedValueOnce([{ id: 1 }]);
+        .mockResolvedValueOnce([{ id: 1 }])
+        // Sprint PA: stats para avaliarGatilhos (roda após autoCreateRo)
+        .mockResolvedValueOnce([DEFAULT_PA_STATS]);
 
       mockPrisma.$executeRawUnsafe.mockResolvedValue(undefined); // audit_log + INSERT ro_servico_itens_nc
 
@@ -574,7 +589,8 @@ describe('InspecaoService', () => {
         .mockResolvedValueOnce([])                       // validarConclusaoPbqph
         .mockResolvedValueOnce([{ ...FICHA_EM_INSPECAO, status: 'concluida', exige_ro: true }]) // UPDATE
         .mockResolvedValueOnce([{ exige_ro: true }])     // autoCreateRo: guard
-        .mockResolvedValueOnce([]);                      // autoCreateRo: sem NCs
+        .mockResolvedValueOnce([])                       // autoCreateRo: sem NCs
+        .mockResolvedValueOnce([DEFAULT_PA_STATS]);      // Sprint PA: stats para avaliarGatilhos
 
       mockPrisma.$executeRawUnsafe.mockResolvedValue(undefined); // audit_log
 
