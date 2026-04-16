@@ -90,7 +90,14 @@ export class ConcrtagensService {
     const offset = (page - 1) * limit;
 
     const params: unknown[] = [tenantId, obraId];
+    // Use alias b. prefix so conditions work with the LATERAL join query
     const conditions: string[] = [
+      'b.tenant_id = $1',
+      'b.obra_id = $2',
+      'b.deleted_at IS NULL',
+    ];
+    // Bare conditions for the COUNT query (no alias needed)
+    const bareConditions: string[] = [
       'tenant_id = $1',
       'obra_id = $2',
       'deleted_at IS NULL',
@@ -98,27 +105,68 @@ export class ConcrtagensService {
 
     if (query.status) {
       params.push(query.status);
-      conditions.push(`status = $${params.length}::\"StatusConcretagem\"`);
+      conditions.push(`b.status = $${params.length}::\"StatusConcretagem\"`);
+      bareConditions.push(`status = $${params.length}::\"StatusConcretagem\"`);
     }
     if (query.search) {
       params.push(`%${query.search}%`);
-      conditions.push(`(numero ILIKE $${params.length} OR elemento_estrutural ILIKE $${params.length})`);
+      conditions.push(`(b.numero ILIKE $${params.length} OR b.elemento_estrutural ILIKE $${params.length})`);
+      bareConditions.push(`(numero ILIKE $${params.length} OR elemento_estrutural ILIKE $${params.length})`);
     }
 
-    const where = conditions.join(' AND ');
+    const where     = conditions.join(' AND ');
+    const bareWhere = bareConditions.join(' AND ');
 
     const countRows = await this.prisma.$queryRawUnsafe<{ total: number }[]>(
-      `SELECT COUNT(*)::int AS total FROM concretagens WHERE ${where}`,
+      `SELECT COUNT(*)::int AS total FROM concretagens WHERE ${bareWhere}`,
       ...params,
     );
 
     params.push(limit, offset);
-    const items = await this.prisma.$queryRawUnsafe<unknown[]>(
-      `SELECT id, numero, elemento_estrutural, obra_local_id, volume_previsto, fck_especificado,
-              fornecedor_id, data_programada, status, responsavel_id, observacoes, created_at, updated_at
-       FROM concretagens
+    const items = await this.prisma.$queryRawUnsafe<{
+      id: number;
+      numero: string;
+      elemento_estrutural: string;
+      obra_local_id: number | null;
+      volume_previsto: string;
+      fck_especificado: number;
+      fornecedor_id: number | null;
+      data_programada: string;
+      status: string;
+      responsavel_id: number | null;
+      observacoes: string | null;
+      created_at: string;
+      updated_at: string;
+      cp_total: number;
+      cp_rompidos: number;
+      proxima_ruptura_data: string | null;
+      caminhao_total: number;
+    }[]>(
+      `SELECT
+         b.id, b.numero, b.elemento_estrutural, b.obra_local_id,
+         b.volume_previsto, b.fck_especificado, b.fornecedor_id,
+         b.data_programada, b.status, b.responsavel_id, b.observacoes,
+         b.created_at, b.updated_at,
+         COALESCE(cp_stats.cp_total, 0)::int       AS cp_total,
+         COALESCE(cp_stats.cp_rompidos, 0)::int    AS cp_rompidos,
+         cp_stats.proxima_ruptura_data,
+         COALESCE(cam_stats.caminhao_total, 0)::int AS caminhao_total
+       FROM concretagens b
+       LEFT JOIN LATERAL (
+         SELECT
+           COUNT(*)::int AS cp_total,
+           COUNT(*) FILTER (WHERE status IN ('ROMPIDO_APROVADO','ROMPIDO_REPROVADO'))::int AS cp_rompidos,
+           MIN(data_ruptura_prev) FILTER (WHERE status = 'AGUARDANDO_RUPTURA') AS proxima_ruptura_data
+         FROM corpos_de_prova
+         WHERE tenant_id = $1 AND concretagem_id = b.id
+       ) cp_stats ON true
+       LEFT JOIN LATERAL (
+         SELECT COUNT(*)::int AS caminhao_total
+         FROM caminhoes_concreto
+         WHERE tenant_id = $1 AND concretagem_id = b.id AND status != 'REJEITADO'
+       ) cam_stats ON true
        WHERE ${where}
-       ORDER BY data_programada DESC, created_at DESC
+       ORDER BY b.data_programada DESC, b.created_at DESC
        LIMIT $${params.length - 1} OFFSET $${params.length}`,
       ...params,
     );
