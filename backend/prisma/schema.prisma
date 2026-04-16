@@ -62,7 +62,8 @@ model Usuario {
   role       Role      @default(TECNICO)
   ativo      Boolean   @default(true)
   criadoEm  DateTime  @default(now())
-  deletadoEm DateTime?
+  deletadoEm      DateTime?
+  dashboardLayout Json?     @map("dashboard_layout")
 
   rdosCriados      Rdo[]           @relation("RdoCriadoPor")
   rdosAprovados    Rdo[]           @relation("RdoAprovadoPor")
