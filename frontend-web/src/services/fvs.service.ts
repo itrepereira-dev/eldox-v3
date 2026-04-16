@@ -370,6 +370,67 @@ export interface PaginatedFichas {
   page: number;
 }
 
+// ─── Dashboard Gráficos Avançados ─────────────────────────────────────────
+
+export type Granularidade = 'semana' | 'mes';
+export type Tendencia = 'subindo' | 'caindo' | 'estavel';
+
+export interface GraficosFiltros {
+  data_inicio: string;   // "YYYY-MM-DD"
+  data_fim: string;      // "YYYY-MM-DD"
+  granularidade: Granularidade;
+  servico_ids?: number[];
+}
+
+export interface EvolucaoTemporalSerie {
+  servico_id: number;
+  servico_nome: string;
+  cor: string;
+  valores: (number | null)[];
+}
+
+export interface EvolucaoTemporalData {
+  labels: string[];
+  series: EvolucaoTemporalSerie[];
+}
+
+export interface ConformidadePorServicoItem {
+  servico_id: number;
+  servico_nome: string;
+  total_inspecoes: number;
+  taxa_conformidade: number;
+  ncs_abertas: number;
+  tendencia: Tendencia;
+}
+
+export interface HeatmapCelula {
+  servico_idx: number;
+  periodo_idx: number;
+  taxa: number | null;
+  total_inspecoes: number;
+}
+
+export interface HeatmapData {
+  servicos: string[];
+  periodos: string[];
+  celulas: HeatmapCelula[];
+}
+
+export interface FunilData {
+  total_fichas: number;
+  concluidas: number;
+  aprovadas: number;
+  com_nc: number;
+  com_pa: number;
+}
+
+export interface DashboardGraficosData {
+  evolucao_temporal: EvolucaoTemporalData;
+  conformidade_por_servico: ConformidadePorServicoItem[];
+  heatmap: HeatmapData;
+  funil: FunilData;
+}
+
 // ─── Service ─────────────────────────────────────────────────────────────────
 
 export const fvsService = {
@@ -690,6 +751,20 @@ export const fvsService = {
   // ─── Risco ────────────────────────────────────────────────────────────────
   async calcularRisco(fichaId: number): Promise<{ fichaId: number; risco_score: number; calculado_em: string }> {
     const { data } = await api.post(`/fvs/fichas/${fichaId}/calcular-risco`);
+    return data;
+  },
+
+  // ─── Dashboard Gráficos Avançados ─────────────────────────────────────────
+  async getDashboardGraficos(obraId: number, filtros: GraficosFiltros): Promise<DashboardGraficosData> {
+    const params: Record<string, string | string[]> = {
+      data_inicio: filtros.data_inicio,
+      data_fim: filtros.data_fim,
+      granularidade: filtros.granularidade,
+    };
+    if (filtros.servico_ids && filtros.servico_ids.length > 0) {
+      params['servico_ids'] = filtros.servico_ids.map(String);
+    }
+    const { data } = await api.get(`/fvs/dashboard/obras/${obraId}/dashboard-graficos`, { params });
     return data;
   },
 };
