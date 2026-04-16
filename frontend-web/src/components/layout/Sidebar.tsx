@@ -196,16 +196,16 @@ function FvmControleLink({ onClick }: { onClick?: () => void }) {
 /* ── Concretagem Nav helper ──────────────────────────── */
 function ConcretagemNavGroup({ onClick }: { onClick?: () => void }) {
   const obraAtivaId = useResolvedObraId()
-  const base = obraAtivaId ? `/obras/${obraAtivaId}/concretagem` : '/obras'
+  const base = obraAtivaId ? `/obras/${obraAtivaId}/concretagem` : null
 
   return (
     <NavItemGroup
       icon={<FlaskConical size={18} />}
       label="Concretagem"
       items={[
-        { to: base,                   label: 'Dashboard', end: true },
-        { to: `${base}/concretagens`,  label: 'Concretagens' },
-        { to: `${base}/croqui`,       label: 'Croqui' },
+        { to: base ?? '/obras',                              label: 'Dashboard', end: true },
+        { to: base ? `${base}/concretagens` : '/obras',     label: 'Concretagens' },
+        { to: base ? `${base}/croqui` : '/obras',           label: 'Croqui' },
       ]}
       onClick={onClick}
     />
@@ -215,16 +215,16 @@ function ConcretagemNavGroup({ onClick }: { onClick?: () => void }) {
 /* ── Ensaios Nav helper ──────────────────────────────── */
 function EnsaiosNavGroup({ onClick }: { onClick?: () => void }) {
   const obraAtivaId = useResolvedObraId()
-  const base = obraAtivaId ? `/obras/${obraAtivaId}/ensaios` : '/obras'
+  const base = obraAtivaId ? `/obras/${obraAtivaId}/ensaios` : null
 
   return (
     <NavItemGroup
       icon={<TestTubes size={18} />}
       label="Ensaios"
       items={[
-        { to: base,                       label: 'Conformidade', end: true },
-        { to: `${base}/laboratoriais`,    label: 'Laboratoriais' },
-        { to: `${base}/revisoes`,         label: 'Revisões' },
+        { to: base ?? '/obras',                                  label: 'Conformidade', end: true },
+        { to: base ? `${base}/laboratoriais` : '/obras',        label: 'Laboratoriais' },
+        { to: base ? `${base}/revisoes` : '/obras',             label: 'Revisões' },
       ]}
       onClick={onClick}
     />
@@ -234,20 +234,20 @@ function EnsaiosNavGroup({ onClick }: { onClick?: () => void }) {
 /* ── Almoxarifado Nav helper ─────────────────────────── */
 function AlmoxarifadoNavGroup({ onClick }: { onClick?: () => void }) {
   const obraAtivaId = useResolvedObraId()
-  const base = obraAtivaId ? `/obras/${obraAtivaId}/almoxarifado` : '/obras'
+  const base = obraAtivaId ? `/obras/${obraAtivaId}/almoxarifado` : null
 
   return (
     <NavItemGroup
       icon={<Warehouse size={18} />}
       label="Almoxarifado"
       items={[
-        { to: base,                    label: 'Dashboard', end: true },
-        { to: `${base}/estoque`,       label: 'Estoque' },
-        { to: `${base}/solicitacoes`,  label: 'Solicitações' },
-        { to: `${base}/ocs`,           label: 'Compras (OC)' },
-        { to: `${base}/nfes`,          label: 'NF-e' },
-        { to: `${base}/planejamento`,  label: 'Planejamento' },
-        { to: `${base}/insights`,      label: 'Insights IA' },
+        { to: base ?? '/obras',                                  label: 'Dashboard', end: true },
+        { to: base ? `${base}/estoque` : '/obras',              label: 'Estoque' },
+        { to: base ? `${base}/solicitacoes` : '/obras',         label: 'Solicitações' },
+        { to: base ? `${base}/ocs` : '/obras',                  label: 'Compras (OC)' },
+        { to: base ? `${base}/nfes` : '/obras',                 label: 'NF-e' },
+        { to: base ? `${base}/planejamento` : '/obras',         label: 'Planejamento' },
+        { to: base ? `${base}/insights` : '/obras',             label: 'Insights IA' },
       ]}
       onClick={onClick}
     />

@@ -214,10 +214,10 @@ export class DashboardConcretagemService {
          COUNT(DISTINCT b.id)::int AS total_concretagens,
          COALESCE(SUM(b.volume_previsto), 0)::float AS volume_previsto,
          COALESCE(SUM(cc_vol.vol), 0)::float AS volume_realizado,
-         AVG(cp.resultado_mpa) FILTER (WHERE cp.idade_dias = 28 AND cp.resultado_mpa IS NOT NULL AND cp.resultado_mpa > 0)::float AS resistencia_media_28d,
+         AVG(cp.resistencia) FILTER (WHERE cp.idade_dias = 28 AND cp.resistencia IS NOT NULL AND cp.resistencia > 0)::float AS resistencia_media_28d,
          COALESCE(
-           COUNT(*) FILTER (WHERE cp.resultado_mpa >= b.fck_especificado AND cp.resultado_mpa IS NOT NULL)::float
-           / NULLIF(COUNT(*) FILTER (WHERE cp.resultado_mpa IS NOT NULL), 0) * 100,
+           COUNT(*) FILTER (WHERE cp.resistencia >= b.fck_especificado AND cp.resistencia IS NOT NULL)::float
+           / NULLIF(COUNT(*) FILTER (WHERE cp.resistencia IS NOT NULL), 0) * 100,
            0
          )::float AS taxa_aprovacao_cps
        FROM concretagens b
@@ -244,8 +244,8 @@ export class DashboardConcretagemService {
          AVG(cc.flow)     FILTER (WHERE cc.flow IS NOT NULL)::float AS flow_medio,
          AVG(cc.slump_medido) FILTER (WHERE cc.slump_medido IS NOT NULL)::float AS slump_medio,
          COALESCE(
-           COUNT(cp.id) FILTER (WHERE cp.resultado_mpa >= b.fck_especificado AND cp.resultado_mpa IS NOT NULL)::float
-           / NULLIF(COUNT(cp.id) FILTER (WHERE cp.resultado_mpa IS NOT NULL), 0) * 100,
+           COUNT(cp.id) FILTER (WHERE cp.resistencia >= b.fck_especificado AND cp.resistencia IS NOT NULL)::float
+           / NULLIF(COUNT(cp.id) FILTER (WHERE cp.resistencia IS NOT NULL), 0) * 100,
            0
          )::float AS taxa_aprovacao_cps
        FROM caminhoes_concreto cc

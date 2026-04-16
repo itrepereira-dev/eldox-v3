@@ -361,8 +361,8 @@ export interface ConcreteiraRank {
 export interface DashboardConcretagemKpis {
   volume_previsto_total: number;
   volume_realizado_total: number;
-  betonadas_total: number;
-  betonadas_concluidas: number;
+  concretagens_total: number;
+  concretagens_concluidas: number;
   taxa_aprovacao_cps: number;
   total_cps: number;
   cps_aprovados: number;
@@ -383,7 +383,7 @@ export interface DashboardFinanceiro {
   caminhoes_nao_descarregaram: number;
   por_traco: {
     traco: string;
-    total_betonadas: number;
+    total_concretagens: number;
     volume_previsto: number;
     volume_realizado: number;
     resistencia_media_28d: number | null;

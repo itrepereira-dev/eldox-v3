@@ -123,7 +123,7 @@ export default function DashboardFinanceiroPage() {
                   return (
                     <tr key={i} className="border-t border-[var(--border-dim)] hover:bg-[var(--bg-raised)] transition-colors">
                       <td className="px-4 py-2.5 font-medium text-[var(--text-high)]">{row.traco}</td>
-                      <td className="px-4 py-2.5 text-right text-[var(--text-faint)]">{row.total_betonadas}</td>
+                      <td className="px-4 py-2.5 text-right text-[var(--text-faint)]">{row.total_concretagens}</td>
                       <td className="px-4 py-2.5 text-right text-[var(--text-faint)]">{fmt(row.volume_previsto)}</td>
                       <td className="px-4 py-2.5 text-right font-medium text-[var(--text-high)]">{fmt(row.volume_realizado)}</td>
                       <td className="px-4 py-2.5 text-right">

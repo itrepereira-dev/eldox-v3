@@ -102,9 +102,9 @@ export default function ConcretagemDashboardPage() {
           <KpiGrid cols={4}>
             <KpiCard
               label="Betonadas"
-              value={`${kpis.betonadas_concluidas}/${kpis.betonadas_total}`}
+              value={`${kpis.concretagens_concluidas}/${kpis.concretagens_total}`}
               sub="Concluídas / Total"
-              variant={kpis.betonadas_total > 0 ? 'ok' : 'accent'}
+              variant={kpis.concretagens_total > 0 ? 'ok' : 'accent'}
               icon={<Layers size={16} />}
             />
             <KpiCard
