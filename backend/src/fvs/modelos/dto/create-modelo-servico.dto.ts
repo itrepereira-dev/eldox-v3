@@ -1,5 +1,5 @@
 // backend/src/fvs/modelos/dto/create-modelo-servico.dto.ts
-import { IsNumber, IsOptional, IsArray } from 'class-validator';
+import { IsNumber, IsOptional, IsArray, IsObject } from 'class-validator';
 
 export class CreateModeloServicoDto {
   @IsNumber()
@@ -12,4 +12,8 @@ export class CreateModeloServicoDto {
   @IsOptional()
   @IsArray()
   itensExcluidos?: number[];
+
+  @IsOptional()
+  @IsObject()
+  itemFotos?: Record<string, number>;
 }

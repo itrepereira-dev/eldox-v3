@@ -1,0 +1,159 @@
+// backend/src/almoxarifado/nfe/nfe.controller.ts
+import {
+  Controller, Get, Post, Patch, Body, Param, Query, Headers,
+  ParseIntPipe, UseGuards, HttpCode, HttpStatus, Req,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { JwtAuthGuard } from '../../common/guards/jwt.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { TenantId } from '../../common/decorators/tenant.decorator';
+import { NfeService } from './nfe.service';
+import {
+  AceitarNfeDto,
+  RejeitarNfeDto,
+  VincularOcDto,
+  ConfirmarMatchDto,
+} from './dto/aceitar-nfe.dto';
+
+@Controller('api/v1/almoxarifado')
+export class NfeController {
+  constructor(
+    private readonly nfe: NfeService,
+    private readonly config: ConfigService,
+  ) {}
+
+  // ── Webhook (sem JWT — vem de serviço externo) ─────────────────────────────
+
+  @Post('webhooks/nfe')
+  @HttpCode(HttpStatus.ACCEPTED)
+  async receberWebhook(
+    @Headers('authorization') authHeader: string,
+    @Body() payload: Record<string, unknown>,
+  ) {
+    // Validação mínima por Bearer token
+    // TODO: Quando o Qive fornecer documentação, ajustar para o método de auth deles
+    //       (ex: HMAC-SHA256 no header X-Qive-Signature, ou outro mecanismo)
+    const secret = this.config.get<string>('WEBHOOK_NFE_SECRET');
+    if (secret) {
+      const token = authHeader?.replace('Bearer ', '').trim();
+      if (token !== secret) {
+        throw new UnauthorizedException('Webhook secret inválido');
+      }
+    }
+
+    return this.nfe.receberWebhook(payload);
+  }
+
+  // ── Listagem (autenticada) ────────────────────────────────────────────────
+
+  @Get('obras/:obraId/nfes')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO', 'VISITANTE')
+  listar(
+    @TenantId() tenantId: number,
+    @Param('obraId', ParseIntPipe) obraId: number,
+    @Query('status') status?: string,
+    @Query('limit')  limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.nfe.listar(tenantId, {
+      obraId,
+      status,
+      limit:  limit  ? Number(limit)  : undefined,
+      offset: offset ? Number(offset) : undefined,
+    });
+  }
+
+  @Get('nfes')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO', 'VISITANTE')
+  listarGlobal(
+    @TenantId() tenantId: number,
+    @Query('status') status?: string,
+    @Query('limit')  limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.nfe.listar(tenantId, {
+      status,
+      limit:  limit  ? Number(limit)  : undefined,
+      offset: offset ? Number(offset) : undefined,
+    });
+  }
+
+  // ── Detalhe ───────────────────────────────────────────────────────────────
+
+  @Get('nfes/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO', 'VISITANTE')
+  buscar(
+    @TenantId() tenantId: number,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.nfe.buscarOuFalhar(tenantId, id);
+  }
+
+  // ── Vincular OC ───────────────────────────────────────────────────────────
+
+  @Patch('nfes/:id/vincular-oc')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN_TENANT', 'ENGENHEIRO')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  vincularOc(
+    @TenantId() tenantId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: VincularOcDto,
+  ) {
+    return this.nfe.vincularOc(tenantId, id, dto);
+  }
+
+  // ── Aceitar ───────────────────────────────────────────────────────────────
+
+  @Post('nfes/:id/aceitar')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN_TENANT', 'ENGENHEIRO')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  aceitar(
+    @TenantId() tenantId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: AceitarNfeDto,
+    @Req() req: any,
+  ) {
+    const usuarioId: number = req.user?.sub ?? req.user?.id;
+    return this.nfe.aceitar(tenantId, id, usuarioId, dto);
+  }
+
+  // ── Rejeitar ──────────────────────────────────────────────────────────────
+
+  @Post('nfes/:id/rejeitar')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN_TENANT', 'ENGENHEIRO')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  rejeitar(
+    @TenantId() tenantId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: RejeitarNfeDto,
+    @Req() req: any,
+  ) {
+    const usuarioId: number = req.user?.sub ?? req.user?.id;
+    return this.nfe.rejeitar(tenantId, id, usuarioId, dto);
+  }
+
+  // ── Confirmar match de item ───────────────────────────────────────────────
+
+  @Patch('nfes/:nfeId/itens/:itemId/match')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  confirmarMatch(
+    @TenantId() tenantId: number,
+    @Param('nfeId', ParseIntPipe) nfeId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Body() dto: ConfirmarMatchDto,
+    @Req() req: any,
+  ) {
+    const usuarioId: number = req.user?.sub ?? req.user?.id;
+    return this.nfe.confirmarMatch(tenantId, nfeId, itemId, usuarioId, dto);
+  }
+}

@@ -33,8 +33,8 @@ export class ModeloService {
     const rows = await this.prisma.$queryRawUnsafe<FvsModelo[]>(
       `INSERT INTO fvs_modelos
          (tenant_id, nome, descricao, escopo, obra_id, regime,
-          exige_ro, exige_reinspecao, exige_parecer, criado_por)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          exige_ro, exige_reinspecao, exige_parecer, fotos_obrigatorias, fotos_itens_ids, criado_por)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`,
       tenantId, dto.nome, dto.descricao,
       dto.escopo, dto.escopo === 'obra' ? (dto.obraId ?? null) : null,
@@ -42,6 +42,8 @@ export class ModeloService {
       dto.exigeRo    ?? true,
       dto.exigeReinspecao ?? true,
       dto.exigeParecer    ?? true,
+      dto.fotosObrigatorias ?? 'apenas_nc',
+      dto.fotosItensIds?.length ? dto.fotosItensIds : null,
       userId,
     );
     return rows[0];
@@ -51,7 +53,7 @@ export class ModeloService {
     tenantId: number,
     filters: { escopo?: string; status?: string; bloqueado?: boolean } = {},
   ): Promise<FvsModelo[]> {
-    const conditions: string[] = ['tenant_id = $1', 'deleted_at IS NULL'];
+    const conditions: string[] = ['(tenant_id = $1 OR tenant_id = 0)', 'deleted_at IS NULL'];
     const vals: unknown[] = [tenantId];
     let i = 2;
     if (filters.escopo) { conditions.push(`escopo = $${i++}`); vals.push(filters.escopo); }
@@ -95,9 +97,11 @@ export class ModeloService {
     if (dto.escopo          !== undefined) { sets.push(`escopo = $${i++}`);           vals.push(dto.escopo); }
     if (dto.obraId          !== undefined) { sets.push(`obra_id = $${i++}`);          vals.push(dto.obraId); }
     if (dto.regime          !== undefined) { sets.push(`regime = $${i++}`);           vals.push(dto.regime); }
-    if (dto.exigeRo         !== undefined) { sets.push(`exige_ro = $${i++}`);         vals.push(dto.exigeRo); }
-    if (dto.exigeReinspecao !== undefined) { sets.push(`exige_reinspecao = $${i++}`); vals.push(dto.exigeReinspecao); }
-    if (dto.exigeParecer    !== undefined) { sets.push(`exige_parecer = $${i++}`);    vals.push(dto.exigeParecer); }
+    if (dto.exigeRo            !== undefined) { sets.push(`exige_ro = $${i++}`);             vals.push(dto.exigeRo); }
+    if (dto.exigeReinspecao    !== undefined) { sets.push(`exige_reinspecao = $${i++}`);     vals.push(dto.exigeReinspecao); }
+    if (dto.exigeParecer       !== undefined) { sets.push(`exige_parecer = $${i++}`);        vals.push(dto.exigeParecer); }
+    if (dto.fotosObrigatorias  !== undefined) { sets.push(`fotos_obrigatorias = $${i++}`);   vals.push(dto.fotosObrigatorias); }
+    if (dto.fotosItensIds      !== undefined) { sets.push(`fotos_itens_ids = $${i++}`);       vals.push(dto.fotosItensIds?.length ? dto.fotosItensIds : null); }
 
     if (!sets.length) return modelo;
 
@@ -193,7 +197,7 @@ export class ModeloService {
           `INSERT INTO fvs_modelo_servicos (tenant_id, modelo_id, servico_id, ordem, itens_excluidos)
            VALUES ($1, $2, $3, $4, $5)`,
           tenantId, novoModelo.id, svc.servico_id, svc.ordem,
-          svc.itens_excluidos ? JSON.stringify(svc.itens_excluidos) : null,
+          svc.itens_excluidos?.length ? svc.itens_excluidos : null,
         );
       }
 
@@ -282,11 +286,12 @@ export class ModeloService {
   ): Promise<FvsModeloServico> {
     await this.assertModeloEditavel(tenantId, modeloId);
     const rows = await this.prisma.$queryRawUnsafe<FvsModeloServico[]>(
-      `INSERT INTO fvs_modelo_servicos (tenant_id, modelo_id, servico_id, ordem, itens_excluidos)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO fvs_modelo_servicos (tenant_id, modelo_id, servico_id, ordem, itens_excluidos, item_fotos)
+       VALUES ($1, $2, $3, $4, $5, $6::jsonb)
        RETURNING *`,
       tenantId, modeloId, dto.servicoId, dto.ordem ?? 0,
-      dto.itensExcluidos ? JSON.stringify(dto.itensExcluidos) : null,
+      dto.itensExcluidos?.length ? dto.itensExcluidos : null,
+      JSON.stringify(dto.itemFotos ?? {}),
     );
     return rows[0];
   }
@@ -301,8 +306,9 @@ export class ModeloService {
     const sets: string[] = [];
     const vals: unknown[] = [];
     let i = 1;
-    if (dto.ordem           !== undefined) { sets.push(`ordem = $${i++}`);           vals.push(dto.ordem); }
-    if (dto.itensExcluidos  !== undefined) { sets.push(`itens_excluidos = $${i++}`); vals.push(dto.itensExcluidos ? JSON.stringify(dto.itensExcluidos) : null); }
+    if (dto.ordem           !== undefined) { sets.push(`ordem = $${i++}`);                vals.push(dto.ordem); }
+    if (dto.itensExcluidos  !== undefined) { sets.push(`itens_excluidos = $${i++}`);      vals.push(dto.itensExcluidos?.length ? dto.itensExcluidos : null); }
+    if (dto.itemFotos       !== undefined) { sets.push(`item_fotos = $${i++}::jsonb`);    vals.push(JSON.stringify(dto.itemFotos)); }
     if (!sets.length) throw new UnprocessableEntityException('Nada para atualizar');
     const midx = i++; const tidx = i++; const sidx = i++;
     vals.push(modeloId, tenantId, servicoId);
@@ -330,7 +336,7 @@ export class ModeloService {
     modeloId: number,
   ): Promise<{ modelo: FvsModelo; servicos: FvsModeloServico[] }> {
     const rows = (await tx.$queryRawUnsafe(
-      `SELECT * FROM fvs_modelos WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+      `SELECT * FROM fvs_modelos WHERE id = $1 AND (tenant_id = $2 OR tenant_id = 0) AND deleted_at IS NULL`,
       modeloId, tenantId,
     )) as FvsModelo[];
     if (!rows.length) throw new NotFoundException(`Template ${modeloId} não encontrado`);
@@ -340,15 +346,17 @@ export class ModeloService {
     }
 
     const servicos = (await tx.$queryRawUnsafe(
-      `SELECT * FROM fvs_modelo_servicos WHERE modelo_id = $1 AND tenant_id = $2 ORDER BY ordem ASC`,
+      `SELECT * FROM fvs_modelo_servicos WHERE modelo_id = $1 AND (tenant_id = $2 OR tenant_id = 0) ORDER BY ordem ASC`,
       modeloId, tenantId,
     )) as FvsModeloServico[];
 
-    // Bloquear template se ainda não bloqueado (1ª vez)
-    await tx.$executeRawUnsafe(
-      `UPDATE fvs_modelos SET bloqueado = true WHERE id = $1 AND tenant_id = $2 AND bloqueado = false`,
-      modeloId, tenantId,
-    );
+    // Bloquear template se ainda não bloqueado (1ª vez) — não bloquear templates de sistema
+    if (!modelo.is_sistema) {
+      await tx.$executeRawUnsafe(
+        `UPDATE fvs_modelos SET bloqueado = true WHERE id = $1 AND tenant_id = $2 AND bloqueado = false`,
+        modeloId, tenantId,
+      );
+    }
 
     return { modelo, servicos };
   }

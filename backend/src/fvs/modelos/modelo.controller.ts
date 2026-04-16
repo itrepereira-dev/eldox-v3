@@ -14,7 +14,7 @@ import { CreateModeloServicoDto } from './dto/create-modelo-servico.dto';
 import { UpdateModeloServicoDto } from './dto/update-modelo-servico.dto';
 import { VincularObrasDto } from './dto/vincular-obras.dto';
 
-interface JwtUser { sub: number; tenantId: number; role: string }
+interface JwtUser { id: number; tenantId: number; role: string }
 
 @Controller('api/v1/fvs/modelos')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -31,7 +31,7 @@ export class ModeloController {
     @CurrentUser() user: JwtUser,
     @Body() dto: CreateModeloDto,
   ) {
-    return this.modeloService.createModelo(tenantId, user.sub, dto);
+    return this.modeloService.createModelo(tenantId, user.id, dto);
   }
 
   @Get()
@@ -74,7 +74,7 @@ export class ModeloController {
     @CurrentUser() user: JwtUser,
     @Param('id', ParseIntPipe) id: number,
   ) {
-    return this.modeloService.concluirModelo(tenantId, id, user.sub);
+    return this.modeloService.concluirModelo(tenantId, id, user.id);
   }
 
   @Post(':id/reabrir')
@@ -91,7 +91,7 @@ export class ModeloController {
     @CurrentUser() user: JwtUser,
     @Param('id', ParseIntPipe) id: number,
   ) {
-    return this.modeloService.duplicarModelo(tenantId, id, user.sub);
+    return this.modeloService.duplicarModelo(tenantId, id, user.id);
   }
 
   // ─── Obras vinculadas ao template ─────────────────────────────────────────
@@ -111,7 +111,7 @@ export class ModeloController {
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: VincularObrasDto,
   ) {
-    return this.modeloService.vincularObras(tenantId, id, dto.obraIds, user.sub);
+    return this.modeloService.vincularObras(tenantId, id, dto.obraIds, user.id);
   }
 
   // ─── Serviços do template ─────────────────────────────────────────────────

@@ -1,5 +1,6 @@
-import { IsString, IsOptional, IsInt, IsBoolean, MinLength, MaxLength, Min } from 'class-validator';
+import { IsString, IsOptional, IsInt, IsBoolean, IsArray, ValidateNested, MinLength, MaxLength, Min } from 'class-validator';
 import { Type } from 'class-transformer';
+import { CreateItemDto } from './create-item.dto';
 
 export class UpdateServicoDto {
   @IsOptional()
@@ -33,4 +34,11 @@ export class UpdateServicoDto {
   @IsOptional()
   @IsBoolean()
   ativo?: boolean;
+
+  /** Quando enviado, SUBSTITUI todos os itens do serviço (delete + re-insert). */
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateItemDto)
+  itens?: CreateItemDto[];
 }

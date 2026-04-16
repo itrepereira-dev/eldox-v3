@@ -19,6 +19,14 @@ import { AddServicoDto } from './dto/add-servico.dto';
 import { SubmitParecerDto } from './dto/submit-parecer.dto';
 import { BulkInspecaoDto } from './dto/bulk-inspecao.dto';
 import { RegistrarTratamentoDto } from './dto/registrar-tratamento.dto';
+import { AgenteDiagnosticoNc } from '../../ai/agents/fvs/agente-diagnostico-nc';
+import { AgentePreditorNc } from '../../ai/agents/fvs/agente-preditor-nc';
+import { AgenteAnaliseFoto } from '../../ai/agents/fvs/agente-analise-foto';
+import { PrismaService } from '../../prisma/prisma.service';
+import { FvsPdfService } from '../pdf/fvs-pdf.service';
+import type { Response } from 'express';
+import { Res } from '@nestjs/common';
+import * as crypto from 'crypto';
 
 interface JwtUser { id: number; tenantId: number; role: string }
 
@@ -28,6 +36,11 @@ export class InspecaoController {
   constructor(
     private readonly inspecao: InspecaoService,
     private readonly parecer: ParecerService,
+    private readonly diagnosticoNc: AgenteDiagnosticoNc,
+    private readonly preditorNc: AgentePreditorNc,
+    private readonly analiseFoto: AgenteAnaliseFoto,
+    private readonly prisma: PrismaService,
+    private readonly fvsPdf: FvsPdfService,
   ) {}
 
   // ─── Fichas ─────────────────────────────────────────────────────────────────
@@ -285,5 +298,230 @@ export class InspecaoController {
     @Param('servicoId', ParseIntPipe) servicoId: number,
   ) {
     return this.inspecao.getGradePreview(tenantId, fichaId, localId, servicoId);
+  }
+
+  // ─── PDF da ficha ────────────────────────────────────────────────────────────
+
+  @Get('fichas/:id/pdf')
+  @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO', 'VISITANTE')
+  async getPdf(
+    @TenantId() tenantId: number,
+    @Param('id', ParseIntPipe) fichaId: number,
+    @Query('apenasNc') apenasNc?: string,
+    @Res() res?: Response,
+  ) {
+    const buffer = await this.fvsPdf.gerarPdf(fichaId, tenantId, { apenasNc: apenasNc === 'true' });
+    res!.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="FVS-${fichaId}.pdf"`,
+      'Content-Length': buffer.length,
+    });
+    res!.end(buffer);
+  }
+
+  // ─── Timeline da ficha ───────────────────────────────────────────────────────
+
+  @Get('fichas/:id/timeline')
+  @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO', 'VISITANTE')
+  async getTimeline(
+    @TenantId() tenantId: number,
+    @Param('id', ParseIntPipe) fichaId: number,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
+  ) {
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT t.*, u.nome AS usuario_nome
+       FROM fvs_timeline t
+       LEFT JOIN "Usuario" u ON u.id = t.usuario_id
+       WHERE t.ficha_id = $1 AND t.tenant_id = $2
+       ORDER BY t.criado_em DESC
+       LIMIT $3`,
+      fichaId, tenantId, limit ?? 50,
+    );
+  }
+
+  // ─── Compartilhamento com cliente ────────────────────────────────────────────
+
+  @Post('fichas/:id/gerar-token-cliente')
+  @Roles('ADMIN_TENANT', 'ENGENHEIRO')
+  @HttpCode(HttpStatus.OK)
+  async gerarTokenCliente(
+    @TenantId() tenantId: number,
+    @Param('id', ParseIntPipe) fichaId: number,
+    @Body() body: { dias_validade?: number },
+  ) {
+    const token = crypto.randomBytes(32).toString('hex');
+    const diasValidade = body.dias_validade ?? 30;
+    const expira = new Date(Date.now() + diasValidade * 24 * 3600 * 1000);
+
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE fvs_fichas
+       SET token_cliente = $1, token_cliente_expires_at = $2
+       WHERE id = $3 AND tenant_id = $4`,
+      token, expira, fichaId, tenantId,
+    );
+
+    return { token, expira_em: expira.toISOString() };
+  }
+
+  @Delete('fichas/:id/token-cliente')
+  @Roles('ADMIN_TENANT', 'ENGENHEIRO')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async revogarTokenCliente(
+    @TenantId() tenantId: number,
+    @Param('id', ParseIntPipe) fichaId: number,
+  ) {
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE fvs_fichas
+       SET token_cliente = NULL, token_cliente_expires_at = NULL
+       WHERE id = $1 AND tenant_id = $2`,
+      fichaId, tenantId,
+    );
+  }
+
+  // ─── Markup de anotações em evidência ────────────────────────────────────────
+
+  @Post('evidencias/:id/markup')
+  @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO')
+  @HttpCode(HttpStatus.CREATED)
+  async salvarMarkup(
+    @TenantId() tenantId: number,
+    @CurrentUser() user: JwtUser,
+    @Param('id', ParseIntPipe) evidenciaId: number,
+    @Body() body: { tipo: string; dados_json: object },
+  ) {
+    const TIPOS_VALIDOS = ['seta', 'circulo', 'texto', 'retangulo'];
+    if (!TIPOS_VALIDOS.includes(body.tipo)) {
+      throw new BadRequestException(`Tipo inválido. Use: ${TIPOS_VALIDOS.join(', ')}`);
+    }
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `INSERT INTO fvs_markup_anotacoes (tenant_id, evidencia_id, tipo, dados_json, criado_por)
+       VALUES ($1, $2, $3, $4::jsonb, $5) RETURNING *`,
+      tenantId, evidenciaId, body.tipo, JSON.stringify(body.dados_json), user.id,
+    );
+    return rows[0];
+  }
+
+  @Get('evidencias/:id/markup')
+  @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO', 'VISITANTE')
+  getMarkup(
+    @TenantId() tenantId: number,
+    @Param('id', ParseIntPipe) evidenciaId: number,
+  ) {
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT * FROM fvs_markup_anotacoes WHERE evidencia_id = $1 AND tenant_id = $2 ORDER BY criado_em ASC`,
+      evidenciaId, tenantId,
+    );
+  }
+
+  @Delete('markup/:id')
+  @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteMarkup(
+    @TenantId() tenantId: number,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    await this.prisma.$executeRawUnsafe(
+      `DELETE FROM fvs_markup_anotacoes WHERE id = $1 AND tenant_id = $2`,
+      id, tenantId,
+    );
+  }
+
+  // ─── IA: Diagnóstico de NC ───────────────────────────────────────────────────
+
+  @Post('fichas/:fichaId/ncs/:ncId/diagnostico-ia')
+  @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO')
+  @HttpCode(HttpStatus.OK)
+  async diagnosticarNc(
+    @TenantId() tenantId: number,
+    @CurrentUser() user: JwtUser,
+    @Param('fichaId', ParseIntPipe) fichaId: number,
+    @Param('ncId', ParseIntPipe) ncId: number,
+  ) {
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT nc.*, cs.nome AS servico_nome, ci.descricao AS item_nome,
+              o.nome AS obra_nome
+       FROM fvs_nao_conformidades nc
+       JOIN fvs_registros r ON r.id = nc.registro_id
+       JOIN fvs_ficha_servicos fs ON fs.id = r.ficha_servico_id
+       JOIN catalogo_servicos cs ON cs.id = fs.catalogo_servico_id
+       LEFT JOIN catalogo_itens ci ON ci.id = r.catalogo_item_id
+       JOIN fvs_fichas f ON f.id = r.ficha_id
+       JOIN "Obra" o ON o.id = f.obra_id
+       WHERE nc.id = $1 AND f.id = $2 AND nc.tenant_id = $3`,
+      ncId, fichaId, tenantId,
+    );
+    if (!rows.length) throw new BadRequestException('NC não encontrada');
+    const nc = rows[0];
+
+    return this.diagnosticoNc.executar({
+      tenant_id: tenantId,
+      usuario_id: user.id,
+      ficha_id: fichaId,
+      nc_id: ncId,
+      servico_nome: nc.servico_nome,
+      item_nome: nc.item_nome ?? '',
+      criticidade: nc.criticidade,
+      descricao: nc.descricao,
+      obra_nome: nc.obra_nome,
+    });
+  }
+
+  // ─── IA: Score de risco da ficha ─────────────────────────────────────────────
+
+  @Post('fichas/:id/calcular-risco')
+  @Roles('ADMIN_TENANT', 'ENGENHEIRO')
+  @HttpCode(HttpStatus.OK)
+  async calcularRisco(
+    @TenantId() tenantId: number,
+    @CurrentUser() user: JwtUser,
+    @Param('id', ParseIntPipe) fichaId: number,
+  ) {
+    const fichas = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT obra_id FROM fvs_fichas WHERE id = $1 AND tenant_id = $2`,
+      fichaId, tenantId,
+    );
+    if (!fichas.length) throw new BadRequestException('Ficha não encontrada');
+
+    return this.preditorNc.executar({
+      tenant_id: tenantId,
+      usuario_id: user.id,
+      ficha_id: fichaId,
+      obra_id: fichas[0].obra_id,
+    });
+  }
+
+  // ─── IA: Análise de foto por visão ──────────────────────────────────────────
+
+  @Post('evidencias/:id/analisar-foto')
+  @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO')
+  @HttpCode(HttpStatus.OK)
+  async analisarFoto(
+    @TenantId() tenantId: number,
+    @CurrentUser() user: JwtUser,
+    @Param('id', ParseIntPipe) evidenciaId: number,
+    @Body() body: { image_base64: string; mime_type?: string },
+  ) {
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT e.*, ci.descricao AS item_nome, cs.nome AS servico_nome
+       FROM fvs_evidencias e
+       JOIN fvs_registros r ON r.id = e.registro_id
+       JOIN fvs_ficha_servicos fs ON fs.id = r.ficha_servico_id
+       JOIN catalogo_servicos cs ON cs.id = fs.catalogo_servico_id
+       LEFT JOIN catalogo_itens ci ON ci.id = r.catalogo_item_id
+       WHERE e.id = $1 AND e.tenant_id = $2`,
+      evidenciaId, tenantId,
+    );
+    if (!rows.length) throw new BadRequestException('Evidência não encontrada');
+    const ev = rows[0];
+
+    return this.analiseFoto.executar({
+      tenant_id: tenantId,
+      usuario_id: user.id,
+      registro_id: ev.registro_id,
+      item_nome: ev.item_nome ?? '',
+      servico_nome: ev.servico_nome,
+      image_base64: body.image_base64,
+      mime_type: body.mime_type,
+    });
   }
 }

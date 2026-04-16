@@ -100,6 +100,16 @@ export class GedController {
 
   // ─── Listagem de documentos ───────────────────────────────────────────────
 
+  /** GET /api/v1/ged/documentos — documentos nível empresa (escopo EMPRESA) */
+  @Get('ged/documentos')
+  @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO', 'VISITANTE')
+  async listarDocumentosEmpresa(
+    @TenantId() tenantId: number,
+    @Query() dto: ListDocumentosDto,
+  ) {
+    return this.gedService.listarDocumentos(tenantId, null, dto);
+  }
+
   /** GET /api/v1/obras/:obraId/ged/documentos */
   @Get('obras/:obraId/ged/documentos')
   @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO', 'VISITANTE')

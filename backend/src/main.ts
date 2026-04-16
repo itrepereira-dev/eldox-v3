@@ -31,6 +31,7 @@ if (isProduction) {
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
+    rawBody: true,
     logger: WinstonModule.createLogger({
       transports: winstonTransports,
     }),
@@ -45,7 +46,7 @@ async function bootstrap() {
   }));
 
   app.enableCors({
-    origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3001'],
+    origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'http://localhost:5176', 'http://localhost:3001'],
     credentials: true,
   });
 

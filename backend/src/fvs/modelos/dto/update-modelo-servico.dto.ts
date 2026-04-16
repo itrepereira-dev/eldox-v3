@@ -1,5 +1,5 @@
 // backend/src/fvs/modelos/dto/update-modelo-servico.dto.ts
-import { IsNumber, IsOptional, IsArray } from 'class-validator';
+import { IsNumber, IsOptional, IsArray, IsObject } from 'class-validator';
 
 export class UpdateModeloServicoDto {
   @IsOptional()
@@ -9,4 +9,8 @@ export class UpdateModeloServicoDto {
   @IsOptional()
   @IsArray()
   itensExcluidos?: number[] | null;
+
+  @IsOptional()
+  @IsObject()
+  itemFotos?: Record<string, number>;
 }

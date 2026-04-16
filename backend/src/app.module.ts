@@ -6,6 +6,17 @@ import { AuthModule } from './auth/auth.module';
 import { ObrasModule } from './obras/obras.module';
 import { GedModule } from './ged/ged.module';
 import { FvsModule } from './fvs/fvs.module';
+import { IaModule } from './ia/ia.module';
+import { FvmModule } from './fvm/fvm.module';
+import { DiarioModule } from './diario/diario.module';
+import { EnsaiosModule } from './ensaios/ensaios.module';
+import { ConcretagemModule } from './concretagem/concretagem.module';
+import { AlmoxarifadoModule } from './almoxarifado/almoxarifado.module';
+import { NcsModule } from './ncs/ncs.module';
+import { SemaforoModule } from './semaforo/semaforo.module';
+import { AprovacoesModule } from './aprovacoes/aprovacoes.module';
+import { EfetivoModule } from './efetivo/efetivo.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -25,6 +36,17 @@ import { FvsModule } from './fvs/fvs.module';
     ObrasModule,
     GedModule,
     FvsModule,
+    FvmModule,
+    IaModule,
+    DiarioModule,
+    EnsaiosModule,
+    ConcretagemModule,
+    AlmoxarifadoModule,
+    NcsModule,
+    SemaforoModule,
+    AprovacoesModule,
+    EfetivoModule,
+    DashboardModule,
   ],
 })
 export class AppModule {}

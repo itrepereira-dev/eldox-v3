@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsInt, IsEnum, MinLength, MaxLength, Min } from 'class-validator';
+import { IsString, IsOptional, IsInt, IsEnum, IsBoolean, MinLength, MaxLength, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 import type { Criticidade, FotoModo } from '../../types/fvs.types';
 
@@ -12,6 +12,16 @@ export class CreateItemDto {
   @IsString()
   @MaxLength(500)
   criterioAceite?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  tolerancia?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  metodoVerificacao?: string;
 
   @IsOptional()
   @IsEnum(['critico', 'maior', 'menor'])
@@ -38,4 +48,8 @@ export class CreateItemDto {
   @Min(0)
   @Type(() => Number)
   ordem?: number = 0;
+
+  @IsOptional()
+  @IsBoolean()
+  ativo?: boolean = true;
 }

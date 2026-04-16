@@ -139,8 +139,8 @@ export class CatalogoService {
     const ids = servicos.map((s) => s.id);
     const itens = await this.prisma.$queryRawUnsafe<FvsItem[]>(
       `SELECT * FROM fvs_catalogo_itens
-       WHERE servico_id = ANY($1::int[]) AND ativo = true
-       ORDER BY servico_id, ordem ASC`,
+       WHERE servico_id = ANY($1::int[])
+       ORDER BY servico_id, ativo DESC, ordem ASC`,
       ids,
     );
     const itensByServico = new Map<number, FvsItem[]>();
@@ -162,7 +162,7 @@ export class CatalogoService {
     if (!rows.length) throw new NotFoundException();
     const servico = rows[0];
     const itens = await this.prisma.$queryRawUnsafe<FvsItem[]>(
-      `SELECT * FROM fvs_catalogo_itens WHERE servico_id = $1 AND ativo = true ORDER BY ordem ASC`,
+      `SELECT * FROM fvs_catalogo_itens WHERE servico_id = $1 ORDER BY ativo DESC, ordem ASC`,
       id,
     );
     return { ...servico, itens };
@@ -208,6 +208,17 @@ export class CatalogoService {
         ...vals,
       );
     }
+    // Sync de itens: se enviados, apaga os existentes e recria
+    if (dto.itens !== undefined) {
+      await this.prisma.$executeRawUnsafe(
+        `DELETE FROM fvs_catalogo_itens WHERE servico_id = $1 AND tenant_id = $2`,
+        id,
+        tenantId,
+      );
+      for (let j = 0; j < dto.itens.length; j++) {
+        await this._insertItem(tenantId, id, dto.itens[j], j);
+      }
+    }
     return this.getServico(tenantId, id);
   }
 
@@ -240,13 +251,15 @@ export class CatalogoService {
       for (let i = 0; i < original.itens.length; i++) {
         const src = original.itens[i];
         const item = await this._insertItem(tenantId, novoId, {
-          descricao:      src.descricao,
-          criterioAceite: src.criterio_aceite ?? undefined,
-          criticidade:    src.criticidade,
-          fotoModo:       src.foto_modo,
-          fotoMinimo:     src.foto_minimo,
-          fotoMaximo:     src.foto_maximo,
-          ordem:          src.ordem,
+          descricao:         src.descricao,
+          criterioAceite:    src.criterio_aceite    ?? undefined,
+          tolerancia:        src.tolerancia         ?? undefined,
+          metodoVerificacao: src.metodo_verificacao ?? undefined,
+          criticidade:       src.criticidade,
+          fotoModo:          src.foto_modo,
+          fotoMinimo:        src.foto_minimo,
+          fotoMaximo:        src.foto_maximo,
+          ordem:             src.ordem,
         }, i);
         cloneItens.push(item);
       }
@@ -272,13 +285,15 @@ export class CatalogoService {
     const vals: unknown[] = [];
     let i = 1;
     if (dto.descricao      !== undefined) { sets.push(`descricao = $${i++}`);       vals.push(dto.descricao); }
-    if (dto.criterioAceite !== undefined) { sets.push(`criterio_aceite = $${i++}`); vals.push(dto.criterioAceite); }
-    if (dto.criticidade    !== undefined) { sets.push(`criticidade = $${i++}`);     vals.push(dto.criticidade); }
-    if (dto.fotoModo       !== undefined) { sets.push(`foto_modo = $${i++}`);       vals.push(dto.fotoModo); }
-    if (dto.fotoMinimo     !== undefined) { sets.push(`foto_minimo = $${i++}`);     vals.push(dto.fotoMinimo); }
-    if (dto.fotoMaximo     !== undefined) { sets.push(`foto_maximo = $${i++}`);     vals.push(dto.fotoMaximo); }
-    if (dto.ordem          !== undefined) { sets.push(`ordem = $${i++}`);           vals.push(dto.ordem); }
-    if (dto.ativo          !== undefined) { sets.push(`ativo = $${i++}`);           vals.push(dto.ativo); }
+    if (dto.criterioAceite    !== undefined) { sets.push(`criterio_aceite = $${i++}`);    vals.push(dto.criterioAceite); }
+    if (dto.tolerancia        !== undefined) { sets.push(`tolerancia = $${i++}`);        vals.push(dto.tolerancia); }
+    if (dto.metodoVerificacao !== undefined) { sets.push(`metodo_verificacao = $${i++}`); vals.push(dto.metodoVerificacao); }
+    if (dto.criticidade       !== undefined) { sets.push(`criticidade = $${i++}`);       vals.push(dto.criticidade); }
+    if (dto.fotoModo          !== undefined) { sets.push(`foto_modo = $${i++}`);          vals.push(dto.fotoModo); }
+    if (dto.fotoMinimo        !== undefined) { sets.push(`foto_minimo = $${i++}`);        vals.push(dto.fotoMinimo); }
+    if (dto.fotoMaximo        !== undefined) { sets.push(`foto_maximo = $${i++}`);        vals.push(dto.fotoMaximo); }
+    if (dto.ordem             !== undefined) { sets.push(`ordem = $${i++}`);              vals.push(dto.ordem); }
+    if (dto.ativo             !== undefined) { sets.push(`ativo = $${i++}`);              vals.push(dto.ativo); }
     if (!sets.length) throw new BadRequestException('Nenhum campo para atualizar');
     vals.push(id);
     vals.push(tenantId);
@@ -348,11 +363,14 @@ export class CatalogoService {
         continue;
       }
       preview.push({
-        categoria: cells[idx('categoria')] ?? null,
-        codigo:    cells[idx('codigo')]    ?? null,
+        categoria:          cells[idx('categoria')]          ?? null,
+        codigo:             cells[idx('codigo')]             ?? null,
         nome,
-        norma:     cells[idx('norma')]     ?? null,
-        item_descricao: cells[idx('item_descricao')] ?? null,
+        norma:              cells[idx('norma')]              ?? null,
+        item_descricao:     cells[idx('item_descricao')]     ?? null,
+        criterio_aceite:    cells[idx('criterio_aceite')]    ?? null,
+        tolerancia:         cells[idx('tolerancia')]         ?? null,
+        metodo_verificacao: cells[idx('metodo_verificacao')] ?? null,
         criticidade,
         foto_modo: fotoModo,
       });
@@ -379,14 +397,17 @@ export class CatalogoService {
         if (row.item_descricao && srvRows[0]) {
           await tx.$queryRawUnsafe(
             `INSERT INTO fvs_catalogo_itens
-               (tenant_id, servico_id, descricao, criterio_aceite, criticidade, foto_modo, foto_minimo, foto_maximo, ordem)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+               (tenant_id, servico_id, descricao, criterio_aceite, tolerancia, metodo_verificacao,
+                criticidade, foto_modo, foto_minimo, foto_maximo, ordem)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
             tenantId,
             srvRows[0].id,
             row.item_descricao,
-            null,
+            row.criterio_aceite    || null,
+            row.tolerancia         || null,
+            row.metodo_verificacao || null,
             row.criticidade || 'menor',
-            row.foto_modo || 'opcional',
+            row.foto_modo   || 'opcional',
             0,
             2,
             0,
@@ -407,18 +428,22 @@ export class CatalogoService {
   ): Promise<FvsItem> {
     const rows = await this.prisma.$queryRawUnsafe<FvsItem[]>(
       `INSERT INTO fvs_catalogo_itens
-         (tenant_id, servico_id, descricao, criterio_aceite, criticidade, foto_modo, foto_minimo, foto_maximo, ordem)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         (tenant_id, servico_id, descricao, criterio_aceite, tolerancia, metodo_verificacao,
+          criticidade, foto_modo, foto_minimo, foto_maximo, ordem, ativo)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`,
       tenantId,
       servicoId,
       dto.descricao,
-      dto.criterioAceite ?? null,
+      dto.criterioAceite    ?? null,
+      dto.tolerancia        ?? null,
+      dto.metodoVerificacao ?? null,
       dto.criticidade ?? 'menor',
-      dto.fotoModo ?? 'opcional',
-      dto.fotoMinimo ?? 0,
-      dto.fotoMaximo ?? 2,
+      dto.fotoModo    ?? 'opcional',
+      dto.fotoMinimo  ?? 0,
+      dto.fotoMaximo  ?? 2,
       ordemOverride ?? dto.ordem ?? 0,
+      dto.ativo ?? true,
     );
     return rows[0];
   }

@@ -168,7 +168,7 @@ export class CroquiService {
   ) {
     await this.buscar(tenantId, obraId, croquiId); // valida existência
 
-    // Verifica vínculos com betonadas (quando a tabela betonadas existir)
+    // Verifica vínculos com concretagens (quando a tabela concretagens existir)
     // Por ora: soft delete direto
     await this.prisma.$executeRawUnsafe(
       `UPDATE concretagem_croquis

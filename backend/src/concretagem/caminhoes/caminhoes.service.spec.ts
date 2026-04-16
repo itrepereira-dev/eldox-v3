@@ -2,13 +2,13 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { CaminhoesService } from './caminhoes.service';
 
-const TENANT_ID   = 10;
-const BETONADA_ID = 1;
-const CAMINHAO_ID = 1;
-const USER_ID     = 42;
+const TENANT_ID      = 10;
+const CONCRETAGEM_ID = 1;
+const CAMINHAO_ID    = 1;
+const USER_ID        = 42;
 
-const mockBetonada: Record<string, unknown> = {
-  id: BETONADA_ID,
+const mockConcretagem: Record<string, unknown> = {
+  id: CONCRETAGEM_ID,
   obra_id: 5,
   status: 'PROGRAMADA',
   data_programada: '2026-04-15',
@@ -17,7 +17,7 @@ const mockBetonada: Record<string, unknown> = {
 const mockCaminhao: Record<string, unknown> = {
   id: CAMINHAO_ID,
   tenant_id: TENANT_ID,
-  betonada_id: BETONADA_ID,
+  concretagem_id: CONCRETAGEM_ID,
   sequencia: 1,
   numero_nf: 'NF-001',
   data_emissao_nf: '2026-04-14',
@@ -59,13 +59,13 @@ describe('CaminhoesService', () => {
     };
 
     function mockChegadaHappyPath(nfVencida = false) {
-      // buscarBetonada
-      prismaMock.$queryRawUnsafe.mockResolvedValueOnce([mockBetonada]);
+      // buscarConcretagem
+      prismaMock.$queryRawUnsafe.mockResolvedValueOnce([mockConcretagem]);
       // seqRows
       prismaMock.$queryRawUnsafe.mockResolvedValueOnce([{ seq: 1 }]);
       // INSERT caminhao → RETURNING id
       prismaMock.$queryRawUnsafe.mockResolvedValueOnce([{ id: CAMINHAO_ID }]);
-      // UPDATE betonada to EM_LANCAMENTO (betonada.status === PROGRAMADA)
+      // UPDATE concretagem to EM_LANCAMENTO (concretagem.status === PROGRAMADA)
       prismaMock.$executeRawUnsafe.mockResolvedValueOnce(1);
       // NC if nfVencida (fire-and-forget $queryRawUnsafe + $executeRawUnsafe skipped — void)
       // auditLog (fire-and-forget)
@@ -79,7 +79,7 @@ describe('CaminhoesService', () => {
     it('registra chegada com NF válida e nf_vencida=false', async () => {
       mockChegadaHappyPath(false);
 
-      const result = await svc.registrarChegada(TENANT_ID, BETONADA_ID, USER_ID, baseDto as any);
+      const result = await svc.registrarChegada(TENANT_ID, CONCRETAGEM_ID, USER_ID, baseDto as any);
 
       expect(result).toMatchObject({ id: CAMINHAO_ID, nf_vencida: false });
     });
@@ -87,15 +87,15 @@ describe('CaminhoesService', () => {
     it('seta nf_vencida=true quando data_emissao_nf é anterior a data_programada - 1 dia', async () => {
       // data_programada = 2026-04-15 → limite = 2026-04-14
       // data_emissao_nf = 2026-04-13 < 2026-04-14 → nf_vencida = true
-      prismaMock.$queryRawUnsafe.mockResolvedValueOnce([mockBetonada]);   // buscarBetonada
-      prismaMock.$queryRawUnsafe.mockResolvedValueOnce([{ seq: 1 }]);     // seqRows
+      prismaMock.$queryRawUnsafe.mockResolvedValueOnce([mockConcretagem]);   // buscarConcretagem
+      prismaMock.$queryRawUnsafe.mockResolvedValueOnce([{ seq: 1 }]);        // seqRows
       prismaMock.$queryRawUnsafe.mockResolvedValueOnce([{ id: CAMINHAO_ID }]); // INSERT caminhao
-      prismaMock.$executeRawUnsafe.mockResolvedValue(1);                  // UPDATE betonada + NC execute + auditLog
+      prismaMock.$executeRawUnsafe.mockResolvedValue(1);                     // UPDATE concretagem + NC execute + auditLog
       // NC fire-and-forget: abrirNcAutomatica inserts into nao_conformidades
-      prismaMock.$queryRawUnsafe.mockResolvedValueOnce([{ id: 99 }]);     // NC INSERT RETURNING
+      prismaMock.$queryRawUnsafe.mockResolvedValueOnce([{ id: 99 }]);        // NC INSERT RETURNING
       prismaMock.$queryRawUnsafe.mockResolvedValueOnce([{ ...mockCaminhao, nf_vencida: true }]); // buscarCaminhao
 
-      const result = await svc.registrarChegada(TENANT_ID, BETONADA_ID, USER_ID, {
+      const result = await svc.registrarChegada(TENANT_ID, CONCRETAGEM_ID, USER_ID, {
         ...baseDto,
         data_emissao_nf: '2026-04-13',
       } as any);
@@ -104,32 +104,32 @@ describe('CaminhoesService', () => {
     });
 
     it('auto-define sequência a partir do MAX existente', async () => {
-      prismaMock.$queryRawUnsafe.mockResolvedValueOnce([mockBetonada]);
+      prismaMock.$queryRawUnsafe.mockResolvedValueOnce([mockConcretagem]);
       prismaMock.$queryRawUnsafe.mockResolvedValueOnce([{ seq: 3 }]);
       prismaMock.$queryRawUnsafe.mockResolvedValueOnce([{ id: 2 }]);
       prismaMock.$executeRawUnsafe.mockResolvedValue(1);
       prismaMock.$queryRawUnsafe.mockResolvedValueOnce([{ ...mockCaminhao, id: 2, sequencia: 3 }]);
 
-      const result = await svc.registrarChegada(TENANT_ID, BETONADA_ID, USER_ID, baseDto as any);
+      const result = await svc.registrarChegada(TENANT_ID, CONCRETAGEM_ID, USER_ID, baseDto as any);
 
       expect(result).toMatchObject({ sequencia: 3 });
     });
 
-    it('lança BadRequestException se betonada está CANCELADA', async () => {
+    it('lança BadRequestException se concretagem está CANCELADA', async () => {
       prismaMock.$queryRawUnsafe.mockResolvedValueOnce([
-        { ...mockBetonada, status: 'CANCELADA' },
+        { ...mockConcretagem, status: 'CANCELADA' },
       ]);
 
       await expect(
-        svc.registrarChegada(TENANT_ID, BETONADA_ID, USER_ID, baseDto as any),
+        svc.registrarChegada(TENANT_ID, CONCRETAGEM_ID, USER_ID, baseDto as any),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
-    it('lança NotFoundException se betonada não encontrada', async () => {
+    it('lança NotFoundException se concretagem não encontrada', async () => {
       prismaMock.$queryRawUnsafe.mockResolvedValueOnce([]);
 
       await expect(
-        svc.registrarChegada(TENANT_ID, BETONADA_ID, USER_ID, baseDto as any),
+        svc.registrarChegada(TENANT_ID, CONCRETAGEM_ID, USER_ID, baseDto as any),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
@@ -140,8 +140,8 @@ describe('CaminhoesService', () => {
     it('atualiza slump_medido e temperatura e retorna caminhão atualizado', async () => {
       // buscarCaminhao
       prismaMock.$queryRawUnsafe.mockResolvedValueOnce([mockCaminhao]);
-      // buscarBetonada
-      prismaMock.$queryRawUnsafe.mockResolvedValueOnce([mockBetonada]);
+      // buscarConcretagem
+      prismaMock.$queryRawUnsafe.mockResolvedValueOnce([mockConcretagem]);
       // UPDATE
       prismaMock.$executeRawUnsafe.mockResolvedValue(1);
       // buscarCaminhao final
@@ -210,9 +210,9 @@ describe('CaminhoesService', () => {
     it('atualiza status para REJEITADO com motivo', async () => {
       // buscarCaminhao
       prismaMock.$queryRawUnsafe.mockResolvedValueOnce([mockCaminhao]);
-      // buscarBetonada
-      prismaMock.$queryRawUnsafe.mockResolvedValueOnce([mockBetonada]);
-      // UPDATE + auditLog (fire-and-forget)
+      // buscarConcretagem
+      prismaMock.$queryRawUnsafe.mockResolvedValueOnce([mockConcretagem]);
+      // UPDATE concretagem + auditLog (fire-and-forget)
       prismaMock.$executeRawUnsafe.mockResolvedValue(1);
       // NC fire-and-forget: abrirNcAutomatica inserts into nao_conformidades
       prismaMock.$queryRawUnsafe.mockResolvedValueOnce([{ id: 99 }]); // NC INSERT RETURNING

@@ -82,6 +82,8 @@ export interface FichaFvs {
   exige_ro: boolean;
   exige_reinspecao: boolean;
   exige_parecer?: boolean;
+  fotos_obrigatorias: 'todas' | 'apenas_nc' | 'nenhuma' | 'itens_selecionados';
+  fotos_itens_ids: number[] | null;
 }
 
 export interface FichaFvsComProgresso extends FichaFvs {
@@ -127,6 +129,7 @@ export interface FvsRegistro {
   item_descricao?: string;
   item_criticidade?: Criticidade;
   item_criterio_aceite?: string | null;
+  item_tolerancia?: string | null;
   evidencias_count?: number;
   equipe_responsavel?: string | null;
 }
@@ -170,6 +173,7 @@ export interface FvsEvidencia {
   // joined
   url?: string;
   nome_original?: string;
+  mime_type?: string;
 }
 
 export interface FichaDetalhada extends FichaFvs {
@@ -294,9 +298,12 @@ export interface FvsModelo {
   exige_ro: boolean;
   exige_reinspecao: boolean;
   exige_parecer: boolean;
+  fotos_obrigatorias: 'todas' | 'apenas_nc' | 'nenhuma' | 'itens_selecionados';
+  fotos_itens_ids: number[] | null;
+  is_sistema: boolean;
   concluido_por: number | null;
   concluido_em: Date | null;
-  criado_por: number;
+  criado_por: number | null;
   deleted_at: Date | null;
   // joined (opcional)
   servicos?: FvsModeloServico[];
@@ -310,6 +317,7 @@ export interface FvsModeloServico {
   servico_id: number;
   ordem: number;
   itens_excluidos: number[] | null;
+  item_fotos: Record<string, number>;
   // joined
   servico_nome?: string;
 }

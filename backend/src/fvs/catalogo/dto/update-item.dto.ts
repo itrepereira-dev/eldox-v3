@@ -15,6 +15,16 @@ export class UpdateItemDto {
   criterioAceite?: string;
 
   @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  tolerancia?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  metodoVerificacao?: string;
+
+  @IsOptional()
   @IsEnum(['critico', 'maior', 'menor'])
   criticidade?: Criticidade;
 

@@ -2,14 +2,14 @@
 import { NotFoundException } from '@nestjs/common';
 import { CpsService } from './cps.service';
 
-const TENANT_ID   = 10;
-const BETONADA_ID = 1;
-const CAMINHAO_ID = 1;
-const CP_ID       = 1;
-const USER_ID     = 42;
+const TENANT_ID       = 10;
+const CONCRETAGEM_ID  = 1;
+const CAMINHAO_ID     = 1;
+const CP_ID           = 1;
+const USER_ID         = 42;
 
-const mockBetonada: Record<string, unknown> = {
-  id: BETONADA_ID,
+const mockConcretagem: Record<string, unknown> = {
+  id: CONCRETAGEM_ID,
   obra_id: 5,
   fck_especificado: 25,
 };
@@ -17,7 +17,7 @@ const mockBetonada: Record<string, unknown> = {
 const mockCp: Record<string, unknown> = {
   id: CP_ID,
   tenant_id: TENANT_ID,
-  betonada_id: BETONADA_ID,
+  concretagem_id: CONCRETAGEM_ID,
   caminhao_id: CAMINHAO_ID,
   numero: 'CP-1-1-001',
   idade_dias: 28,
@@ -57,8 +57,8 @@ describe('CpsService', () => {
     };
 
     it('cria 3 CPs (idades 3, 7, 28 dias) quando idade_dias não informado', async () => {
-      // buscarBetonada
-      prismaMock.$queryRawUnsafe.mockResolvedValueOnce([mockBetonada]);
+      // buscarConcretagem
+      prismaMock.$queryRawUnsafe.mockResolvedValueOnce([mockConcretagem]);
 
       // For each of 3 ages: gerarNumeroCp (COUNT) + INSERT (RETURNING id) + buscarCp
       for (let i = 0; i < 3; i++) {
@@ -69,7 +69,7 @@ describe('CpsService', () => {
       // auditLog (fire-and-forget)
       prismaMock.$executeRawUnsafe.mockResolvedValue(1);
 
-      const result = await svc.moldagem(TENANT_ID, BETONADA_ID, USER_ID, baseDto as any);
+      const result = await svc.moldagem(TENANT_ID, CONCRETAGEM_ID, USER_ID, baseDto as any);
 
       expect(result).toHaveLength(3);
       expect((result[0] as any).idade_dias).toBe(3);
@@ -78,8 +78,8 @@ describe('CpsService', () => {
     });
 
     it('cria apenas 1 CP quando idade_dias=7 informado', async () => {
-      // buscarBetonada
-      prismaMock.$queryRawUnsafe.mockResolvedValueOnce([mockBetonada]);
+      // buscarConcretagem
+      prismaMock.$queryRawUnsafe.mockResolvedValueOnce([mockConcretagem]);
       // gerarNumeroCp
       prismaMock.$queryRawUnsafe.mockResolvedValueOnce([{ total: 0 }]);
       // INSERT RETURNING
@@ -89,7 +89,7 @@ describe('CpsService', () => {
       // auditLog
       prismaMock.$executeRawUnsafe.mockResolvedValue(1);
 
-      const result = await svc.moldagem(TENANT_ID, BETONADA_ID, USER_ID, {
+      const result = await svc.moldagem(TENANT_ID, CONCRETAGEM_ID, USER_ID, {
         ...baseDto,
         idade_dias: 7,
       } as any);
@@ -98,7 +98,7 @@ describe('CpsService', () => {
       expect((result[0] as any).idade_dias).toBe(7);
     });
 
-    it('lança NotFoundException se betonada não encontrada', async () => {
+    it('lança NotFoundException se concretagem não encontrada', async () => {
       prismaMock.$queryRawUnsafe.mockResolvedValueOnce([]);
 
       await expect(
@@ -106,20 +106,20 @@ describe('CpsService', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
-    it('número do CP segue formato CP-{betonadaId}-{caminhaoId}-{seq}', async () => {
-      prismaMock.$queryRawUnsafe.mockResolvedValueOnce([mockBetonada]);
+    it('número do CP segue formato CP-{concrtagemId}-{caminhaoId}-{seq}', async () => {
+      prismaMock.$queryRawUnsafe.mockResolvedValueOnce([mockConcretagem]);
       // gerarNumeroCp — total = 2 → seq = 003
       prismaMock.$queryRawUnsafe.mockResolvedValueOnce([{ total: 2 }]);
       prismaMock.$queryRawUnsafe.mockResolvedValueOnce([{ id: CP_ID }]);
-      prismaMock.$queryRawUnsafe.mockResolvedValueOnce([{ ...mockCp, numero: `CP-${BETONADA_ID}-${CAMINHAO_ID}-003` }]);
+      prismaMock.$queryRawUnsafe.mockResolvedValueOnce([{ ...mockCp, numero: `CP-${CONCRETAGEM_ID}-${CAMINHAO_ID}-003` }]);
       prismaMock.$executeRawUnsafe.mockResolvedValue(1);
 
-      const result = await svc.moldagem(TENANT_ID, BETONADA_ID, USER_ID, {
+      const result = await svc.moldagem(TENANT_ID, CONCRETAGEM_ID, USER_ID, {
         ...baseDto,
         idade_dias: 28,
       } as any);
 
-      expect((result[0] as any).numero).toBe(`CP-${BETONADA_ID}-${CAMINHAO_ID}-003`);
+      expect((result[0] as any).numero).toBe(`CP-${CONCRETAGEM_ID}-${CAMINHAO_ID}-003`);
     });
   });
 
@@ -129,8 +129,8 @@ describe('CpsService', () => {
     it('marca ROMPIDO_APROVADO quando resistencia >= fck_especificado', async () => {
       // buscarCp
       prismaMock.$queryRawUnsafe.mockResolvedValueOnce([mockCp]);
-      // buscarBetonada
-      prismaMock.$queryRawUnsafe.mockResolvedValueOnce([mockBetonada]);
+      // buscarConcretagem
+      prismaMock.$queryRawUnsafe.mockResolvedValueOnce([mockConcretagem]);
       // UPDATE
       prismaMock.$executeRawUnsafe.mockResolvedValue(1);
       // buscarCp final
@@ -158,8 +158,8 @@ describe('CpsService', () => {
     it('marca ROMPIDO_REPROVADO quando resistencia < fck_especificado', async () => {
       // buscarCp
       prismaMock.$queryRawUnsafe.mockResolvedValueOnce([mockCp]);
-      // buscarBetonada
-      prismaMock.$queryRawUnsafe.mockResolvedValueOnce([mockBetonada]);
+      // buscarConcretagem
+      prismaMock.$queryRawUnsafe.mockResolvedValueOnce([mockConcretagem]);
       // UPDATE + auditLog (fire-and-forget)
       prismaMock.$executeRawUnsafe.mockResolvedValue(1);
       // NC fire-and-forget: abrirNcAutomatica inserts into nao_conformidades
@@ -195,13 +195,13 @@ describe('CpsService', () => {
     });
   });
 
-  // ── listarPorBetonada ─────────────────────────────────────────────────────
+  // ── listarPorConcretagem ──────────────────────────────────────────────────
 
-  describe('listarPorBetonada()', () => {
-    it('retorna lista de CPs da betonada', async () => {
+  describe('listarPorConcretagem()', () => {
+    it('retorna lista de CPs da concretagem', async () => {
       prismaMock.$queryRawUnsafe.mockResolvedValueOnce([mockCp, { ...mockCp, id: 2 }]);
 
-      const result = await svc.listarPorBetonada(TENANT_ID, BETONADA_ID);
+      const result = await svc.listarPorConcretagem(TENANT_ID, CONCRETAGEM_ID);
 
       expect(result).toHaveLength(2);
     });
@@ -209,7 +209,7 @@ describe('CpsService', () => {
     it('retorna lista vazia quando não há CPs', async () => {
       prismaMock.$queryRawUnsafe.mockResolvedValueOnce([]);
 
-      const result = await svc.listarPorBetonada(TENANT_ID, BETONADA_ID);
+      const result = await svc.listarPorConcretagem(TENANT_ID, CONCRETAGEM_ID);
 
       expect(result).toHaveLength(0);
     });

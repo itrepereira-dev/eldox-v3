@@ -199,6 +199,8 @@ export class InspecaoService {
       let exigeRo = true;
       let exigeReinspecao = true;
       let exigeParecer = true;
+      let fotosObrigatorias: string = 'apenas_nc';
+      let fotosItensIds: number[] | null = null;
       const modeloId: number | null = dto.modeloId ?? null;
       let servicosDoTemplate: { servico_id: number; ordem: number; itens_excluidos: number[] | null }[] = [];
 
@@ -209,14 +211,16 @@ export class InspecaoService {
         exigeRo = modelo.exige_ro;
         exigeReinspecao = modelo.exige_reinspecao;
         exigeParecer = modelo.exige_parecer;
+        fotosObrigatorias = modelo.fotos_obrigatorias;
+        fotosItensIds = modelo.fotos_itens_ids;
         servicosDoTemplate = servicos;
       }
 
       const fichas = await tx.$queryRawUnsafe<FichaFvs[]>(
-        `INSERT INTO fvs_fichas (tenant_id, obra_id, nome, regime, status, criado_por, modelo_id, exige_ro, exige_reinspecao, exige_parecer)
-         VALUES ($1, $2, $3, $4, 'rascunho', $5, $6, $7, $8, $9)
+        `INSERT INTO fvs_fichas (tenant_id, obra_id, nome, regime, status, criado_por, modelo_id, exige_ro, exige_reinspecao, exige_parecer, fotos_obrigatorias, fotos_itens_ids)
+         VALUES ($1, $2, $3, $4, 'rascunho', $5, $6, $7, $8, $9, $10, $11)
          RETURNING *`,
-        tenantId, dto.obraId, dto.nome, regime, userId, modeloId, exigeRo, exigeReinspecao, exigeParecer,
+        tenantId, dto.obraId, dto.nome, regime, userId, modeloId, exigeRo, exigeReinspecao, exigeParecer, fotosObrigatorias, fotosItensIds,
       );
       const ficha = fichas[0];
 
@@ -386,6 +390,10 @@ export class InspecaoService {
         await this.validarConclusaoPbqph(tenantId, fichaId);
       }
 
+      if (dto.status === 'concluida' && ficha.fotos_obrigatorias && ficha.fotos_obrigatorias !== 'nenhuma') {
+        await this.validarFotosObrigatorias(tenantId, fichaId, ficha);
+      }
+
       // Regras de exige_parecer:
       if (dto.status === 'aguardando_parecer' && !ficha.exige_parecer) {
         throw new UnprocessableEntityException(
@@ -467,6 +475,55 @@ export class InspecaoService {
     if (pendentes.length) {
       throw new UnprocessableEntityException({
         message: 'Itens críticos NC sem evidência fotográfica',
+        itensPendentes: pendentes,
+      });
+    }
+  }
+
+  // ── validarFotosObrigatorias ────────────────────────────────────────────────
+
+  private async validarFotosObrigatorias(
+    tenantId: number,
+    fichaId: number,
+    ficha: FichaFvs,
+  ): Promise<void> {
+    const modo = ficha.fotos_obrigatorias;
+    if (!modo || modo === 'nenhuma') return;
+
+    let whereExtra = '';
+    const params: unknown[] = [fichaId, tenantId];
+
+    if (modo === 'todas') {
+      // todo registro avaliado (exceto nao_avaliado) precisa ter foto
+      whereExtra = `AND r.status <> 'nao_avaliado'`;
+    } else if (modo === 'apenas_nc') {
+      whereExtra = `AND r.status IN ('nao_conforme','nc_apos_reinspecao')`;
+    } else if (modo === 'itens_selecionados') {
+      if (!ficha.fotos_itens_ids?.length) return;
+      whereExtra = `AND r.item_id = ANY($3::int[])`;
+      params.push(ficha.fotos_itens_ids);
+    }
+
+    const pendentes = await this.prisma.$queryRawUnsafe<{ item_id: number; descricao: string }[]>(
+      `SELECT r.item_id, i.descricao
+       FROM fvs_registros r
+       JOIN fvs_catalogo_itens i ON i.id = r.item_id
+       WHERE r.ficha_id = $1 AND r.tenant_id = $2
+         ${whereExtra}
+         AND NOT EXISTS (
+           SELECT 1 FROM fvs_evidencias e WHERE e.registro_id = r.id AND e.tenant_id = r.tenant_id
+         )`,
+      ...params,
+    );
+
+    if (pendentes.length) {
+      const modoLabel: Record<string, string> = {
+        todas: 'todos os itens avaliados',
+        apenas_nc: 'itens não conformes',
+        itens_selecionados: 'itens selecionados no template',
+      };
+      throw new UnprocessableEntityException({
+        message: `Fotos obrigatórias não anexadas — regra: ${modoLabel[modo] ?? modo}`,
         itensPendentes: pendentes,
       });
     }
@@ -799,6 +856,7 @@ export class InspecaoService {
          i.descricao    AS item_descricao,
          i.criticidade  AS item_criticidade,
          i.criterio_aceite AS item_criterio_aceite,
+         i.tolerancia      AS item_tolerancia,
          COALESCE(latest_r.status, 'nao_avaliado') AS status,
          latest_r.id,
          latest_r.ficha_id,
@@ -815,34 +873,34 @@ export class InspecaoService {
          CASE WHEN ro_nc.item_id IS NOT NULL THEN true ELSE false END AS desbloqueado
        FROM fvs_catalogo_itens i
        JOIN fvs_ficha_servicos fs
-         ON fs.servico_id = $2 AND fs.ficha_id = $3 AND fs.tenant_id = $4
+         ON fs.servico_id = $1 AND fs.ficha_id = $2 AND fs.tenant_id = $3
        LEFT JOIN LATERAL (
          SELECT * FROM fvs_registros r
-         WHERE r.item_id = i.id AND r.ficha_id = $3 AND r.obra_local_id = $5 AND r.tenant_id = $4
+         WHERE r.item_id = i.id AND r.ficha_id = $2 AND r.obra_local_id = $4 AND r.tenant_id = $3
          ORDER BY r.ciclo DESC
          LIMIT 1
        ) latest_r ON true
-       LEFT JOIN fvs_evidencias e ON e.registro_id = latest_r.id AND e.tenant_id = $4
+       LEFT JOIN fvs_evidencias e ON e.registro_id = latest_r.id AND e.tenant_id = $3
        LEFT JOIN fvs_ficha_servico_locais fsl
-         ON fsl.ficha_servico_id = fs.id AND fsl.obra_local_id = $5
+         ON fsl.ficha_servico_id = fs.id AND fsl.obra_local_id = $4
        LEFT JOIN (
          SELECT DISTINCT r_orig.item_id, r_orig.obra_local_id
          FROM ro_servico_itens_nc rsni
          JOIN ro_servicos_nc rsn ON rsn.id = rsni.ro_servico_nc_id
          JOIN ro_ocorrencias ro ON ro.id = rsn.ro_id
          JOIN fvs_registros r_orig ON r_orig.id = rsni.registro_id
-         WHERE ro.ficha_id = $3 AND ro.tenant_id = $4
-       ) ro_nc ON ro_nc.item_id = i.id AND ro_nc.obra_local_id = $5
-       WHERE i.servico_id = $2 AND i.tenant_id IN (0, $4) AND i.ativo = true
+         WHERE ro.ficha_id = $2 AND ro.tenant_id = $3
+       ) ro_nc ON ro_nc.item_id = i.id AND ro_nc.obra_local_id = $4
+       WHERE i.servico_id = $1 AND i.tenant_id IN (0, $3) AND i.ativo = true
          AND (fs.itens_excluidos IS NULL OR NOT (i.id = ANY(fs.itens_excluidos)))
-       GROUP BY i.id, i.descricao, i.criticidade, i.criterio_aceite,
+       GROUP BY i.id, i.descricao, i.criticidade, i.criterio_aceite, i.tolerancia,
                 latest_r.id, latest_r.ficha_id, latest_r.servico_id, latest_r.obra_local_id,
                 latest_r.status, latest_r.ciclo, latest_r.observacao,
                 latest_r.inspecionado_por, latest_r.inspecionado_em,
                 latest_r.created_at, latest_r.updated_at,
                 fsl.equipe_responsavel, ro_nc.item_id
        ORDER BY i.ordem ASC`,
-      tenantId, servicoId, fichaId, tenantId, localId,
+      servicoId, fichaId, tenantId, localId,
     );
   }
 
@@ -954,7 +1012,7 @@ export class InspecaoService {
   }
 
   private async autoCreateNc(
-    tx: { $queryRawUnsafe: (...args: any[]) => Promise<any> },
+    tx: { $queryRawUnsafe: <T = unknown>(...args: any[]) => Promise<T> },
     tenantId: number,
     fichaId: number,
     registroId: number,
@@ -1187,14 +1245,22 @@ export class InspecaoService {
   // ── getEvidencias ────────────────────────────────────────────────────────────
 
   async getEvidencias(tenantId: number, registroId: number): Promise<FvsEvidencia[]> {
-    return this.prisma.$queryRawUnsafe<FvsEvidencia[]>(
-      `SELECT e.*, gv.nome_original, gv.storage_key
+    const rows = await this.prisma.$queryRawUnsafe<(FvsEvidencia & { storage_key: string; mime_type: string })[]>(
+      `SELECT e.*, gv.nome_original, gv.storage_key, gv.mime_type
        FROM fvs_evidencias e
        JOIN ged_versoes gv ON gv.id = e.ged_versao_id
        WHERE e.registro_id = $1 AND e.tenant_id = $2
        ORDER BY e.created_at ASC`,
       registroId, tenantId,
     );
+
+    return Promise.all(rows.map(async ev => {
+      const url = ev.storage_key
+        ? await this.ged.getStorageUrl(ev.storage_key, 3600).catch(() => undefined)
+        : undefined;
+      const { storage_key, ...rest } = ev;
+      return { ...rest, url };
+    }));
   }
 
   // ── patchLocal ────────────────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 // backend/src/fvs/modelos/dto/create-modelo.dto.ts
 import {
   IsString, IsNotEmpty, IsOptional, IsEnum, IsBoolean,
-  IsNumber, MaxLength, ValidateIf,
+  IsNumber, MaxLength, ValidateIf, IsArray,
 } from 'class-validator';
 
 export class CreateModeloDto {
@@ -35,4 +35,12 @@ export class CreateModeloDto {
   @IsOptional()
   @IsBoolean()
   exigeParecer?: boolean;
+
+  @IsOptional()
+  @IsEnum(['todas', 'apenas_nc', 'nenhuma', 'itens_selecionados'])
+  fotosObrigatorias?: 'todas' | 'apenas_nc' | 'nenhuma' | 'itens_selecionados';
+
+  @IsOptional()
+  @IsArray()
+  fotosItensIds?: number[] | null;
 }

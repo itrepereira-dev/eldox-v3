@@ -73,8 +73,8 @@ export class ConcrtagensService {
       (e: unknown) => this.logger.error(`auditLog concretagem falhou: ${e}`),
     );
 
-    this.emailSvc.enviarNotificacaoUsina(tenantId, rows[0].id, 'NOVA_BETONADA').catch(
-      (e: unknown) => this.logger.error(`emailSvc NOVA_BETONADA falhou: ${e}`),
+    this.emailSvc.enviarNotificacaoUsina(tenantId, rows[0].id, 'NOVA_CONCRETAGEM').catch(
+      (e: unknown) => this.logger.error(`emailSvc NOVA_CONCRETAGEM falhou: ${e}`),
     );
 
     return this.buscar(tenantId, rows[0].id);
@@ -254,8 +254,8 @@ export class ConcrtagensService {
       (e: unknown) => this.logger.error(`auditLog concretagem falhou: ${e}`),
     );
 
-    this.emailSvc.enviarNotificacaoUsina(tenantId, id, 'BETONADA_CANCELADA').catch(
-      (e: unknown) => this.logger.error(`emailSvc BETONADA_CANCELADA falhou: ${e}`),
+    this.emailSvc.enviarNotificacaoUsina(tenantId, id, 'CONCRETAGEM_CANCELADA').catch(
+      (e: unknown) => this.logger.error(`emailSvc CONCRETAGEM_CANCELADA falhou: ${e}`),
     );
 
     return { id };

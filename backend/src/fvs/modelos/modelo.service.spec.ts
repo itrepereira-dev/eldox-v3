@@ -46,7 +46,7 @@ describe('ModeloService', () => {
       expect(mockPrisma.$queryRawUnsafe).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO fvs_modelos'),
         TENANT_ID, dto.nome, undefined, 'empresa', null, 'livre',
-        true, true, true, USER_ID,
+        true, true, true, 'apenas_nc', null, USER_ID,
       );
     });
 
@@ -193,7 +193,7 @@ describe('ModeloService', () => {
       await svc.addServicoModelo(TENANT_ID, MODELO_ID, { servicoId: 1 });
       expect(mockPrisma.$queryRawUnsafe).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO fvs_modelo_servicos'),
-        TENANT_ID, MODELO_ID, 1, 0, null,
+        TENANT_ID, MODELO_ID, 1, 0, null, '{}',
       );
     });
   });

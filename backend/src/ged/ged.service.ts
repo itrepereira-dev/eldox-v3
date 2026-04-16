@@ -616,19 +616,26 @@ export class GedService {
 
   async listarDocumentos(
     tenantId: number,
-    obraId: number,
+    obraId: number | null,
     dto: ListDocumentosDto,
   ): Promise<{ items: GedDocumento[]; total: number; page: number; totalPages: number }> {
     const page = dto.page ?? 1;
     const limit = dto.limit ?? 20;
     const offset = (page - 1) * limit;
 
-    const params: (string | number | null)[] = [tenantId, obraId];
+    const params: (string | number | null)[] = [tenantId];
     const conditions: string[] = [
       `d.tenant_id = $1`,
-      `d.obra_id = $2`,
       `d.deleted_at IS NULL`,
     ];
+
+    if (obraId !== null) {
+      params.push(obraId);
+      conditions.push(`d.obra_id = $${params.length}`);
+    } else {
+      // Nível empresa: documentos sem obra ou escopo EMPRESA
+      conditions.push(`(d.obra_id IS NULL OR d.escopo = 'EMPRESA')`);
+    }
 
     // Busca genérica por título ou código
     if (dto.q) {
@@ -763,5 +770,10 @@ export class GedService {
         nome_original: versao.nome_original, tamanho_bytes: versao.tamanho_bytes, mime_type: versao.mime_type },
       presignedUrl,
     };
+  }
+
+  // ─── Utilitário: URL temporária para storage key (sem audit log) ──────────
+  async getStorageUrl(storageKey: string, ttlSeconds = 3600): Promise<string> {
+    return this.minioService.getPresignedUrl(storageKey, ttlSeconds);
   }
 }

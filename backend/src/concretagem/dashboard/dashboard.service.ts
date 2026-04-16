@@ -72,7 +72,7 @@ export class DashboardConcretagemService {
     );
     if (!obraRows.length) throw new NotFoundException('Obra não encontrada');
 
-    // 1. Betonadas e volumes
+    // 1. Concretagens e volumes
     const concretagensRows = await this.prisma.$queryRawUnsafe<{
       total: number;
       concluidas: number;

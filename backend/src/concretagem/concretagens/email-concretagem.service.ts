@@ -4,7 +4,7 @@ import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 
 export interface EmailConcrtagemPayload {
-  tipo: 'NOVA_BETONADA' | 'BETONADA_CANCELADA';
+  tipo: 'NOVA_CONCRETAGEM' | 'CONCRETAGEM_CANCELADA';
   concretagem: {
     id: number;
     numero: string;
@@ -39,7 +39,7 @@ export class EmailConcrtagemService {
   async enviarNotificacaoUsina(
     tenantId: number,
     concrtagemId: number,
-    tipo: 'NOVA_BETONADA' | 'BETONADA_CANCELADA',
+    tipo: 'NOVA_CONCRETAGEM' | 'CONCRETAGEM_CANCELADA',
   ): Promise<void> {
     try {
       const rows = await this.prisma.$queryRawUnsafe<any[]>(
@@ -66,17 +66,17 @@ export class EmailConcrtagemService {
 
       // Gera token do portal para nova concretagem
       let portalUrl: string | null = null;
-      if (tipo === 'NOVA_BETONADA') {
+      if (tipo === 'NOVA_CONCRETAGEM') {
         portalUrl = await this.gerarTokenPortal(tenantId, concrtagemId);
       }
 
       const assunto =
-        tipo === 'NOVA_BETONADA'
+        tipo === 'NOVA_CONCRETAGEM'
           ? `[Eldox] Nova Concretagem Programada — ${row.numero as string} — ${row.obra_nome as string}`
           : `[Eldox] CANCELAMENTO de Concretagem — ${row.numero as string} — ${row.obra_nome as string}`;
 
       const corpo =
-        tipo === 'NOVA_BETONADA'
+        tipo === 'NOVA_CONCRETAGEM'
           ? this.templateNovaBetonada(row, portalUrl)
           : this.templateCancelamento(row);
 
@@ -84,9 +84,9 @@ export class EmailConcrtagemService {
         `Email usina [${tipo}] concretagem=${row.numero as string} obra="${row.obra_nome as string}"`,
       );
 
-      // Gera XLS apenas para NOVA_BETONADA
+      // Gera XLS apenas para NOVA_CONCRETAGEM
       const xlsBuffer =
-        tipo === 'NOVA_BETONADA'
+        tipo === 'NOVA_CONCRETAGEM'
           ? this.gerarXlsConcretagem(row)
           : null;
 
