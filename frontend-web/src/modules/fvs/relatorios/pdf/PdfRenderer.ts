@@ -60,7 +60,8 @@ export async function renderToPdf(
   }
 
   const { createElement } = await import('react');
-  const blob = await pdf(createElement(DocumentComponent, { dados })).toBlob();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const blob = await pdf(createElement(DocumentComponent, { dados }) as any).toBlob();
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

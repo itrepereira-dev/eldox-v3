@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { GraficosAvancados } from '../components/GraficosAvancados';
 import { FiltrosPeriodo, useFiltrosPeriodo } from '../components/FiltrosPeriodo';
+import { RelatorioBotao } from '../../relatorios/components/RelatorioBotao';
 
 // ── Tipos ──────────────────────────────────────────────────────────────────────
 
@@ -379,6 +380,26 @@ export default function FvsDashboardPage() {
           </div>
           <GraficosAvancados obraId={numObraId} filtros={filtrosGraficos} />
         </section>
+      )}
+
+      {/* ── Shortcut: Relatório de Pendências (R3) ──────────────────────────── */}
+      {numObraId && (
+        <div className="p-4 rounded-xl border border-[var(--border-dim)] bg-[var(--bg-raised)] flex flex-col gap-2">
+          <p className="text-sm font-medium text-[var(--text-main)]">Relatório de Pendências</p>
+          <p className="text-xs text-[var(--text-faint)]">Fichas abertas, NCs sem plano, PAs vencidos</p>
+          <div>
+            <RelatorioBotao
+              tipo="R3_PENDENCIAS"
+              filtros={{
+                obraId: numObraId,
+                dataInicio: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                dataFim: new Date().toISOString().split('T')[0],
+              }}
+              formatos={['pdf', 'excel']}
+              label="Gerar Relatório de Pendências"
+            />
+          </div>
+        </div>
       )}
     </div>
   )

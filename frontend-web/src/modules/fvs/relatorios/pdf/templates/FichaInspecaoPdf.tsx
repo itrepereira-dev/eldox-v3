@@ -138,7 +138,7 @@ const styles = StyleSheet.create({
   signatureSubText: { fontSize: 8, color: '#6B7280', marginTop: 2 },
 });
 
-function statusIcon(status: string): { icon: string; style: object } {
+function statusIcon(status: string) {
   if (['conforme', 'conforme_apos_reinspecao', 'liberado_com_concessao'].includes(status))
     return { icon: '✓', style: styles.checkOk };
   if (['nao_conforme', 'nc_apos_reinspecao', 'retrabalho'].includes(status))

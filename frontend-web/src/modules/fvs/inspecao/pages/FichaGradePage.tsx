@@ -10,6 +10,7 @@ import { InspecaoModal } from '../components/InspecaoModal';
 import type { StatusGrade } from '../../../../services/fvs.service';
 import { cn } from '@/lib/cn';
 import { ArrowLeft, X, CheckSquare, Download, FileText, Share2, Copy, Check, Trash2, ShieldAlert } from 'lucide-react';
+import { RelatorioBotao } from '../../relatorios/components/RelatorioBotao';
 
 const API_FVS = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL + '/fvs' : 'http://localhost:3000/api/v1/fvs';
 
@@ -352,6 +353,19 @@ export function FichaGradePage() {
             Compartilhar
           </button>
         )}
+
+        <RelatorioBotao
+          tipo="R1_FICHA"
+          filtros={{ fichaId: id, obraId: ficha.obra_id }}
+          formatos={['pdf']}
+          label="Exportar Ficha PDF"
+        />
+        <RelatorioBotao
+          tipo="R2_CONFORMIDADE"
+          filtros={{ obraId: ficha.obra_id }}
+          formatos={['pdf', 'excel']}
+          label="Conformidade"
+        />
       </div>
 
       {erroSolicitacao && (

@@ -5,6 +5,7 @@ import { Plus } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useNcsPorObra, useDeleteNc, useCreateNc } from '../hooks/useNcs';
 import type { NaoConformidade, NcStatus, NcCategoria, NcCriticidade } from '../../../services/ncs.service';
+import { RelatorioBotao } from '../../fvs/relatorios/components/RelatorioBotao';
 
 // ─── Badges de Status ─────────────────────────────────────────────────────────
 
@@ -198,13 +199,23 @@ export function NcsListPage() {
           <h1 className="text-xl font-semibold text-[var(--text-high)] m-0">Não Conformidades</h1>
           <p className="text-sm text-[var(--text-faint)] mt-0.5">{total} NC{total !== 1 ? 's' : ''} encontrada{total !== 1 ? 's' : ''}</p>
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-md bg-[var(--accent)] text-white text-sm font-medium hover:opacity-90 transition-opacity"
-        >
-          <Plus size={15} />
-          Nova NC
-        </button>
+        <div className="flex items-center gap-2">
+          {obraIdNum && (
+            <RelatorioBotao
+              tipo="R4_NCS"
+              filtros={{ obraId: obraIdNum }}
+              formatos={['pdf', 'excel']}
+              label="Exportar NCs"
+            />
+          )}
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-md bg-[var(--accent)] text-white text-sm font-medium hover:opacity-90 transition-opacity"
+          >
+            <Plus size={15} />
+            Nova NC
+          </button>
+        </div>
       </div>
 
       {/* Filtros */}
