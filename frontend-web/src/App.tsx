@@ -72,6 +72,9 @@ const PortalFornecedorPage     = lazy(() => import('./modules/portal/PortalForne
 const RelatorioClientePage     = lazy(() => import('./modules/diario/pages/RelatorioClientePage'));
 const FvsDashboardPage         = lazy(() => import('./modules/fvs/dashboard/pages/FvsDashboardPage'));
 const FvsRelatorioClientePage  = lazy(() => import('./modules/fvs/cliente/FvsRelatorioClientePage'));
+const PlanosAcaoPage           = lazy(() => import('./modules/fvs/planos-acao/pages/PlanosAcaoPage').then(m => ({ default: m.PlanosAcaoPage })));
+const PlanoAcaoDetalhe         = lazy(() => import('./modules/fvs/planos-acao/pages/PlanoAcaoDetalhe').then(m => ({ default: m.PlanoAcaoDetalhe })));
+const ConfigPlanosAcaoPage     = lazy(() => import('./modules/fvs/planos-acao/pages/ConfigPlanosAcaoPage').then(m => ({ default: m.ConfigPlanosAcaoPage })));
 
 // ── QueryClient com cache agressivo ──────────────────────────────────────────
 const queryClient = new QueryClient({
@@ -199,6 +202,13 @@ export default function App() {
                 {/* Efetivo */}
                 <Route path="/obras/:obraId/efetivo" element={<EfetivoListPage />} />
                 <Route path="/configuracoes/efetivo/cadastros" element={<CadastrosEfetivoPage />} />
+
+                {/* Planos de Ação — por obra */}
+                <Route path="/obras/:obraId/fvs/planos-acao" element={<PlanosAcaoPage />} />
+                <Route path="/obras/:obraId/fvs/planos-acao/:paId" element={<PlanoAcaoDetalhe />} />
+
+                {/* Planos de Ação — configuração */}
+                <Route path="/configuracoes/planos-acao" element={<ConfigPlanosAcaoPage />} />
               </Route>
 
               {/* Portais públicos */}

@@ -231,6 +231,21 @@ function EnsaiosNavGroup({ onClick }: { onClick?: () => void }) {
   )
 }
 
+/* ── Planos de Ação Nav helper ───────────────────────────── */
+function PlanosAcaoLink({ onClick }: { onClick?: () => void }) {
+  const obraAtivaId = useResolvedObraId()
+  const to = obraAtivaId ? `/obras/${obraAtivaId}/fvs/planos-acao` : '/obras'
+
+  return (
+    <NavItem
+      to={to}
+      icon={<ListChecks size={18} />}
+      label="Planos de Ação"
+      onClick={onClick}
+    />
+  )
+}
+
 /* ── Almoxarifado Nav helper ─────────────────────────── */
 function AlmoxarifadoNavGroup({ onClick }: { onClick?: () => void }) {
   const obraAtivaId = useResolvedObraId()
@@ -337,6 +352,7 @@ export function Sidebar({ onNavClick, className }: SidebarProps) {
             badge={{ variant: 'nc', count: 7 }}
             onClick={onNavClick}
           />
+          <PlanosAcaoLink onClick={onNavClick} />
           <ConcretagemNavGroup onClick={onNavClick} />
           <EnsaiosNavGroup onClick={onNavClick} />
         </NavSection>
@@ -392,8 +408,9 @@ export function Sidebar({ onNavClick, className }: SidebarProps) {
             icon={<ListChecks size={18} />}
             label="Cadastros"
             items={[
-              { to: '/configuracoes/fvs/catalogo',    label: 'Serviços FVS' },
-              { to: '/configuracoes/ensaios/tipos',   label: 'Tipos de Ensaio' },
+              { to: '/configuracoes/fvs/catalogo',      label: 'Serviços FVS' },
+              { to: '/configuracoes/planos-acao',       label: 'Planos de Ação' },
+              { to: '/configuracoes/ensaios/tipos',     label: 'Tipos de Ensaio' },
               { to: '/configuracoes/efetivo/cadastros', label: 'Cadastros Efetivo' },
             ]}
             onClick={onNavClick}
