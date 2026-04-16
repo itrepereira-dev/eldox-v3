@@ -24,12 +24,14 @@ import { AgenteRelatorioFvs } from '../ai/agents/fvs/agente-relatorio-fvs';
 import { AgentePriorizacaoInspecao } from '../ai/agents/fvs/agente-priorizacao-inspecao';
 import { FvsPdfService } from './pdf/fvs-pdf.service';
 import { FvsProcessor } from './fvs.processor';
+import { PlanosAcaoModule } from '../planos-acao/planos-acao.module';
 
 @Module({
   imports: [
     PrismaModule,
     GedModule,
     IaModule,
+    PlanosAcaoModule,
     MulterModule.register({
       storage: memoryStorage(),
       limits: { fileSize: 10 * 1024 * 1024 }, // 10MB para fotos

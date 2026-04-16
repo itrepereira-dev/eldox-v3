@@ -21,6 +21,7 @@ import type { UpdateLocalDto } from './dto/update-local.dto';
 import { UploadDocumentoDto } from '../../ged/dto/upload-documento.dto';
 import { RoService } from './ro.service';
 import { ModeloService } from '../modelos/modelo.service';
+import { PaService } from '../../planos-acao/pa/pa.service';
 
 // Transições de status válidas: de → [destinos permitidos]
 const TRANSICOES_VALIDAS: Record<string, string[]> = {
@@ -52,6 +53,7 @@ export class InspecaoService {
     private readonly ged: GedService,
     private readonly roService: RoService,
     private readonly modeloService: ModeloService,
+    private readonly paService: PaService,
   ) {}
 
   // ── Helper: buscar ficha com validação de tenant ────────────────────────────
@@ -430,6 +432,30 @@ export class InspecaoService {
       // Sprint 3: ao concluir, criar RO automático se há NCs
       if (dto.status === 'concluida' && ficha.status === 'em_inspecao') {
         await this.autoCreateRo(tx, tenantId, fichaId, userId, ficha.regime, ip);
+
+        // Sprint PA: avaliar gatilhos de abertura automática de Plano de Ação
+        const statsRows = await tx.$queryRawUnsafe<any[]>(
+          `SELECT
+             COUNT(*) FILTER (WHERE status IN ('conforme','conforme_apos_reinspecao','liberado_com_concessao')) AS conformes,
+             COUNT(*) FILTER (WHERE status != 'nao_avaliado') AS avaliados,
+             COUNT(*) FILTER (WHERE status IN ('nao_conforme','nc_apos_reinspecao') AND criticidade = 'critico') AS criticos_nc
+           FROM fvs_registros WHERE ficha_id = $1 AND tenant_id = $2`,
+          fichaId, tenantId,
+        );
+        const stats = statsRows[0];
+        const avaliados = Number(stats.avaliados);
+        const taxaConformidade = avaliados > 0
+          ? (Number(stats.conformes) / avaliados) * 100
+          : 100;
+        const temItemCriticoNc = Number(stats.criticos_nc) > 0;
+        setImmediate(() => {
+          this.paService.avaliarGatilhos(tenantId, 'INSPECAO_FVS', fichaId, {
+            taxaConformidade,
+            temItemCriticoNc,
+            obraId: ficha.obra_id,
+            tituloSugerido: `PA automático — Inspeção #${fichaId} (${taxaConformidade.toFixed(0)}% conformidade)`,
+          }).catch((err) => this.logger.error(`avaliarGatilhos falhou: ${err.message}`));
+        });
       }
 
       if (dto.status && dto.status !== ficha.status && ficha.regime === 'pbqph') {
