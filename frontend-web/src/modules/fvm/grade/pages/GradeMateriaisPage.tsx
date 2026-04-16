@@ -7,7 +7,8 @@ import { useGradeFvm } from '../hooks/useGradeFvm';
 import { LoteDrawer } from '../components/LoteDrawer';
 import { NovoLoteModal } from '../components/NovoLoteModal';
 import { cn } from '@/lib/cn';
-import { ArrowLeft, Plus, Filter } from 'lucide-react';
+import { ArrowLeft, Plus, Filter, BarChart2 } from 'lucide-react';
+import { DashboardFvmTab } from '../../dashboard/DashboardFvmTab';
 
 // ── Configurações visuais ── idêntico ao padrão FVS ──────────────────────────
 
@@ -62,6 +63,7 @@ export function GradeMateriaisPage() {
   // ── Estado local ───────────────────────────────────────────────────────────
   const [drawerCell, setDrawerCell]   = useState<{ materialId: number; loteId: number } | null>(null);
   const [novoLoteOpen, setNovoLoteOpen] = useState(false);
+  const [aba, setAba] = useState<'grade' | 'dashboard'>('grade');
 
   // ── Filtros (URL-synced) — mesmo padrão FVS ───────────────────────────────
   const filtroCategoria = searchParams.get('categoria') ? Number(searchParams.get('categoria')) : null;
@@ -156,6 +158,39 @@ export function GradeMateriaisPage() {
         </div>
       </div>
 
+      {/* ── Tab bar ────────────────────────────────────────────────────────── */}
+      <div className="flex border-b border-[var(--border-dim)] mb-4 -mx-6 px-6">
+        <button
+          type="button"
+          onClick={() => setAba('grade')}
+          className={cn(
+            'flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors',
+            aba === 'grade'
+              ? 'border-[var(--accent)] text-[var(--accent)]'
+              : 'border-transparent text-[var(--text-faint)] hover:text-[var(--text-high)]',
+          )}
+        >
+          Grade de Materiais
+        </button>
+        <button
+          type="button"
+          onClick={() => setAba('dashboard')}
+          className={cn(
+            'flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors',
+            aba === 'dashboard'
+              ? 'border-[var(--accent)] text-[var(--accent)]'
+              : 'border-transparent text-[var(--text-faint)] hover:text-[var(--text-high)]',
+          )}
+        >
+          <BarChart2 size={14} />
+          Dashboard
+        </button>
+      </div>
+
+      {aba === 'dashboard' && <DashboardFvmTab obraId={id} />}
+
+      {aba === 'grade' && (
+      <>
       {/* ── Filtros ────────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <Filter size={14} className="text-[var(--text-faint)]" />
@@ -291,6 +326,8 @@ export function GradeMateriaisPage() {
           </div>
         ))}
       </div>
+      </>
+      )}
 
       {/* ── Drawer do lote (equivalente ao GradeDrawer do FVS) ────────────── */}
       {drawerCell && (

@@ -453,6 +453,191 @@ export class RecebimentoService {
     return rows[0];
   }
 
+  // ── Dashboard ─────────────────────────────────────────────────────────────
+
+  async getDashboard(
+    tenantId: number,
+    obraId: number,
+    opts?: { data_inicio?: string; data_fim?: string },
+  ) {
+    // Default window: last 90 days
+    const dataFim   = opts?.data_fim    ? new Date(opts.data_fim)   : new Date();
+    const dataInicio = opts?.data_inicio
+      ? new Date(opts.data_inicio)
+      : new Date(dataFim.getTime() - 90 * 24 * 60 * 60 * 1000);
+
+    const params: unknown[] = [tenantId, obraId, dataInicio, dataFim];
+
+    // ── KPIs ──────────────────────────────────────────────────────────────
+    const kpiRows = await this.prisma.$queryRawUnsafe<{
+      lotes_recebidos_total: number;
+      lotes_aprovados: number;
+      lotes_em_quarentena: number;
+      lotes_reprovados: number;
+      taxa_aprovacao: number | null;
+    }[]>(
+      `SELECT
+         COUNT(*)::int AS lotes_recebidos_total,
+         COUNT(*) FILTER (WHERE status IN ('aprovado','aprovado_com_ressalva'))::int AS lotes_aprovados,
+         COUNT(*) FILTER (WHERE status = 'quarentena')::int AS lotes_em_quarentena,
+         COUNT(*) FILTER (WHERE status = 'reprovado')::int AS lotes_reprovados,
+         ROUND(
+           100.0 * COUNT(*) FILTER (WHERE status IN ('aprovado','aprovado_com_ressalva')) /
+           NULLIF(COUNT(*) FILTER (WHERE status NOT IN ('aguardando_inspecao','cancelado')), 0),
+           1
+         ) AS taxa_aprovacao
+       FROM fvm_lotes
+       WHERE tenant_id = $1 AND obra_id = $2
+         AND deleted_at IS NULL
+         AND data_entrega BETWEEN $3 AND $4`,
+      ...params,
+    );
+
+    const kpiBase = kpiRows[0] ?? {
+      lotes_recebidos_total: 0,
+      lotes_aprovados: 0,
+      lotes_em_quarentena: 0,
+      lotes_reprovados: 0,
+      taxa_aprovacao: null,
+    };
+
+    // ── NCs abertas ────────────────────────────────────────────────────────
+    const ncRows = await this.prisma.$queryRawUnsafe<{
+      ncs_abertas: number;
+      ncs_criticas_abertas: number;
+    }[]>(
+      `SELECT
+         COUNT(*)::int AS ncs_abertas,
+         COUNT(*) FILTER (WHERE criticidade = 'critico')::int AS ncs_criticas_abertas
+       FROM fvm_nao_conformidades
+       WHERE tenant_id = $1 AND obra_id = $2
+         AND status NOT IN ('encerrada','cancelada')`,
+      tenantId,
+      obraId,
+    );
+
+    const ncBase = ncRows[0] ?? { ncs_abertas: 0, ncs_criticas_abertas: 0 };
+
+    // ── Ensaios reprovados ─────────────────────────────────────────────────
+    const ensaioRows = await this.prisma.$queryRawUnsafe<{
+      ensaios_reprovados: number;
+    }[]>(
+      `SELECT COUNT(*)::int AS ensaios_reprovados
+       FROM fvm_ensaios e
+       JOIN fvm_lotes l ON l.id = e.lote_id
+       WHERE l.tenant_id = $1 AND l.obra_id = $2
+         AND l.deleted_at IS NULL
+         AND e.resultado = 'REPROVADO'
+         AND l.data_entrega BETWEEN $3 AND $4`,
+      ...params,
+    );
+
+    const kpis = {
+      ...kpiBase,
+      ...ncBase,
+      ensaios_reprovados: ensaioRows[0]?.ensaios_reprovados ?? 0,
+      taxa_aprovacao: kpiBase.taxa_aprovacao ?? 0,
+    };
+
+    // ── Por categoria ──────────────────────────────────────────────────────
+    const porCategoria = await this.prisma.$queryRawUnsafe<{
+      categoria_id: number;
+      categoria_nome: string;
+      total_lotes: number;
+      taxa_aprovacao: number;
+    }[]>(
+      `SELECT
+         m.categoria_id,
+         COALESCE(c.nome, 'Sem categoria') AS categoria_nome,
+         COUNT(l.id)::int AS total_lotes,
+         ROUND(
+           100.0 * COUNT(l.id) FILTER (WHERE l.status IN ('aprovado','aprovado_com_ressalva')) /
+           NULLIF(COUNT(l.id) FILTER (WHERE l.status NOT IN ('aguardando_inspecao','cancelado')), 0),
+           1
+         ) AS taxa_aprovacao
+       FROM fvm_lotes l
+       JOIN fvm_catalogo_materiais m ON m.id = l.material_id
+       LEFT JOIN fvm_categorias_materiais c ON c.id = m.categoria_id
+       WHERE l.tenant_id = $1 AND l.obra_id = $2
+         AND l.deleted_at IS NULL
+         AND l.data_entrega BETWEEN $3 AND $4
+       GROUP BY m.categoria_id, c.nome
+       ORDER BY taxa_aprovacao ASC NULLS LAST`,
+      ...params,
+    );
+
+    // ── Evolução semanal ───────────────────────────────────────────────────
+    const evolucaoSemanal = await this.prisma.$queryRawUnsafe<{
+      semana: string;
+      aprovados: number;
+      quarentena: number;
+      reprovados: number;
+      aguardando: number;
+    }[]>(
+      `SELECT
+         TO_CHAR(DATE_TRUNC('week', data_entrega), 'IYYY-"W"IW') AS semana,
+         COUNT(*) FILTER (WHERE status IN ('aprovado','aprovado_com_ressalva'))::int AS aprovados,
+         COUNT(*) FILTER (WHERE status = 'quarentena')::int AS quarentena,
+         COUNT(*) FILTER (WHERE status = 'reprovado')::int AS reprovados,
+         COUNT(*) FILTER (WHERE status IN ('aguardando_inspecao','em_inspecao'))::int AS aguardando
+       FROM fvm_lotes
+       WHERE tenant_id = $1 AND obra_id = $2
+         AND deleted_at IS NULL
+         AND data_entrega BETWEEN $3 AND $4
+       GROUP BY DATE_TRUNC('week', data_entrega)
+       ORDER BY DATE_TRUNC('week', data_entrega) ASC`,
+      ...params,
+    );
+
+    return { kpis, por_categoria: porCategoria, evolucao_semanal: evolucaoSemanal };
+  }
+
+  // ── NCs Relatório (R-FVM2) ────────────────────────────────────────────────
+
+  async getNcsRelatorio(
+    tenantId: number,
+    obraId: number,
+    opts?: {
+      dataInicio?: string; dataFim?: string;
+      status?: string; criticidade?: string; fornecedorId?: number;
+    },
+  ) {
+    const conditions: string[] = [
+      'nc.tenant_id = $1',
+      'nc.obra_id = $2',
+    ];
+    const params: unknown[] = [tenantId, obraId];
+    let i = 3;
+
+    if (opts?.dataInicio)  { conditions.push(`nc.created_at >= $${i++}`);    params.push(new Date(opts.dataInicio)); }
+    if (opts?.dataFim)     { conditions.push(`nc.created_at <= $${i++}`);    params.push(new Date(opts.dataFim)); }
+    if (opts?.status)      { conditions.push(`nc.status = $${i++}`);         params.push(opts.status); }
+    if (opts?.criticidade) { conditions.push(`nc.criticidade = $${i++}`);    params.push(opts.criticidade); }
+    if (opts?.fornecedorId){ conditions.push(`l.fornecedor_id = $${i++}`);   params.push(opts.fornecedorId); }
+
+    return this.prisma.$queryRawUnsafe(
+      `SELECT
+         nc.id,
+         nc.numero,
+         l.numero_lote AS lote_numero,
+         m.nome AS material_nome,
+         f.razao_social AS fornecedor_nome,
+         nc.criticidade,
+         nc.tipo,
+         nc.status,
+         nc.prazo_resolucao::text AS prazo,
+         nc.acao_imediata,
+         CASE WHEN nc.prazo_resolucao IS NULL OR nc.prazo_resolucao >= NOW() THEN true ELSE false END AS sla_ok
+       FROM fvm_nao_conformidades nc
+       JOIN fvm_lotes l ON l.id = nc.lote_id
+       JOIN fvm_catalogo_materiais m ON m.id = l.material_id
+       JOIN fvm_fornecedores f ON f.id = l.fornecedor_id
+       WHERE ${conditions.join(' AND ')}
+       ORDER BY f.razao_social ASC, nc.criticidade DESC, nc.created_at DESC`,
+      ...params,
+    );
+  }
+
   // ── NC automática ao reprovar ─────────────────────────────────────────────
 
   private async _criarNcReprovacao(

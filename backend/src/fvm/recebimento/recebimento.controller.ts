@@ -13,6 +13,7 @@ import { CreateLoteDto } from './dto/create-lote.dto';
 import { PutRegistroDto } from './dto/put-registro.dto';
 import { ConcluirInspecaoDto } from './dto/concluir-inspecao.dto';
 import { LiberarQuarentenaDto } from './dto/liberar-quarentena.dto';
+import { DashboardQueryDto } from './dto/dashboard-query.dto';
 
 @Controller('api/v1/fvm')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -35,6 +36,41 @@ export class RecebimentoController {
       categoriaId:  categoriaId  ? Number(categoriaId)  : undefined,
       fornecedorId: fornecedorId ? Number(fornecedorId) : undefined,
       status,
+    });
+  }
+
+  /** GET /api/v1/fvm/obras/:obraId/dashboard */
+  @Get('obras/:obraId/dashboard')
+  @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO', 'VISITANTE')
+  getDashboard(
+    @TenantId() tenantId: number,
+    @Param('obraId', ParseIntPipe) obraId: number,
+    @Query() query: DashboardQueryDto,
+  ) {
+    return this.service.getDashboard(tenantId, obraId, {
+      data_inicio: query.data_inicio,
+      data_fim:    query.data_fim,
+    });
+  }
+
+  /** GET /api/v1/fvm/obras/:obraId/ncs — for R-FVM2 report */
+  @Get('obras/:obraId/ncs')
+  @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO', 'VISITANTE')
+  getNcsRelatorio(
+    @TenantId() tenantId: number,
+    @Param('obraId', ParseIntPipe) obraId: number,
+    @Query('data_inicio') dataInicio?: string,
+    @Query('data_fim') dataFim?: string,
+    @Query('status') status?: string,
+    @Query('criticidade') criticidade?: string,
+    @Query('fornecedor_id') fornecedorId?: string,
+  ) {
+    return this.service.getNcsRelatorio(tenantId, obraId, {
+      dataInicio,
+      dataFim,
+      status,
+      criticidade,
+      fornecedorId: fornecedorId ? Number(fornecedorId) : undefined,
     });
   }
 

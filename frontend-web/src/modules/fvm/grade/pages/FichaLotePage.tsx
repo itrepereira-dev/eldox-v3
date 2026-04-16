@@ -7,10 +7,11 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useLote, usePutRegistro, useConcluirInspecao } from '../hooks/useGradeFvm';
 import { cn } from '@/lib/cn';
-import { ArrowLeft, Check, X, Minus, FlaskConical, ClipboardList } from 'lucide-react';
+import { ArrowLeft, Check, X, Minus, FlaskConical, ClipboardList, FileDown } from 'lucide-react';
 import { EvidenciasSection } from '../components/EvidenciasSection';
 import { LiberarQuarentenaModal } from '../components/LiberarQuarentenaModal';
 import { EnsaiosTab } from '../components/EnsaiosTab';
+import { downloadFichaRecebimento } from '../../relatorios/pdf/FichaRecebimentoPdf';
 
 // ── Tipos ─────────────────────────────────────────────────────────────────
 
@@ -60,6 +61,7 @@ export function FichaLotePage() {
   const [obsGeral, setObsGeral]               = useState('');
   const [erroApi, setErroApi]         = useState<string | null>(null);
   const [salvando, setSalvando]       = useState<number | null>(null); // itemId em saving
+  const [exportando, setExportando]   = useState(false);
 
   if (isLoading || !lote) {
     return (
@@ -134,6 +136,22 @@ export function FichaLotePage() {
             {lote.numero_lote} · NF {lote.numero_nf} · {lote.fornecedor_nome}
           </p>
         </div>
+        <button
+          onClick={async () => {
+            if (!lote) return;
+            setExportando(true);
+            try {
+              await downloadFichaRecebimento(lote);
+            } finally {
+              setExportando(false);
+            }
+          }}
+          disabled={exportando}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-[var(--border-dim)] text-xs text-[var(--text-faint)] hover:text-[var(--text-high)] hover:border-[var(--accent)] transition-colors disabled:opacity-40 whitespace-nowrap"
+        >
+          <FileDown size={13} />
+          {exportando ? 'Gerando...' : 'Exportar Ficha PDF'}
+        </button>
       </div>
 
       {/* ── Progresso ────────────────────────────────────────────────────── */}

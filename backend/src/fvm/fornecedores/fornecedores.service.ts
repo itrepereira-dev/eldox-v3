@@ -175,4 +175,65 @@ export class FornecedoresService {
       id, tenantId,
     );
   }
+
+  async patchScore(tenantId: number, id: number, score: number): Promise<{ id: number; avaliacao_score: number }> {
+    const clamped = Math.min(100, Math.max(0, score));
+    const rows = await this.prisma.$queryRawUnsafe<{ id: number; avaliacao_score: number }[]>(
+      `UPDATE fvm_fornecedores
+       SET avaliacao_score = $1, updated_at = NOW()
+       WHERE id = $2 AND tenant_id = $3
+       RETURNING id, avaliacao_score`,
+      clamped,
+      id,
+      tenantId,
+    );
+    if (!rows.length) throw new NotFoundException(`Fornecedor ${id} não encontrado`);
+    return rows[0];
+  }
+
+  async getPerformance(
+    tenantId: number,
+    opts?: { obraId?: number; dataInicio?: string; dataFim?: string },
+  ): Promise<{
+    id: number; razao_social: string; cnpj: string | null;
+    total_lotes: number; taxa_aprovacao: number;
+    total_ncs: number; ncs_criticas: number;
+    ensaios_reprovados: number; total_ensaios: number;
+  }[]> {
+    const conditions: string[] = ['l.tenant_id = $1', 'l.deleted_at IS NULL'];
+    const params: unknown[] = [tenantId];
+    let i = 2;
+
+    if (opts?.obraId)     { conditions.push(`l.obra_id = $${i++}`);         params.push(opts.obraId); }
+    if (opts?.dataInicio) { conditions.push(`l.data_entrega >= $${i++}`);   params.push(new Date(opts.dataInicio)); }
+    if (opts?.dataFim)    { conditions.push(`l.data_entrega <= $${i++}`);   params.push(new Date(opts.dataFim)); }
+
+    const loteCond = conditions.join(' AND ');
+
+    return this.prisma.$queryRawUnsafe(
+      `SELECT
+         f.id,
+         f.razao_social,
+         f.cnpj,
+         COUNT(DISTINCT l.id)::int AS total_lotes,
+         ROUND(
+           100.0 * COUNT(DISTINCT l.id) FILTER (WHERE l.status IN ('aprovado','aprovado_com_ressalva')) /
+           NULLIF(COUNT(DISTINCT l.id) FILTER (WHERE l.status NOT IN ('aguardando_inspecao','cancelado')), 0),
+           1
+         ) AS taxa_aprovacao,
+         COUNT(DISTINCT nc.id)::int AS total_ncs,
+         COUNT(DISTINCT nc.id) FILTER (WHERE nc.criticidade = 'critico')::int AS ncs_criticas,
+         COUNT(DISTINCT e.id) FILTER (WHERE e.resultado = 'REPROVADO')::int AS ensaios_reprovados,
+         COUNT(DISTINCT e.id)::int AS total_ensaios
+       FROM fvm_fornecedores f
+       JOIN fvm_lotes l ON l.fornecedor_id = f.id
+       LEFT JOIN fvm_nao_conformidades nc ON nc.lote_id = l.id
+       LEFT JOIN fvm_ensaios e ON e.lote_id = l.id
+       WHERE ${loteCond}
+       GROUP BY f.id, f.razao_social, f.cnpj
+       HAVING COUNT(DISTINCT l.id) > 0
+       ORDER BY f.razao_social ASC`,
+      ...params,
+    );
+  }
 }

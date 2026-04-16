@@ -12,6 +12,7 @@ import { FornecedoresService } from './fornecedores.service';
 import { CreateFornecedorDto } from './dto/create-fornecedor.dto';
 import { CreateFornecedorRapidoDto } from './dto/create-fornecedor-rapido.dto';
 import { UpdateFornecedorDto } from './dto/update-fornecedor.dto';
+import { PatchScoreDto } from './dto/patch-score.dto';
 
 @Controller('api/v1/fvm/fornecedores')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -26,6 +27,22 @@ export class FornecedoresController {
     @Query('search') search?: string,
   ) {
     return this.service.getFornecedores(tenantId, { situacao, search });
+  }
+
+  /** GET /fvm/fornecedores/performance — aggregated performance data for R-FVM3 */
+  @Get('performance')
+  @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO', 'VISITANTE')
+  getPerformance(
+    @TenantId() tenantId: number,
+    @Query('obra_id') obraId?: string,
+    @Query('data_inicio') dataInicio?: string,
+    @Query('data_fim') dataFim?: string,
+  ) {
+    return this.service.getPerformance(tenantId, {
+      obraId:     obraId     ? Number(obraId) : undefined,
+      dataInicio,
+      dataFim,
+    });
   }
 
   @Get(':id')
@@ -78,5 +95,16 @@ export class FornecedoresController {
     @Param('id', ParseIntPipe) id: number,
   ) {
     return this.service.deleteFornecedor(tenantId, id);
+  }
+
+  /** PATCH /fvm/fornecedores/:id/score — save computed performance score */
+  @Patch(':id/score')
+  @Roles('ADMIN_TENANT', 'ENGENHEIRO')
+  patchScore(
+    @TenantId() tenantId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: PatchScoreDto,
+  ) {
+    return this.service.patchScore(tenantId, id, dto.score);
   }
 }

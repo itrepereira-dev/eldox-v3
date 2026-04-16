@@ -75,6 +75,76 @@ export interface FvmFornecedor {
   entregas_aprovadas?: number;
 }
 
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+
+export interface FvmDashboardKpis {
+  lotes_recebidos_total: number;
+  lotes_aprovados: number;
+  lotes_em_quarentena: number;
+  lotes_reprovados: number;
+  taxa_aprovacao: number;
+  ncs_abertas: number;
+  ncs_criticas_abertas: number;
+  ensaios_reprovados: number;
+}
+
+export interface FvmDashboardCategoria {
+  categoria_id: number;
+  categoria_nome: string;
+  total_lotes: number;
+  taxa_aprovacao: number;
+}
+
+export interface FvmDashboardSemana {
+  semana: string;       // "2026-W15"
+  aprovados: number;
+  quarentena: number;
+  reprovados: number;
+  aguardando: number;
+}
+
+export interface FvmDashboard {
+  kpis: FvmDashboardKpis;
+  por_categoria: FvmDashboardCategoria[];
+  evolucao_semanal: FvmDashboardSemana[];
+}
+
+export interface FvmDashboardQuery {
+  data_inicio?: string;
+  data_fim?: string;
+}
+
+// ─── Relatório de Performance — tipos ────────────────────────────────────────
+
+export interface FvmPerformanceFornecedor {
+  id: number;
+  razao_social: string;
+  cnpj: string | null;
+  total_lotes: number;
+  taxa_aprovacao: number;
+  total_ncs: number;
+  ncs_criticas: number;
+  ensaios_reprovados: number;
+  total_ensaios: number;
+  score: number;
+}
+
+// ─── Relatório de NCs ─────────────────────────────────────────────────────────
+
+export interface FvmNcRelatorio {
+  id: number;
+  numero: string;
+  lote_numero: string;
+  material_nome: string;
+  fornecedor_nome: string;
+  criticidade: Criticidade;
+  tipo: string;
+  status: string;
+  prazo: string | null;
+  acao_imediata: string | null;
+  sla_ok: boolean;
+}
+
 export interface FvmLote {
   id: number;
   obra_id: number;
@@ -307,4 +377,29 @@ export const fvmService = {
 
   getResultadoEnsaiosLote: (loteId: number): Promise<ResultadoLote> =>
     api.get(`/fvm/lotes/${loteId}/ensaios/resultado`).then(r => r.data),
+
+  // ── Dashboard ───────────────────────────────────────────────────────────────
+
+  getDashboard: (obraId: number, params?: FvmDashboardQuery): Promise<FvmDashboard> =>
+    api.get(`/fvm/obras/${obraId}/dashboard`, { params }).then(r => r.data),
+
+  // ── Fornecedor score (R-FVM3) ────────────────────────────────────────────────
+
+  patchFornecedorScore: (fornecedorId: number, score: number): Promise<{ id: number; avaliacao_score: number }> =>
+    api.patch(`/fvm/fornecedores/${fornecedorId}/score`, { score }).then(r => r.data),
+
+  // ── NCs da obra (R-FVM2) ──────────────────────────────────────────────────────
+
+  getNcsRelatorio: (
+    obraId: number,
+    params?: { data_inicio?: string; data_fim?: string; status?: string; criticidade?: string; fornecedor_id?: number },
+  ): Promise<FvmNcRelatorio[]> =>
+    api.get(`/fvm/obras/${obraId}/ncs`, { params }).then(r => r.data),
+
+  // ── Performance de fornecedores (R-FVM3) — dados calculados client-side ────────
+
+  getPerformanceFornecedores: (
+    params?: { obra_id?: number; data_inicio?: string; data_fim?: string },
+  ): Promise<FvmPerformanceFornecedor[]> =>
+    api.get('/fvm/fornecedores/performance', { params }).then(r => r.data),
 };

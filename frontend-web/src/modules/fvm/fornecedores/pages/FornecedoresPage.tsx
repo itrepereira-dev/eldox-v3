@@ -2,11 +2,16 @@
 // Listagem de fornecedores com score e situação — requisito PBQP-H §2.5
 
 import { useState } from 'react';
-import { Plus, Search, Star, Building2 } from 'lucide-react';
+import { Plus, Search, Star, Building2, FileDown, FileSpreadsheet } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useFornecedores } from '../../grade/hooks/useGradeFvm';
-import type { SituacaoFornecedor } from '@/services/fvm.service';
+import type { SituacaoFornecedor, FvmPerformanceFornecedor } from '@/services/fvm.service';
+import { fvmService } from '@/services/fvm.service';
 import { FornecedorModal } from '../components/FornecedorModal';
+import { usePatchFornecedorScore } from '../../dashboard/hooks/useFvmDashboard';
+import { calcularScore } from '../../relatorios/excel/scoreCalculator';
+import { downloadPerformancePdf } from '../../relatorios/pdf/PerformanceFornecedoresPdf';
+import { downloadPerformanceXlsx } from '../../relatorios/excel/PerformanceFornecedoresXlsx';
 
 // ── Status badges ──────────────────────────────────────────────────────────────
 
@@ -59,8 +64,36 @@ export default function FornecedoresPage() {
   const [search, setSearch]       = useState('');
   const [situacao, setSituacao]   = useState<string>('');
   const [modalOpen, setModalOpen] = useState(false);
+  const [gerandoRelatorio, setGerandoRelatorio] = useState(false);
 
   const { data: fornecedores = [], isLoading } = useFornecedores();
+  const patchScore = usePatchFornecedorScore();
+
+  async function gerarRelatorioPerformance(formato: 'pdf' | 'xlsx') {
+    setGerandoRelatorio(true);
+    try {
+      const rawData = await fvmService.getPerformanceFornecedores();
+
+      // Calculate score client-side and attach it
+      const withScore: FvmPerformanceFornecedor[] = rawData.map(f => ({
+        ...f,
+        score: calcularScore(f),
+      }));
+
+      // Persist scores back to server (fire-and-forget, don't block UI)
+      withScore.forEach(f => {
+        patchScore.mutate({ id: f.id, score: f.score });
+      });
+
+      if (formato === 'pdf') {
+        await downloadPerformancePdf(withScore);
+      } else {
+        await downloadPerformanceXlsx(withScore);
+      }
+    } finally {
+      setGerandoRelatorio(false);
+    }
+  }
 
   // Filtro client-side (a lista raramente passa de ~100 registros)
   const filtrados = fornecedores.filter(f => {
@@ -82,13 +115,31 @@ export default function FornecedoresPage() {
             Cadastro e homologação — requisito PBQP-H §2.5
           </p>
         </div>
-        <button
-          className="flex items-center gap-1.5 px-4 py-2 rounded-md bg-[var(--accent)] text-white text-sm font-medium hover:opacity-90 transition-opacity"
-          onClick={() => setModalOpen(true)}
-        >
-          <Plus size={15} />
-          Novo Fornecedor
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => gerarRelatorioPerformance('pdf')}
+            disabled={gerandoRelatorio}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-md border border-[var(--border-dim)] text-sm text-[var(--text-faint)] hover:text-[var(--text-high)] hover:border-[var(--accent)] transition-colors disabled:opacity-40"
+          >
+            <FileDown size={14} />
+            {gerandoRelatorio ? 'Gerando...' : 'Performance PDF'}
+          </button>
+          <button
+            onClick={() => gerarRelatorioPerformance('xlsx')}
+            disabled={gerandoRelatorio}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-md border border-[var(--border-dim)] text-sm text-[var(--text-faint)] hover:text-[var(--text-high)] hover:border-[var(--accent)] transition-colors disabled:opacity-40"
+          >
+            <FileSpreadsheet size={14} />
+            {gerandoRelatorio ? 'Gerando...' : 'Performance Excel'}
+          </button>
+          <button
+            className="flex items-center gap-1.5 px-4 py-2 rounded-md bg-[var(--accent)] text-white text-sm font-medium hover:opacity-90 transition-opacity"
+            onClick={() => setModalOpen(true)}
+          >
+            <Plus size={15} />
+            Novo Fornecedor
+          </button>
+        </div>
       </div>
 
       {/* Filtros */}
