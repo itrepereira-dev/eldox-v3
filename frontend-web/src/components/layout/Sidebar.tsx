@@ -181,7 +181,7 @@ function SidebarFooter() {
 /* ── FVM Nav helper ──────────────────────────────────── */
 function FvmControleLink({ onClick }: { onClick?: () => void }) {
   const obraAtivaId = useResolvedObraId()
-  const to = obraAtivaId ? `/fvm/obras/${obraAtivaId}` : '/obras'
+  const to = obraAtivaId ? `/fvm/obras/${obraAtivaId}` : '/fvm/catalogo'
 
   return (
     <NavItem
