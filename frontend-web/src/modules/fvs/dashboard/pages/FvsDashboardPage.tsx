@@ -8,6 +8,8 @@ import {
   BarChart2, CheckCircle, XCircle, AlertTriangle, TrendingUp,
   Activity, Clock, Brain,
 } from 'lucide-react'
+import { GraficosAvancados } from '../components/GraficosAvancados';
+import { FiltrosPeriodo, useFiltrosPeriodo } from '../components/FiltrosPeriodo';
 
 // ── Tipos ──────────────────────────────────────────────────────────────────────
 
@@ -83,6 +85,7 @@ export default function FvsDashboardPage() {
   const { obraId } = useParams<{ obraId?: string }>()
   const numObraId = obraId ? parseInt(obraId) : null
   const [diasEvolucao, setDiasEvolucao] = useState(30)
+  const [filtrosGraficos, setFiltrosGraficos] = useFiltrosPeriodo()
 
   const resumo = useQuery<ResumoObra>({
     queryKey: ['fvs-dashboard-resumo', numObraId],
@@ -365,6 +368,17 @@ export default function FvsDashboardPage() {
             ))}
           </div>
         </div>
+      )}
+
+      {/* ── Análise Visual: Gráficos Avançados ──────────────────────────────────── */}
+      {numObraId && (
+        <section className="space-y-6">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <h2 className="text-base font-semibold text-[var(--text-high)]">Análise Visual</h2>
+            <FiltrosPeriodo value={filtrosGraficos} onChange={setFiltrosGraficos} />
+          </div>
+          <GraficosAvancados obraId={numObraId} filtros={filtrosGraficos} />
+        </section>
       )}
     </div>
   )
