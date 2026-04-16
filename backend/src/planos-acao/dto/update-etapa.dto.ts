@@ -1,0 +1,39 @@
+// backend/src/planos-acao/dto/update-etapa.dto.ts
+import {
+  IsString, IsOptional, IsNumber, IsBoolean, IsArray, Matches, MaxLength, Min,
+} from 'class-validator';
+
+export class UpdateEtapaDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  nome?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  ordem?: number;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^#[0-9A-Fa-f]{6}$/, { message: 'cor deve ser hex de 6 dígitos ex: #6B7280' })
+  cor?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isInicial?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isFinal?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  prazoDias?: number | null;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  rolesTransicao?: string[];
+}
