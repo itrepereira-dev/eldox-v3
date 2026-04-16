@@ -1,205 +1,215 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from './components/ui/ThemeContext';
-import { LoginPage } from './pages/auth/LoginPage';
-import { DashboardPage } from './pages/DashboardPage';
-import { ObrasListPage } from './pages/obras/ObrasListPage';
-import { CadastroObraWizard } from './pages/obras/CadastroObraWizard';
-import { ObraDetalhePage } from './pages/obras/ObraDetalhePage';
-import { GedHubPage } from './pages/ged/GedHubPage';
-import { GedDocumentosPage } from './pages/ged/GedDocumentosPage';
-import { GedDocumentoDetalhePage } from './pages/ged/GedDocumentoDetalhePage';
-import { GedListaMestraPage } from './pages/ged/GedListaMestraPage';
-import { GedAdminPage } from './pages/ged/GedAdminPage';
-import CatalogoFvsPage from './modules/fvs/catalogo/CatalogoPage';
-import { FichasListPage } from './modules/fvs/inspecao/pages/FichasListPage';
-import { AbrirFichaWizard } from './modules/fvs/inspecao/pages/AbrirFichaWizard';
-import { FichaGradePage } from './modules/fvs/inspecao/pages/FichaGradePage';
-import { FichaLocalPage } from './modules/fvs/inspecao/pages/FichaLocalPage';
-import { ModelosListPage } from './modules/fvs/modelos/pages/ModelosListPage';
-import { ModeloFormPage } from './modules/fvs/modelos/pages/ModeloFormPage';
-import { ModeloDetailPage } from './modules/fvs/modelos/pages/ModeloDetailPage';
-import { AppLayout } from './layouts/AppLayout';
-import { GradeMateriaisPage } from './modules/fvm/grade/pages/GradeMateriaisPage';
-import { FichaLotePage } from './modules/fvm/grade/pages/FichaLotePage';
-import CatalogoMateriaisPage from './modules/fvm/catalogo/pages/CatalogoMateriaisPage';
-import FornecedoresPage from './modules/fvm/fornecedores/pages/FornecedoresPage';
-import TiposEnsaioPage from './modules/ensaios/tipos/pages/TiposEnsaioPage';
-import EnsaiosPage from './modules/ensaios/laboratoriais/pages/EnsaiosPage';
-import RevisoesPage from './modules/ensaios/revisoes/pages/RevisoesPage';
-import ConformidadePage from './modules/ensaios/dashboard/pages/ConformidadePage';
-import { RdosListPage } from './modules/diario/pages/RdosListPage';
-import { DiarioHomePage } from './modules/diario/pages/DiarioHomePage';
-import CroquiRastreabilidadePage from './modules/concretagem/croqui/pages/CroquiRastreabilidadePage';
-import CroquiDetalhePage from './modules/concretagem/croqui/pages/CroquiDetalhePage';
-import ConcretagemDashboardPage from './modules/concretagem/dashboard/pages/ConcretagemDashboardPage';
-import ConcrtagensListPage from './modules/concretagem/concretagens/pages/ConcrtagensListPage';
-import ConcrtagemDetalhePage from './modules/concretagem/concretagens/pages/ConcrtagemDetalhePage';
-import { RdoFormPage } from './modules/diario/pages/RdoFormPage';
-import { RdoWorkflowPage } from './modules/diario/pages/RdoWorkflowPage';
-import { AlmoxarifadoDashboard } from './modules/almoxarifado/dashboard/pages/AlmoxarifadoDashboard';
-import { EstoquePage } from './modules/almoxarifado/estoque/pages/EstoquePage';
-import { MovimentosPage } from './modules/almoxarifado/estoque/pages/MovimentosPage';
-import { AlertasPage } from './modules/almoxarifado/estoque/pages/AlertasPage';
-import { SolicitacoesListPage } from './modules/almoxarifado/solicitacao/pages/SolicitacoesListPage';
-import { NovaSolicitacaoPage } from './modules/almoxarifado/solicitacao/pages/NovaSolicitacaoPage';
-import { SolicitacaoDetalhePage } from './modules/almoxarifado/solicitacao/pages/SolicitacaoDetalhePage';
-import { OcListPage } from './modules/almoxarifado/compras/pages/OcListPage';
-import { NovaOcPage } from './modules/almoxarifado/compras/pages/NovaOcPage';
-import { OcDetalhePage } from './modules/almoxarifado/compras/pages/OcDetalhePage';
-import { NfeListPage } from './modules/almoxarifado/nfe/pages/NfeListPage';
-import { NfeDetalhePage } from './modules/almoxarifado/nfe/pages/NfeDetalhePage';
-import { PlanejamentoPage } from './modules/almoxarifado/planejamento/pages/PlanejamentoPage';
-import { InsightsPage } from './modules/almoxarifado/ia/pages/InsightsPage';
-import { NcsListPage } from './modules/ncs/pages/NcsListPage';
-import { NcDetalhePage } from './modules/ncs/pages/NcDetalhePage';
-import { NcsGlobalPage } from './modules/ncs/pages/NcsGlobalPage';
-import { SemaforoPage } from './modules/semaforo/pages/SemaforoPage';
-import { AprovacoesPage } from './modules/aprovacoes/pages/AprovacoesPage';
-import { AprovacaoDetalhePage } from './modules/aprovacoes/pages/AprovacaoDetalhePage';
-import { TemplatesPage } from './modules/aprovacoes/pages/TemplatesPage';
-import { EfetivoListPage } from './modules/efetivo/pages/EfetivoListPage';
-import { CadastrosEfetivoPage } from './modules/efetivo/pages/CadastrosPage';
-import CotacoesPage from './modules/almoxarifado/cotacoes/pages/CotacoesPage';
-import ComparativoPage from './modules/almoxarifado/cotacoes/pages/ComparativoPage';
-import PortalCotacaoPage from './modules/portal/PortalCotacaoPage';
-import PortalFornecedorPage from './modules/portal/PortalFornecedorPage';
-import RelatorioClientePage from './modules/diario/pages/RelatorioClientePage';
-import FvsDashboardPage from './modules/fvs/dashboard/pages/FvsDashboardPage';
-import FvsRelatorioClientePage from './modules/fvs/cliente/FvsRelatorioClientePage';
 
-const queryClient = new QueryClient();
+// ── Carregamento imediato (telas críticas do caminho feliz) ───────────────────
+import { LoginPage } from './pages/auth/LoginPage';
+import { AppLayout } from './layouts/AppLayout';
+
+// ── Lazy: tudo mais carrega só quando o usuário navega ───────────────────────
+const DashboardPage            = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
+const ObrasListPage            = lazy(() => import('./pages/obras/ObrasListPage').then(m => ({ default: m.ObrasListPage })));
+const CadastroObraWizard       = lazy(() => import('./pages/obras/CadastroObraWizard').then(m => ({ default: m.CadastroObraWizard })));
+const ObraDetalhePage          = lazy(() => import('./pages/obras/ObraDetalhePage').then(m => ({ default: m.ObraDetalhePage })));
+const GedHubPage               = lazy(() => import('./pages/ged/GedHubPage').then(m => ({ default: m.GedHubPage })));
+const GedDocumentosPage        = lazy(() => import('./pages/ged/GedDocumentosPage').then(m => ({ default: m.GedDocumentosPage })));
+const GedDocumentoDetalhePage  = lazy(() => import('./pages/ged/GedDocumentoDetalhePage').then(m => ({ default: m.GedDocumentoDetalhePage })));
+const GedListaMestraPage       = lazy(() => import('./pages/ged/GedListaMestraPage').then(m => ({ default: m.GedListaMestraPage })));
+const GedAdminPage             = lazy(() => import('./pages/ged/GedAdminPage').then(m => ({ default: m.GedAdminPage })));
+const CatalogoFvsPage          = lazy(() => import('./modules/fvs/catalogo/CatalogoPage'));
+const FichasListPage           = lazy(() => import('./modules/fvs/inspecao/pages/FichasListPage').then(m => ({ default: m.FichasListPage })));
+const AbrirFichaWizard         = lazy(() => import('./modules/fvs/inspecao/pages/AbrirFichaWizard').then(m => ({ default: m.AbrirFichaWizard })));
+const FichaGradePage           = lazy(() => import('./modules/fvs/inspecao/pages/FichaGradePage').then(m => ({ default: m.FichaGradePage })));
+const FichaLocalPage           = lazy(() => import('./modules/fvs/inspecao/pages/FichaLocalPage').then(m => ({ default: m.FichaLocalPage })));
+const ModelosListPage          = lazy(() => import('./modules/fvs/modelos/pages/ModelosListPage').then(m => ({ default: m.ModelosListPage })));
+const ModeloFormPage           = lazy(() => import('./modules/fvs/modelos/pages/ModeloFormPage').then(m => ({ default: m.ModeloFormPage })));
+const ModeloDetailPage         = lazy(() => import('./modules/fvs/modelos/pages/ModeloDetailPage').then(m => ({ default: m.ModeloDetailPage })));
+const GradeMateriaisPage       = lazy(() => import('./modules/fvm/grade/pages/GradeMateriaisPage').then(m => ({ default: m.GradeMateriaisPage })));
+const FichaLotePage            = lazy(() => import('./modules/fvm/grade/pages/FichaLotePage').then(m => ({ default: m.FichaLotePage })));
+const CatalogoMateriaisPage    = lazy(() => import('./modules/fvm/catalogo/pages/CatalogoMateriaisPage'));
+const FornecedoresPage         = lazy(() => import('./modules/fvm/fornecedores/pages/FornecedoresPage'));
+const TiposEnsaioPage          = lazy(() => import('./modules/ensaios/tipos/pages/TiposEnsaioPage'));
+const EnsaiosPage              = lazy(() => import('./modules/ensaios/laboratoriais/pages/EnsaiosPage'));
+const RevisoesPage             = lazy(() => import('./modules/ensaios/revisoes/pages/RevisoesPage'));
+const ConformidadePage         = lazy(() => import('./modules/ensaios/dashboard/pages/ConformidadePage'));
+const RdosListPage             = lazy(() => import('./modules/diario/pages/RdosListPage').then(m => ({ default: m.RdosListPage })));
+const DiarioHomePage           = lazy(() => import('./modules/diario/pages/DiarioHomePage').then(m => ({ default: m.DiarioHomePage })));
+const CroquiRastreabilidadePage= lazy(() => import('./modules/concretagem/croqui/pages/CroquiRastreabilidadePage'));
+const CroquiDetalhePage        = lazy(() => import('./modules/concretagem/croqui/pages/CroquiDetalhePage'));
+const ConcretagemDashboardPage = lazy(() => import('./modules/concretagem/dashboard/pages/ConcretagemDashboardPage'));
+const ConcrtagensListPage      = lazy(() => import('./modules/concretagem/concretagens/pages/ConcrtagensListPage'));
+const ConcrtagemDetalhePage    = lazy(() => import('./modules/concretagem/concretagens/pages/ConcrtagemDetalhePage'));
+const RdoFormPage              = lazy(() => import('./modules/diario/pages/RdoFormPage').then(m => ({ default: m.RdoFormPage })));
+const RdoWorkflowPage          = lazy(() => import('./modules/diario/pages/RdoWorkflowPage').then(m => ({ default: m.RdoWorkflowPage })));
+const AlmoxarifadoDashboard    = lazy(() => import('./modules/almoxarifado/dashboard/pages/AlmoxarifadoDashboard').then(m => ({ default: m.AlmoxarifadoDashboard })));
+const EstoquePage              = lazy(() => import('./modules/almoxarifado/estoque/pages/EstoquePage').then(m => ({ default: m.EstoquePage })));
+const MovimentosPage           = lazy(() => import('./modules/almoxarifado/estoque/pages/MovimentosPage').then(m => ({ default: m.MovimentosPage })));
+const AlertasPage              = lazy(() => import('./modules/almoxarifado/estoque/pages/AlertasPage').then(m => ({ default: m.AlertasPage })));
+const SolicitacoesListPage     = lazy(() => import('./modules/almoxarifado/solicitacao/pages/SolicitacoesListPage').then(m => ({ default: m.SolicitacoesListPage })));
+const NovaSolicitacaoPage      = lazy(() => import('./modules/almoxarifado/solicitacao/pages/NovaSolicitacaoPage').then(m => ({ default: m.NovaSolicitacaoPage })));
+const SolicitacaoDetalhePage   = lazy(() => import('./modules/almoxarifado/solicitacao/pages/SolicitacaoDetalhePage').then(m => ({ default: m.SolicitacaoDetalhePage })));
+const OcListPage               = lazy(() => import('./modules/almoxarifado/compras/pages/OcListPage').then(m => ({ default: m.OcListPage })));
+const NovaOcPage               = lazy(() => import('./modules/almoxarifado/compras/pages/NovaOcPage').then(m => ({ default: m.NovaOcPage })));
+const OcDetalhePage            = lazy(() => import('./modules/almoxarifado/compras/pages/OcDetalhePage').then(m => ({ default: m.OcDetalhePage })));
+const NfeListPage              = lazy(() => import('./modules/almoxarifado/nfe/pages/NfeListPage').then(m => ({ default: m.NfeListPage })));
+const NfeDetalhePage           = lazy(() => import('./modules/almoxarifado/nfe/pages/NfeDetalhePage').then(m => ({ default: m.NfeDetalhePage })));
+const PlanejamentoPage         = lazy(() => import('./modules/almoxarifado/planejamento/pages/PlanejamentoPage').then(m => ({ default: m.PlanejamentoPage })));
+const InsightsPage             = lazy(() => import('./modules/almoxarifado/ia/pages/InsightsPage').then(m => ({ default: m.InsightsPage })));
+const NcsListPage              = lazy(() => import('./modules/ncs/pages/NcsListPage').then(m => ({ default: m.NcsListPage })));
+const NcDetalhePage            = lazy(() => import('./modules/ncs/pages/NcDetalhePage').then(m => ({ default: m.NcDetalhePage })));
+const NcsGlobalPage            = lazy(() => import('./modules/ncs/pages/NcsGlobalPage').then(m => ({ default: m.NcsGlobalPage })));
+const SemaforoPage             = lazy(() => import('./modules/semaforo/pages/SemaforoPage').then(m => ({ default: m.SemaforoPage })));
+const AprovacoesPage           = lazy(() => import('./modules/aprovacoes/pages/AprovacoesPage').then(m => ({ default: m.AprovacoesPage })));
+const AprovacaoDetalhePage     = lazy(() => import('./modules/aprovacoes/pages/AprovacaoDetalhePage').then(m => ({ default: m.AprovacaoDetalhePage })));
+const TemplatesPage            = lazy(() => import('./modules/aprovacoes/pages/TemplatesPage').then(m => ({ default: m.TemplatesPage })));
+const EfetivoListPage          = lazy(() => import('./modules/efetivo/pages/EfetivoListPage').then(m => ({ default: m.EfetivoListPage })));
+const CadastrosEfetivoPage     = lazy(() => import('./modules/efetivo/pages/CadastrosPage').then(m => ({ default: m.CadastrosEfetivoPage })));
+const CotacoesPage             = lazy(() => import('./modules/almoxarifado/cotacoes/pages/CotacoesPage'));
+const ComparativoPage          = lazy(() => import('./modules/almoxarifado/cotacoes/pages/ComparativoPage'));
+const PortalCotacaoPage        = lazy(() => import('./modules/portal/PortalCotacaoPage'));
+const PortalFornecedorPage     = lazy(() => import('./modules/portal/PortalFornecedorPage'));
+const RelatorioClientePage     = lazy(() => import('./modules/diario/pages/RelatorioClientePage'));
+const FvsDashboardPage         = lazy(() => import('./modules/fvs/dashboard/pages/FvsDashboardPage'));
+const FvsRelatorioClientePage  = lazy(() => import('./modules/fvs/cliente/FvsRelatorioClientePage'));
+
+// ── QueryClient com cache agressivo ──────────────────────────────────────────
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60_000,       // 1 min: não refetch se dado ainda é fresco
+      gcTime: 300_000,         // 5 min: mantém em cache após unmount
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+
+// ── Skeleton leve para suspense ───────────────────────────────────────────────
+function PageSkeleton() {
+  return (
+    <div className="flex items-center justify-center h-48 text-[var(--text-faint)] text-sm animate-pulse">
+      Carregando…
+    </div>
+  );
+}
 
 export default function App() {
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
-          <Routes>
-            {/* Página pública */}
-            <Route path="/login" element={<LoginPage />} />
+          <Suspense fallback={<PageSkeleton />}>
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
 
-            {/* Todas as páginas autenticadas — AppShell (sidebar + topbar) sempre presente */}
-            <Route element={<AppLayout />}>
-              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route element={<AppLayout />}>
+                <Route path="/dashboard" element={<DashboardPage />} />
 
-              {/* Obras */}
-              <Route path="/obras" element={<ObrasListPage />} />
-              <Route path="/obras/nova" element={<CadastroObraWizard />} />
-              <Route path="/obras/:id" element={<ObraDetalhePage />} />
+                {/* Obras */}
+                <Route path="/obras" element={<ObrasListPage />} />
+                <Route path="/obras/nova" element={<CadastroObraWizard />} />
+                <Route path="/obras/:id" element={<ObraDetalhePage />} />
 
-              {/* GED — por obra */}
-              <Route path="/obras/:id/ged" element={<GedHubPage />} />
-              <Route path="/obras/:id/ged/documentos" element={<GedDocumentosPage />} />
-              <Route path="/obras/:id/ged/documentos/:documentoId" element={<GedDocumentoDetalhePage />} />
-              <Route path="/obras/:id/ged/lista-mestra" element={<GedListaMestraPage />} />
+                {/* GED — por obra */}
+                <Route path="/obras/:id/ged" element={<GedHubPage />} />
+                <Route path="/obras/:id/ged/documentos" element={<GedDocumentosPage />} />
+                <Route path="/obras/:id/ged/documentos/:documentoId" element={<GedDocumentoDetalhePage />} />
+                <Route path="/obras/:id/ged/lista-mestra" element={<GedListaMestraPage />} />
 
-              {/* GED — nível empresa */}
-              <Route path="/ged/admin" element={<GedAdminPage />} />
+                {/* GED — nível empresa */}
+                <Route path="/ged/admin" element={<GedAdminPage />} />
 
-              {/* FVS — Catálogo de Serviços */}
-              <Route path="/configuracoes/fvs/catalogo" element={<CatalogoFvsPage />} />
+                {/* FVS — Catálogo */}
+                <Route path="/configuracoes/fvs/catalogo" element={<CatalogoFvsPage />} />
 
-              {/* FVS — Inspeção */}
-              <Route path="/fvs/fichas" element={<FichasListPage />} />
-              <Route path="/fvs/fichas/nova" element={<AbrirFichaWizard />} />
-              <Route path="/fvs/fichas/:fichaId" element={<FichaGradePage />} />
-              <Route path="/fvs/fichas/:fichaId/inspecao" element={<FichaLocalPage />} />
+                {/* FVS — Inspeção */}
+                <Route path="/fvs/fichas" element={<FichasListPage />} />
+                <Route path="/fvs/fichas/nova" element={<AbrirFichaWizard />} />
+                <Route path="/fvs/fichas/:fichaId" element={<FichaGradePage />} />
+                <Route path="/fvs/fichas/:fichaId/inspecao" element={<FichaLocalPage />} />
 
-              {/* FVM — Ficha de Verificação de Materiais */}
-              <Route path="/fvm/obras/:obraId" element={<GradeMateriaisPage />} />
-              <Route path="/fvm/lotes/:loteId" element={<FichaLotePage />} />
-              <Route path="/fvm/catalogo" element={<CatalogoMateriaisPage />} />
-              <Route path="/fvm/fornecedores" element={<FornecedoresPage />} />
+                {/* FVM */}
+                <Route path="/fvm/obras/:obraId" element={<GradeMateriaisPage />} />
+                <Route path="/fvm/lotes/:loteId" element={<FichaLotePage />} />
+                <Route path="/fvm/catalogo" element={<CatalogoMateriaisPage />} />
+                <Route path="/fvm/fornecedores" element={<FornecedoresPage />} />
 
-              {/* FVS — Dashboard de Qualidade */}
-              <Route path="/fvs/dashboard" element={<FvsDashboardPage />} />
-              <Route path="/obras/:obraId/fvs/dashboard" element={<FvsDashboardPage />} />
+                {/* FVS — Dashboard */}
+                <Route path="/fvs/dashboard" element={<FvsDashboardPage />} />
+                <Route path="/obras/:obraId/fvs/dashboard" element={<FvsDashboardPage />} />
 
-              {/* Diário de Obra (RDO) */}
-              <Route path="/diario" element={<DiarioHomePage />} />
-              <Route path="/obras/:id/diario" element={<RdosListPage />} />
-              <Route path="/obras/:id/diario/:rdoId" element={<RdoFormPage />} />
-              <Route path="/obras/:id/diario/:rdoId/workflow" element={<RdoWorkflowPage />} />
+                {/* Diário de Obra */}
+                <Route path="/diario" element={<DiarioHomePage />} />
+                <Route path="/obras/:id/diario" element={<RdosListPage />} />
+                <Route path="/obras/:id/diario/:rdoId" element={<RdoFormPage />} />
+                <Route path="/obras/:id/diario/:rdoId/workflow" element={<RdoWorkflowPage />} />
 
-              {/* Ensaios — Sprint 5/6 */}
-              <Route path="/configuracoes/ensaios/tipos" element={<TiposEnsaioPage />} />
-              <Route path="/obras/:obraId/ensaios" element={<ConformidadePage />} />
-              <Route path="/obras/:obraId/ensaios/laboratoriais" element={<EnsaiosPage />} />
-              <Route path="/obras/:obraId/ensaios/revisoes" element={<RevisoesPage />} />
+                {/* Ensaios */}
+                <Route path="/configuracoes/ensaios/tipos" element={<TiposEnsaioPage />} />
+                <Route path="/obras/:obraId/ensaios" element={<ConformidadePage />} />
+                <Route path="/obras/:obraId/ensaios/laboratoriais" element={<EnsaiosPage />} />
+                <Route path="/obras/:obraId/ensaios/revisoes" element={<RevisoesPage />} />
 
-              {/* FVS — Templates de Inspeção (Sprint 4a) */}
-              <Route path="/fvs/modelos" element={<ModelosListPage />} />
-              <Route path="/fvs/modelos/novo" element={<ModeloFormPage />} />
-              <Route path="/fvs/modelos/:id" element={<ModeloDetailPage />} />
-              <Route path="/fvs/modelos/:id/editar" element={<ModeloFormPage />} />
+                {/* FVS — Modelos */}
+                <Route path="/fvs/modelos" element={<ModelosListPage />} />
+                <Route path="/fvs/modelos/novo" element={<ModeloFormPage />} />
+                <Route path="/fvs/modelos/:id" element={<ModeloDetailPage />} />
+                <Route path="/fvs/modelos/:id/editar" element={<ModeloFormPage />} />
 
-              {/* Concretagem — Sprint 8 */}
-              <Route path="/obras/:obraId/concretagem" element={<ConcretagemDashboardPage />} />
-              <Route path="/obras/:obraId/concretagem/concretagens" element={<ConcrtagensListPage />} />
-              <Route path="/obras/:obraId/concretagem/concretagens/:concrtagemId" element={<ConcrtagemDetalhePage />} />
-              <Route path="/obras/:obraId/concretagem/croqui" element={<CroquiRastreabilidadePage />} />
-              <Route path="/obras/:obraId/concretagem/croqui/:croquiId" element={<CroquiDetalhePage />} />
+                {/* Concretagem */}
+                <Route path="/obras/:obraId/concretagem" element={<ConcretagemDashboardPage />} />
+                <Route path="/obras/:obraId/concretagem/concretagens" element={<ConcrtagensListPage />} />
+                <Route path="/obras/:obraId/concretagem/concretagens/:concrtagemId" element={<ConcrtagemDetalhePage />} />
+                <Route path="/obras/:obraId/concretagem/croqui" element={<CroquiRastreabilidadePage />} />
+                <Route path="/obras/:obraId/concretagem/croqui/:croquiId" element={<CroquiDetalhePage />} />
 
-              {/* Almoxarifado — Sprint 1 */}
-              <Route path="/obras/:obraId/almoxarifado" element={<AlmoxarifadoDashboard />} />
-              <Route path="/obras/:obraId/almoxarifado/estoque" element={<EstoquePage />} />
-              <Route path="/obras/:obraId/almoxarifado/estoque/movimentos" element={<MovimentosPage />} />
-              <Route path="/obras/:obraId/almoxarifado/estoque/alertas" element={<AlertasPage />} />
+                {/* Almoxarifado */}
+                <Route path="/obras/:obraId/almoxarifado" element={<AlmoxarifadoDashboard />} />
+                <Route path="/obras/:obraId/almoxarifado/estoque" element={<EstoquePage />} />
+                <Route path="/obras/:obraId/almoxarifado/estoque/movimentos" element={<MovimentosPage />} />
+                <Route path="/obras/:obraId/almoxarifado/estoque/alertas" element={<AlertasPage />} />
+                <Route path="/obras/:obraId/almoxarifado/solicitacoes" element={<SolicitacoesListPage />} />
+                <Route path="/obras/:obraId/almoxarifado/solicitacoes/nova" element={<NovaSolicitacaoPage />} />
+                <Route path="/obras/:obraId/almoxarifado/solicitacoes/:solicitacaoId" element={<SolicitacaoDetalhePage />} />
+                <Route path="/obras/:obraId/almoxarifado/ocs" element={<OcListPage />} />
+                <Route path="/obras/:obraId/almoxarifado/ocs/nova" element={<NovaOcPage />} />
+                <Route path="/obras/:obraId/almoxarifado/ocs/:ocId" element={<OcDetalhePage />} />
+                <Route path="/obras/:obraId/almoxarifado/nfes" element={<NfeListPage />} />
+                <Route path="/obras/:obraId/almoxarifado/nfes/:nfeId" element={<NfeDetalhePage />} />
+                <Route path="/obras/:obraId/almoxarifado/planejamento" element={<PlanejamentoPage />} />
+                <Route path="/obras/:obraId/almoxarifado/insights" element={<InsightsPage />} />
+                <Route path="/almoxarifado/solicitacoes/:solId/cotacoes" element={<CotacoesPage />} />
+                <Route path="/almoxarifado/solicitacoes/:solId/comparativo" element={<ComparativoPage />} />
 
-              {/* Almoxarifado — Sprint 2: Solicitações */}
-              <Route path="/obras/:obraId/almoxarifado/solicitacoes" element={<SolicitacoesListPage />} />
-              <Route path="/obras/:obraId/almoxarifado/solicitacoes/nova" element={<NovaSolicitacaoPage />} />
-              <Route path="/obras/:obraId/almoxarifado/solicitacoes/:solicitacaoId" element={<SolicitacaoDetalhePage />} />
+                {/* NCs */}
+                <Route path="/obras/:obraId/ncs" element={<NcsListPage />} />
+                <Route path="/obras/:obraId/ncs/:ncId" element={<NcDetalhePage />} />
+                <Route path="/ncs" element={<NcsGlobalPage />} />
 
-              {/* Almoxarifado — Sprint 3: Ordens de Compra */}
-              <Route path="/obras/:obraId/almoxarifado/ocs" element={<OcListPage />} />
-              <Route path="/obras/:obraId/almoxarifado/ocs/nova" element={<NovaOcPage />} />
-              <Route path="/obras/:obraId/almoxarifado/ocs/:ocId" element={<OcDetalhePage />} />
+                {/* Semáforo */}
+                <Route path="/obras/:id/semaforo" element={<SemaforoPage />} />
+                <Route path="/semaforo" element={<SemaforoPage />} />
 
-              {/* Almoxarifado — Sprint 4: NF-e */}
-              <Route path="/obras/:obraId/almoxarifado/nfes" element={<NfeListPage />} />
-              <Route path="/obras/:obraId/almoxarifado/nfes/:nfeId" element={<NfeDetalhePage />} />
+                {/* Aprovações */}
+                <Route path="/aprovacoes" element={<AprovacoesPage />} />
+                <Route path="/aprovacoes/templates" element={<TemplatesPage />} />
+                <Route path="/aprovacoes/:id" element={<AprovacaoDetalhePage />} />
 
-              {/* Almoxarifado — Sprint 5: Planejamento + IA */}
-              <Route path="/obras/:obraId/almoxarifado/planejamento" element={<PlanejamentoPage />} />
-              <Route path="/obras/:obraId/almoxarifado/insights" element={<InsightsPage />} />
-              {/* Cotações */}
-              <Route path="/almoxarifado/solicitacoes/:solId/cotacoes" element={<CotacoesPage />} />
-              <Route path="/almoxarifado/solicitacoes/:solId/comparativo" element={<ComparativoPage />} />
+                {/* Efetivo */}
+                <Route path="/obras/:obraId/efetivo" element={<EfetivoListPage />} />
+                <Route path="/configuracoes/efetivo/cadastros" element={<CadastrosEfetivoPage />} />
+              </Route>
 
-              {/* Não Conformidades (NCs) */}
-              <Route path="/obras/:obraId/ncs" element={<NcsListPage />} />
-              <Route path="/obras/:obraId/ncs/:ncId" element={<NcDetalhePage />} />
-              <Route path="/ncs" element={<NcsGlobalPage />} />
+              {/* Portais públicos */}
+              <Route path="/portal/cotacao/:token" element={<PortalCotacaoPage />} />
+              <Route path="/portal/fornecedor" element={<PortalFornecedorPage />} />
+              <Route path="/relatorio-cliente/:token" element={<RelatorioClientePage />} />
+              <Route path="/fvs-cliente/:token" element={<FvsRelatorioClientePage />} />
 
-              {/* Semáforo PBQP-H — Sprint 7 */}
-              <Route path="/obras/:id/semaforo" element={<SemaforoPage />} />
-              <Route path="/semaforo" element={<SemaforoPage />} />
-
-              {/* Aprovações — Sprint 9 */}
-              <Route path="/aprovacoes" element={<AprovacoesPage />} />
-              <Route path="/aprovacoes/templates" element={<TemplatesPage />} />
-              <Route path="/aprovacoes/:id" element={<AprovacaoDetalhePage />} />
-
-              {/* Controle de Efetivo */}
-              <Route path="/obras/:obraId/efetivo" element={<EfetivoListPage />} />
-              <Route path="/configuracoes/efetivo/cadastros" element={<CadastrosEfetivoPage />} />
-            </Route>
-
-            {/* Módulos em construção (Efetivo, Frota, Aprovações, IA) */}
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
-
-          {/* Portal público do fornecedor — fora do guard de autenticação */}
-          <Route path="/portal/cotacao/:token" element={<PortalCotacaoPage />} />
-          <Route path="/portal/fornecedor" element={<PortalFornecedorPage />} />
-
-          {/* Relatório público do cliente — fora do guard de autenticação */}
-          <Route path="/relatorio-cliente/:token" element={<RelatorioClientePage />} />
-
-          {/* Portal público FVS — fora do guard de autenticação */}
-          <Route path="/fvs-cliente/:token" element={<FvsRelatorioClientePage />} />
-          </Routes>
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            </Routes>
+          </Suspense>
         </BrowserRouter>
       </QueryClientProvider>
     </ThemeProvider>

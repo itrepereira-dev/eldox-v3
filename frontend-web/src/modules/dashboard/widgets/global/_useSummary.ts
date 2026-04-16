@@ -6,7 +6,7 @@ export function useSummary() {
   return useQuery({
     queryKey: ['dashboard-summary'],
     queryFn: dashboardService.getSummary,
-    staleTime: 60_000,
-    refetchInterval: 120_000,
+    staleTime: 120_000,
+    refetchInterval: 300_000,
   })
 }
