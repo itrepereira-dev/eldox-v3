@@ -17,6 +17,7 @@ import { SemaforoModule } from './semaforo/semaforo.module';
 import { AprovacoesModule } from './aprovacoes/aprovacoes.module';
 import { EfetivoModule } from './efetivo/efetivo.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { PlanosAcaoModule } from './planos-acao/planos-acao.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
     AprovacoesModule,
     EfetivoModule,
     DashboardModule,
+    PlanosAcaoModule,
   ],
 })
 export class AppModule {}
