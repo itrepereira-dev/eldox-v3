@@ -21,11 +21,11 @@ export class CpsService {
 
   async moldagem(
     tenantId: number,
-    betonadaId: number,
+    concrtagemId: number,
     userId: number,
     dto: CreateCpDto,
   ) {
-    const betonada = await this.buscarConcretagem(tenantId, betonadaId);
+    const concretagem = await this.buscarConcretagem(tenantId, concrtagemId);
 
     const idades = dto.idades && dto.idades.length > 0
       ? dto.idades
@@ -35,7 +35,7 @@ export class CpsService {
     const created: unknown[] = [];
 
     for (const idadeDias of idades) {
-      const numero = await this.gerarNumeroCp(tenantId, betonadaId, dto.caminhao_id);
+      const numero = await this.gerarNumeroCp(tenantId, concrtagemId, dto.caminhao_id);
       const dataMoldagem = new Date(dto.data_moldagem);
       const dataRupturaPrev = new Date(dataMoldagem);
       dataRupturaPrev.setDate(dataRupturaPrev.getDate() + idadeDias);
@@ -47,7 +47,7 @@ export class CpsService {
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
          RETURNING id`,
         tenantId,
-        betonadaId,
+        concrtagemId,
         dto.caminhao_id,
         numero,
         idadeDias,
@@ -62,8 +62,8 @@ export class CpsService {
       this.auditLog(tenantId, userId, 'MOLDAGEM', rows[0].id, null, {
         ...dto,
         idade_dias: idadeDias,
-        concretagem_id: betonadaId,
-        obra_id: betonada.obra_id,
+        concretagem_id: concrtagemId,
+        obra_id: concretagem.obra_id,
       }).catch((e: unknown) => this.logger.error(`auditLog CP falhou: ${e}`));
     }
 
@@ -79,10 +79,10 @@ export class CpsService {
     dto: RegistrarRupturaDto,
   ) {
     const cp = await this.buscarCp(tenantId, cpId);
-    const betonada = await this.buscarConcretagem(tenantId, cp.concretagem_id as number);
+    const concretagem = await this.buscarConcretagem(tenantId, cp.concretagem_id as number);
 
-    // Busca fck_especificado da betonada para comparar
-    const fck = betonada.fck_especificado as number;
+    // Busca fck_especificado da concretagem para comparar
+    const fck = concretagem.fck_especificado as number;
     const aprovado = dto.resistencia >= fck;
     const status = aprovado ? 'ROMPIDO_APROVADO' : 'ROMPIDO_REPROVADO';
     const dataReal = dto.data_ruptura_real ?? new Date().toISOString().split('T')[0];
@@ -105,7 +105,7 @@ export class CpsService {
     if (!aprovado) {
       void this.abrirNcAutomatica(
         tenantId,
-        betonada.obra_id as number,
+        concretagem.obra_id as number,
         cp.caminhao_id as number,
         userId,
         'CP_REPROVADO',
@@ -120,9 +120,9 @@ export class CpsService {
     return this.buscarCp(tenantId, cpId);
   }
 
-  // ── Listar CPs por betonada ──────────────────────────────────────────────
+  // ── Listar CPs por concretagem ───────────────────────────────────────────
 
-  async listarPorBetonada(tenantId: number, betonadaId: number) {
+  async listarPorConcretagem(tenantId: number, concrtagemId: number) {
     return this.prisma.$queryRawUnsafe<unknown[]>(
       `SELECT id, caminhao_id, numero, idade_dias, data_moldagem, data_ruptura_prev,
               data_ruptura_real, resistencia, status, alerta_enviado, created_at
@@ -130,7 +130,7 @@ export class CpsService {
        WHERE tenant_id = $1 AND concretagem_id = $2
        ORDER BY data_moldagem ASC, idade_dias ASC`,
       tenantId,
-      betonadaId,
+      concrtagemId,
     );
   }
 
@@ -138,7 +138,7 @@ export class CpsService {
 
   async listarProximosRupturas(tenantId: number, obraId: number, diasAhead = 2) {
     return this.prisma.$queryRawUnsafe<unknown[]>(
-      `SELECT cp.*, b.elemento_estrutural, b.numero AS betonada_numero
+      `SELECT cp.*, b.elemento_estrutural, b.numero AS concretagem_numero
        FROM corpos_de_prova cp
        JOIN concretagens b ON b.id = cp.concretagem_id AND b.tenant_id = cp.tenant_id
        WHERE cp.tenant_id = $1 AND b.obra_id = $2
@@ -175,17 +175,17 @@ export class CpsService {
 
   private async gerarNumeroCp(
     tenantId: number,
-    betonadaId: number,
+    concrtagemId: number,
     caminhaoId: number,
   ): Promise<string> {
     const rows = await this.prisma.$queryRawUnsafe<{ total: number }[]>(
       `SELECT COUNT(*)::int AS total FROM corpos_de_prova WHERE tenant_id = $1 AND concretagem_id = $2 AND caminhao_id = $3`,
       tenantId,
-      betonadaId,
+      concrtagemId,
       caminhaoId,
     );
     const seq = (Number(rows[0]?.total ?? 0) + 1).toString().padStart(3, '0');
-    return `CP-${betonadaId}-${caminhaoId}-${seq}`;
+    return `CP-${concrtagemId}-${caminhaoId}-${seq}`;
   }
 
   private async abrirNcAutomatica(

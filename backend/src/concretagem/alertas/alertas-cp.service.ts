@@ -21,12 +21,12 @@ export class AlertasCpService {
       numero: string;
       idade_dias: number;
       data_ruptura_prev: Date;
-      betonada_numero: string;
+      concretagem_numero: string;
       elemento_estrutural: string;
       obra_id: number;
     }[]>(
       `SELECT cp.id, cp.tenant_id, cp.numero, cp.idade_dias, cp.data_ruptura_prev,
-              b.numero AS betonada_numero, b.elemento_estrutural, b.obra_id
+              b.numero AS concretagem_numero, b.elemento_estrutural, b.obra_id
        FROM corpos_de_prova cp
        JOIN concretagens b ON b.id = cp.concretagem_id AND b.tenant_id = cp.tenant_id
        WHERE cp.status = 'AGUARDANDO_RUPTURA'::"StatusCp"
@@ -53,8 +53,8 @@ export class AlertasCpService {
       const dataFmt = new Date(cp.data_ruptura_prev).toLocaleDateString('pt-BR');
       const vencido = new Date(cp.data_ruptura_prev) < new Date();
       const descricao = vencido
-        ? `CP ${cp.numero} (${cp.idade_dias}d) da betonada ${cp.betonada_numero} VENCIDO em ${dataFmt}`
-        : `CP ${cp.numero} (${cp.idade_dias}d) da betonada ${cp.betonada_numero} vence em ${dataFmt}`;
+        ? `CP ${cp.numero} (${cp.idade_dias}d) da concretagem ${cp.concretagem_numero} VENCIDO em ${dataFmt}`
+        : `CP ${cp.numero} (${cp.idade_dias}d) da concretagem ${cp.concretagem_numero} vence em ${dataFmt}`;
 
       // Busca destinatário (engenheiro da obra)
       const engRows = await this.prisma.$queryRawUnsafe<{ whatsapp: string; nome: string }[]>(

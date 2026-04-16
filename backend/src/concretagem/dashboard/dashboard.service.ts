@@ -5,8 +5,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 export interface DashboardConcretagemKpis {
   volume_previsto_total: number;
   volume_realizado_total: number;
-  betonadas_total: number;
-  betonadas_concluidas: number;
+  concretagens_total: number;
+  concretagens_concluidas: number;
   taxa_aprovacao_cps: number;    // %
   total_cps: number;
   cps_aprovados: number;
@@ -39,7 +39,7 @@ export interface DashboardFinanceiroKpis {
 
 export interface TracoStats {
   traco: string;
-  total_betonadas: number;
+  total_concretagens: number;
   volume_previsto: number;
   volume_realizado: number;
   resistencia_media_28d: number | null;
@@ -73,7 +73,7 @@ export class DashboardConcretagemService {
     if (!obraRows.length) throw new NotFoundException('Obra não encontrada');
 
     // 1. Betonadas e volumes
-    const betonadasRows = await this.prisma.$queryRawUnsafe<{
+    const concretagensRows = await this.prisma.$queryRawUnsafe<{
       total: number;
       concluidas: number;
       volume_previsto: number;
@@ -148,7 +148,7 @@ export class DashboardConcretagemService {
     // 4. Ranking concreteiras
     const ranking = await this.getRankingConcreteiras(tenantId, obraId);
 
-    const row = betonadasRows[0];
+    const row = concretagensRows[0];
     const cpsRow = cpsRows[0];
     const totalCps = Number(cpsRow?.total ?? 0);
     const aprovados = Number(cpsRow?.aprovados ?? 0);
@@ -159,8 +159,8 @@ export class DashboardConcretagemService {
     return {
       volume_previsto_total:        Number(row?.volume_previsto ?? 0),
       volume_realizado_total:       Number(volumeRealizadoRows[0]?.total ?? 0),
-      betonadas_total:              Number(row?.total ?? 0),
-      betonadas_concluidas:         Number(row?.concluidas ?? 0),
+      concretagens_total:           Number(row?.total ?? 0),
+      concretagens_concluidas:      Number(row?.concluidas ?? 0),
       taxa_aprovacao_cps:           taxaAprovacao,
       total_cps:                    totalCps,
       cps_aprovados:                aprovados,
@@ -211,7 +211,7 @@ export class DashboardConcretagemService {
     const tracoRows = await this.prisma.$queryRawUnsafe<TracoStats[]>(
       `SELECT
          COALESCE(b.traco_especificado, 'Não especificado') AS traco,
-         COUNT(DISTINCT b.id)::int AS total_betonadas,
+         COUNT(DISTINCT b.id)::int AS total_concretagens,
          COALESCE(SUM(b.volume_previsto), 0)::float AS volume_previsto,
          COALESCE(SUM(cc_vol.vol), 0)::float AS volume_realizado,
          AVG(cp.resultado_mpa) FILTER (WHERE cp.idade_dias = 28 AND cp.resultado_mpa IS NOT NULL AND cp.resultado_mpa > 0)::float AS resistencia_media_28d,

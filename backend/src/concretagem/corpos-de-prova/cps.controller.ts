@@ -24,17 +24,17 @@ import { RegistrarRupturaDto } from './dto/registrar-ruptura.dto';
 export class CpsController {
   constructor(private readonly svc: CpsService) {}
 
-  // POST /api/v1/concretagem/betonadas/:betonadaId/cps
-  @Post('betonadas/:betonadaId/cps')
+  // POST /api/v1/concretagem/concretagens/:concretagemId/cps
+  @Post('concretagens/:concretagemId/cps')
   @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO')
   @HttpCode(HttpStatus.CREATED)
   async moldagem(
-    @Param('betonadaId', ParseIntPipe) betonadaId: number,
+    @Param('concretagemId', ParseIntPipe) concrtagemId: number,
     @TenantId() tenantId: number,
     @CurrentUser() user: { id: number },
     @Body() dto: CreateCpDto,
   ) {
-    const data = await this.svc.moldagem(tenantId, betonadaId, user.id, dto);
+    const data = await this.svc.moldagem(tenantId, concrtagemId, user.id, dto);
     return { status: 'success', data };
   }
 
@@ -51,14 +51,14 @@ export class CpsController {
     return { status: 'success', data };
   }
 
-  // GET /api/v1/concretagem/betonadas/:betonadaId/cps
-  @Get('betonadas/:betonadaId/cps')
+  // GET /api/v1/concretagem/concretagens/:concretagemId/cps
+  @Get('concretagens/:concretagemId/cps')
   @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO', 'VISITANTE')
-  async listarPorBetonada(
-    @Param('betonadaId', ParseIntPipe) betonadaId: number,
+  async listarPorConcretagem(
+    @Param('concretagemId', ParseIntPipe) concrtagemId: number,
     @TenantId() tenantId: number,
   ) {
-    const data = await this.svc.listarPorBetonada(tenantId, betonadaId);
+    const data = await this.svc.listarPorConcretagem(tenantId, concrtagemId);
     return { status: 'success', data };
   }
 }

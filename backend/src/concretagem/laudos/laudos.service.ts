@@ -44,9 +44,9 @@ export class LaudosService {
     return this.buscar(tenantId, rows[0].id);
   }
 
-  // ── Listar por betonada ───────────────────────────────────────────────────
+  // ── Listar por concretagem ────────────────────────────────────────────────
 
-  async listarPorBetonada(tenantId: number, betonadaId: number) {
+  async listarPorConcretagem(tenantId: number, concrtagemId: number) {
     const rows = await this.prisma.$queryRawUnsafe<unknown[]>(
       `SELECT id, tenant_id, concretagem_id, numero, tipo, data_emissao,
               laboratorio_nome, laboratorio_id, arquivo_url, ged_documento_id,
@@ -56,7 +56,7 @@ export class LaudosService {
        WHERE tenant_id = $1 AND concretagem_id = $2
        ORDER BY data_emissao DESC, created_at DESC`,
       tenantId,
-      betonadaId,
+      concrtagemId,
     );
 
     return rows;

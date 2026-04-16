@@ -35,14 +35,14 @@ export class LaudosController {
     return { status: 'success', data };
   }
 
-  // GET /api/v1/concretagem/laudos/betonada/:betonadaId
-  @Get('betonada/:betonadaId')
+  // GET /api/v1/concretagem/laudos/concretagem/:concretagemId
+  @Get('concretagem/:concretagemId')
   @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO', 'VISITANTE', 'LABORATORIO')
-  async listarPorBetonada(
-    @Param('betonadaId', ParseIntPipe) betonadaId: number,
+  async listarPorConcretagem(
+    @Param('concretagemId', ParseIntPipe) concrtagemId: number,
     @TenantId() tenantId: number,
   ) {
-    const data = await this.svc.listarPorBetonada(tenantId, betonadaId);
+    const data = await this.svc.listarPorConcretagem(tenantId, concrtagemId);
     return { status: 'success', data };
   }
 

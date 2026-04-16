@@ -20,19 +20,19 @@ export class CaminhoesService {
 
   async registrarChegada(
     tenantId: number,
-    betonadaId: number,
+    concrtagemId: number,
     userId: number,
     dto: CreateCaminhaoDto,
   ) {
-    const betonada = await this.buscarConcretagem(tenantId, betonadaId);
+    const concretagem = await this.buscarConcretagem(tenantId, concrtagemId);
 
-    if (betonada.status === 'CANCELADA') {
-      throw new BadRequestException('Betonada está cancelada');
+    if (concretagem.status === 'CANCELADA') {
+      throw new BadRequestException('Concretagem está cancelada');
     }
 
     // Verifica NF vencida: data_emissao_nf < data_programada - 1 dia
     const dataEmissao = new Date(dto.data_emissao_nf);
-    const dataProgramada = new Date(betonada.data_programada as string);
+    const dataProgramada = new Date(concretagem.data_programada as string);
     const limite = new Date(dataProgramada);
     limite.setDate(limite.getDate() - 1);
     const nfVencida = dataEmissao < limite;
@@ -41,7 +41,7 @@ export class CaminhoesService {
     const seqRows = await this.prisma.$queryRawUnsafe<{ seq: number }[]>(
       `SELECT COALESCE(MAX(sequencia), 0) + 1 AS seq FROM caminhoes_concreto WHERE tenant_id = $1 AND concretagem_id = $2`,
       tenantId,
-      betonadaId,
+      concrtagemId,
     );
     const sequencia = Number(seqRows[0]?.seq ?? 1);
 
@@ -58,7 +58,7 @@ export class CaminhoesService {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,NOW())
        RETURNING id`,
       tenantId,
-      betonadaId,
+      concrtagemId,
       sequencia,
       dto.numero_nf,
       dto.data_emissao_nf,
@@ -90,12 +90,12 @@ export class CaminhoesService {
       dto.lancamento_parcial ?? false,
     );
 
-    // Atualiza status da betonada para EM_LANCAMENTO se PROGRAMADA
-    if (betonada.status === 'PROGRAMADA') {
+    // Atualiza status da concretagem para EM_LANCAMENTO se PROGRAMADA
+    if (concretagem.status === 'PROGRAMADA') {
       await this.prisma.$executeRawUnsafe(
         `UPDATE concretagens SET status = 'EM_LANCAMENTO'::"StatusConcretagem", updated_at = NOW() WHERE tenant_id = $1 AND id = $2`,
         tenantId,
-        betonadaId,
+        concrtagemId,
       );
     }
 
@@ -103,11 +103,11 @@ export class CaminhoesService {
     if (nfVencida) {
       void this.abrirNcAutomatica(
         tenantId,
-        betonada.obra_id as number,
+        concretagem.obra_id as number,
         rows[0].id,
         userId,
         'NF_VENCIDA',
-        `Nota fiscal ${dto.numero_nf} com data de emissão ${dto.data_emissao_nf} anterior à data programada da betonada.`,
+        `Nota fiscal ${dto.numero_nf} com data de emissão ${dto.data_emissao_nf} anterior à data programada da concretagem.`,
       ).catch((e: unknown) => this.logger.error(`NC automática falhou: ${e}`));
     }
 
@@ -127,7 +127,7 @@ export class CaminhoesService {
     dto: RegistrarSlumpDto,
   ) {
     const caminhao = await this.buscarCaminhao(tenantId, caminhaoId);
-    const betonada = await this.buscarConcretagem(tenantId, caminhao.concretagem_id as number);
+    const concretagem = await this.buscarConcretagem(tenantId, caminhao.concretagem_id as number);
 
     const sets: string[] = ['slump_medido = $3', 'updated_at = NOW()'];
     const params: unknown[] = [tenantId, caminhaoId, dto.slump_medido];
@@ -154,7 +154,7 @@ export class CaminhoesService {
       if (diff > 2) {
         void this.abrirNcAutomatica(
           tenantId,
-          betonada.obra_id as number,
+          concretagem.obra_id as number,
           caminhaoId,
           userId,
           'SLUMP_FORA_TOLERANCIA',
@@ -198,7 +198,7 @@ export class CaminhoesService {
     motivo: string,
   ) {
     const caminhao = await this.buscarCaminhao(tenantId, caminhaoId);
-    const betonada = await this.buscarConcretagem(tenantId, caminhao.concretagem_id as number);
+    const concretagem = await this.buscarConcretagem(tenantId, caminhao.concretagem_id as number);
 
     await this.prisma.$executeRawUnsafe(
       `UPDATE caminhoes_concreto SET status = 'REJEITADO'::"StatusCaminhao", incidentes = $3, updated_at = NOW()
@@ -211,7 +211,7 @@ export class CaminhoesService {
     // NC automática para rejeição
     void this.abrirNcAutomatica(
       tenantId,
-      betonada.obra_id as number,
+      concretagem.obra_id as number,
       caminhaoId,
       userId,
       'CAMINHAO_REJEITADO',

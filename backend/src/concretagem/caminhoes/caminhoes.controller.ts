@@ -29,17 +29,17 @@ export class CaminhoesController {
     private readonly ocrSvc: OcrNfService,
   ) {}
 
-  // POST /api/v1/concretagem/betonadas/:betonadaId/caminhoes
-  @Post('betonadas/:betonadaId/caminhoes')
+  // POST /api/v1/concretagem/concretagens/:concretagemId/caminhoes
+  @Post('concretagens/:concretagemId/caminhoes')
   @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO')
   @HttpCode(HttpStatus.CREATED)
   async registrarChegada(
-    @Param('betonadaId', ParseIntPipe) betonadaId: number,
+    @Param('concretagemId', ParseIntPipe) concrtagemId: number,
     @TenantId() tenantId: number,
     @CurrentUser() user: { id: number },
     @Body() dto: CreateCaminhaoDto,
   ) {
-    const data = await this.svc.registrarChegada(tenantId, betonadaId, user.id, dto);
+    const data = await this.svc.registrarChegada(tenantId, concrtagemId, user.id, dto);
     return { status: 'success', data };
   }
 
