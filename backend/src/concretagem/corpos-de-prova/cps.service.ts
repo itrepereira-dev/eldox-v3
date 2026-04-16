@@ -101,28 +101,22 @@ export class CpsService {
       dto.observacoes ?? null,
     );
 
-    // Verificar se todos os CPs de 28d têm resultado
-    if ((concretagem.status as string) === 'EM_RASTREABILIDADE') {
-      const aguardando28d = await this.prisma.$queryRawUnsafe<{ total: number }[]>(
-        `SELECT COUNT(*)::int AS total
-         FROM corpos_de_prova
-         WHERE tenant_id = $1 AND concretagem_id = $2
-           AND idade_dias = 28
-           AND status = 'AGUARDANDO_RUPTURA'`,
-        tenantId,
-        concretagem.id,
-      );
-      if (Number(aguardando28d[0]?.total ?? 1) === 0) {
-        await this.prisma.$queryRawUnsafe(
-          `UPDATE concretagens
-           SET status = 'CONCLUIDA'::"StatusConcretagem", updated_at = NOW()
-           WHERE tenant_id = $1 AND id = $2`,
-          tenantId,
-          concretagem.id,
-        );
-        this.logger.log(`Concretagem ${concretagem.id as number} → CONCLUIDA (todos CPs 28d rompidos)`);
-      }
-    }
+    // Atomic transition: only advances if no 28d CPs remain AGUARDANDO_RUPTURA
+    await this.prisma.$queryRawUnsafe(
+      `UPDATE concretagens
+       SET status = 'CONCLUIDA'::"StatusConcretagem", updated_at = NOW()
+       WHERE tenant_id = $1 AND id = $2
+         AND status = 'EM_RASTREABILIDADE'::"StatusConcretagem"
+         AND NOT EXISTS (
+           SELECT 1 FROM corpos_de_prova
+           WHERE tenant_id = $1 AND concretagem_id = $2
+             AND idade_dias = 28
+             AND status = 'AGUARDANDO_RUPTURA'
+         )`,
+      tenantId,
+      concretagem.id,
+    );
+    this.logger.log(`Concretagem ${concretagem.id as number} → CONCLUIDA (todos CPs 28d rompidos)`);
 
     // NC automática se reprovado
     if (!aprovado) {
