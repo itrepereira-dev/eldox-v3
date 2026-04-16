@@ -99,12 +99,19 @@ export function DashboardPage() {
 
   const primeiroNome = user?.nome?.split(' ')[0] ?? 'Usuário'
 
+  const saudacao = (() => {
+    const h = new Date().getHours()
+    if (h < 12) return 'Bom dia'
+    if (h < 18) return 'Boa tarde'
+    return 'Boa noite'
+  })()
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-dim)] flex-shrink-0">
         <div>
-          <h1 className="text-lg font-bold text-[var(--text-high)]">Bom dia, {primeiroNome} 👋</h1>
+          <h1 className="text-lg font-bold text-[var(--text-high)]">{saudacao}, {primeiroNome} 👋</h1>
           <p className="text-xs text-[var(--text-faint)] mt-0.5">
             {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
           </p>
