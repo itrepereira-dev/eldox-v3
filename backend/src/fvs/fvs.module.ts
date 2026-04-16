@@ -17,6 +17,7 @@ import { ParecerService } from './inspecao/parecer.service';
 import { FvsDashboardService } from './dashboard/fvs-dashboard.service';
 import { FvsDashboardController } from './dashboard/fvs-dashboard.controller';
 import { FvsGraficosService } from './dashboard/fvs-graficos.service';
+import { RelatorioService } from './dashboard/relatorio.service';
 import { FvsClienteController } from './cliente/fvs-cliente.controller';
 import { AgenteDiagnosticoNc } from '../ai/agents/fvs/agente-diagnostico-nc';
 import { AgentePreditorNc } from '../ai/agents/fvs/agente-preditor-nc';
@@ -44,7 +45,7 @@ import { PlanosAcaoModule } from '../planos-acao/planos-acao.module';
     FvsDashboardService, FvsGraficosService, FvsPdfService,
     AgenteDiagnosticoNc, AgentePreditorNc, AgenteAnaliseFoto,
     AgenteRelatorioFvs, AgentePriorizacaoInspecao,
-    FvsProcessor,
+    FvsProcessor, RelatorioService,
   ],
   controllers: [
     CatalogoController, ModeloController, InspecaoController, RoController,
@@ -52,7 +53,7 @@ import { PlanosAcaoModule } from '../planos-acao/planos-acao.module';
   ],
   exports: [
     CatalogoService, ModeloService, InspecaoService, RoService, ParecerService,
-    FvsDashboardService, FvsPdfService,
+    FvsDashboardService, FvsPdfService, RelatorioService,
   ],
 })
 export class FvsModule {}

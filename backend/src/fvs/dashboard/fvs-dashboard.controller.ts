@@ -11,6 +11,8 @@ import { AgentePriorizacaoInspecao } from '../../ai/agents/fvs/agente-priorizaca
 import { AgenteRelatorioFvs } from '../../ai/agents/fvs/agente-relatorio-fvs';
 import { FvsGraficosService } from './fvs-graficos.service';
 import { DashboardGraficosQueryDto } from './dto/dashboard-graficos-query.dto';
+import { RelatorioService } from './relatorio.service';
+import { RelatorioConformidadeQueryDto } from './relatorio-conformidade.dto';
 
 interface JwtUser { id: number; tenantId: number; role: string }
 
@@ -22,6 +24,7 @@ export class FvsDashboardController {
     private readonly priorizacao: AgentePriorizacaoInspecao,
     private readonly relatorio: AgenteRelatorioFvs,
     private readonly graficos: FvsGraficosService,
+    private readonly relatorioService: RelatorioService,
   ) {}
 
   // GET /api/v1/fvs/dashboard/global
@@ -112,5 +115,19 @@ export class FvsDashboardController {
     @Query() query: DashboardGraficosQueryDto,
   ) {
     return this.graficos.getDashboardGraficos(tenantId, obraId, query);
+  }
+
+  // GET /api/v1/fvs/dashboard/obras/:obraId/relatorio-conformidade
+  @Get('obras/:obraId/relatorio-conformidade')
+  @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO', 'VISITANTE')
+  getRelatorioConformidade(
+    @TenantId() tenantId: number,
+    @Param('obraId', ParseIntPipe) obraId: number,
+    @Query() query: RelatorioConformidadeQueryDto,
+  ) {
+    const servicoId = query.servico_id ? parseInt(query.servico_id, 10) : null;
+    const dataInicio = query.data_inicio ?? new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const dataFim = query.data_fim ?? new Date().toISOString();
+    return this.relatorioService.getConformidade(tenantId, obraId, servicoId, dataInicio, dataFim);
   }
 }
