@@ -86,9 +86,9 @@ export function PaDynamicFields({ campos, values, onChange, readOnly }: PaDynami
             />
           )}
 
-          {campo.tipo === 'arquivo' && readOnly && values[campo.chave] && (
+          {campo.tipo === 'arquivo' && readOnly && !!values[campo.chave] && (
             <span className="text-[12px] text-[var(--accent)] underline cursor-pointer">
-              {values[campo.chave] as string}
+              {String(values[campo.chave])}
             </span>
           )}
         </div>

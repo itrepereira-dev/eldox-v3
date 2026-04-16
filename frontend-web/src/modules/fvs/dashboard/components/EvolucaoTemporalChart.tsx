@@ -10,18 +10,17 @@ import {
   Tooltip,
   Legend,
   ReferenceLine,
-  type TooltipProps,
 } from 'recharts';
 import type { EvolucaoTemporalData } from '../../../../services/fvs.service';
 
 // ── Custom tooltip ────────────────────────────────────────────────────────────
 
-function CustomTooltip({ active, payload, label }: TooltipProps<number, string>) {
+function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: { dataKey: string; color: string; name: string; value: number | null }[]; label?: string }) {
   if (!active || !payload || payload.length === 0) return null;
   return (
     <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-3 shadow-lg text-xs">
       <p className="font-semibold text-[var(--text-high)] mb-2">{label}</p>
-      {payload.map((entry) => (
+      {payload.map((entry: { dataKey: string; color: string; name: string; value: number | null }) => (
         <div key={entry.dataKey} className="flex items-center gap-2 py-0.5">
           <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: entry.color }} />
           <span className="text-[var(--text-low)]">{entry.name}:</span>

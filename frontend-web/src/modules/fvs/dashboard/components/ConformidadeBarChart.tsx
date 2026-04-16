@@ -8,7 +8,6 @@ import {
   CartesianGrid,
   Tooltip,
   Cell,
-  type TooltipProps,
 } from 'recharts';
 import type { ConformidadePorServicoItem, Tendencia } from '../../../../services/fvs.service';
 
@@ -34,7 +33,7 @@ function tendenciaColor(t: Tendencia): string {
 
 // ── Custom tooltip ────────────────────────────────────────────────────────────
 
-function CustomTooltip({ active, payload }: TooltipProps<number, string>) {
+function CustomTooltip({ active, payload }: { active?: boolean; payload?: { payload: ConformidadePorServicoItem }[] }) {
   if (!active || !payload || payload.length === 0) return null;
   const d = payload[0].payload as ConformidadePorServicoItem;
   return (
