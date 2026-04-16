@@ -1,5 +1,4 @@
 // frontend-web/src/modules/fvs/inspecao/components/GradeDrawer.tsx
-import { useNavigate } from 'react-router-dom';
 import { useGradePreview } from '../hooks/useGrade';
 import { cn } from '@/lib/cn';
 import { X, ArrowRight } from 'lucide-react';
@@ -9,6 +8,7 @@ interface GradeDrawerProps {
   localId: number;
   servicoId: number;
   onClose: () => void;
+  onAbrirInspecao?: (servicoId: number, localId: number, servicoNome?: string, localNome?: string) => void;
 }
 
 const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
@@ -28,8 +28,7 @@ const CRIT_CLS: Record<string, string> = {
   menor:   'bg-[var(--bg-raised)] text-[var(--text-faint)] border border-[var(--border-dim)]',
 };
 
-export function GradeDrawer({ fichaId, localId, servicoId, onClose }: GradeDrawerProps) {
-  const navigate = useNavigate();
+export function GradeDrawer({ fichaId, localId, servicoId, onClose, onAbrirInspecao }: GradeDrawerProps) {
   const { data: preview, isLoading } = useGradePreview(fichaId, localId, servicoId);
 
   return (
@@ -121,12 +120,13 @@ export function GradeDrawer({ fichaId, localId, servicoId, onClose }: GradeDrawe
         <div className="border-t border-[var(--border-dim)] px-5 py-3">
           <button
             onClick={() => {
-              navigate(`/fvs/fichas/${fichaId}/inspecao?servicoId=${servicoId}&localId=${localId}`);
-              onClose();
+              if (onAbrirInspecao) {
+                onAbrirInspecao(servicoId, localId, preview?.servico_nome, preview?.local_nome);
+              }
             }}
             className="flex items-center gap-2 w-full justify-center px-4 py-2 text-sm rounded-md bg-[var(--accent)] text-white font-medium hover:opacity-90 transition-opacity"
           >
-            Ir para inspeção completa <ArrowRight size={14} />
+            Inspecionar <ArrowRight size={14} />
           </button>
         </div>
       </div>

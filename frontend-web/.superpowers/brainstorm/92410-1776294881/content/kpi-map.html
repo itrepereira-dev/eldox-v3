@@ -1,0 +1,92 @@
+<h2>Mapa de KPIs disponíveis no Eldox v3</h2>
+<p class="subtitle">Levantamento completo baseado nos dados reais do backend. 60+ KPIs organizados por módulo e tier de prioridade.</p>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px;">
+
+  <!-- TIER 1 -->
+  <div style="grid-column:1/-1;">
+    <div style="font-size:10px;font-weight:700;color:#f59e0b;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">⭐ Tier 1 — Globais (cross-obra, sem filtro)</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">
+      <div style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:10px;">
+        <div style="font-size:9px;color:#f59e0b;font-weight:700;margin-bottom:6px;">OBRAS</div>
+        <div style="font-size:11px;color:#e2e8f0;line-height:1.6;">• Total por status<br>• % em execução<br>• Obras em atraso<br>• Índice progresso</div>
+      </div>
+      <div style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:10px;">
+        <div style="font-size:9px;color:#ef4444;font-weight:700;margin-bottom:6px;">NCS</div>
+        <div style="font-size:11px;color:#e2e8f0;line-height:1.6;">• Total abertas<br>• Por criticidade (A/M/B)<br>• NCs vencidas<br>• SLA de fechamento</div>
+      </div>
+      <div style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:10px;">
+        <div style="font-size:9px;color:#a855f7;font-weight:700;margin-bottom:6px;">APROVAÇÕES</div>
+        <div style="font-size:11px;color:#e2e8f0;line-height:1.6;">• Pendentes (do usuário)<br>• Vencidas por SLA<br>• Por módulo<br>• Tempo médio</div>
+      </div>
+      <div style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:10px;">
+        <div style="font-size:9px;color:#22c55e;font-weight:700;margin-bottom:6px;">SEMÁFORO</div>
+        <div style="font-size:11px;color:#e2e8f0;line-height:1.6;">• Score por obra<br>• Verde/Amarelo/Verm.<br>• Ranking qualidade<br>• Obras em risco</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TIER 2 -->
+  <div style="grid-column:1/-1;margin-top:4px;">
+    <div style="font-size:10px;font-weight:700;color:#3b82f6;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">🔵 Tier 2 — Por Obra (filtráveis por obra_id)</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">
+      <div style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:10px;">
+        <div style="font-size:9px;color:#3b82f6;font-weight:700;margin-bottom:6px;">FVS — QUALIDADE</div>
+        <div style="font-size:11px;color:#e2e8f0;line-height:1.6;">• Taxa conformidade<br>• Top serviços ruins<br>• Fichas pendentes<br>• Taxa de reinspecção<br>• Pareto de NCs<br>• Evolução 30/60/90d</div>
+      </div>
+      <div style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:10px;">
+        <div style="font-size:9px;color:#06b6d4;font-weight:700;margin-bottom:6px;">CONCRETAGEM</div>
+        <div style="font-size:11px;color:#e2e8f0;line-height:1.6;">• Volume prev vs real<br>• Taxa aprovação CPs<br>• CPs vencidos<br>• Ranking concreteiras<br>• Resistência média<br>• Cancelamentos</div>
+      </div>
+      <div style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:10px;">
+        <div style="font-size:9px;color:#f59e0b;font-weight:700;margin-bottom:6px;">ENSAIOS LAB</div>
+        <div style="font-size:11px;color:#e2e8f0;line-height:1.6;">• Taxa conformidade<br>• Laudos pendentes<br>• Lotes quarentena<br>• Cupons vencendo<br>• Por tipo material</div>
+      </div>
+      <div style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:10px;">
+        <div style="font-size:9px;color:#ec4899;font-weight:700;margin-bottom:6px;">FVM — MATERIAIS</div>
+        <div style="font-size:11px;color:#e2e8f0;line-height:1.6;">• Lotes conformes %<br>• Lotes rejeitados<br>• Top fornecedores<br>• Tempo de inspeção<br>• Qtd aprovada vs rec.</div>
+      </div>
+      <div style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:10px;">
+        <div style="font-size:9px;color:#10b981;font-weight:700;margin-bottom:6px;">ALMOXARIFADO</div>
+        <div style="font-size:11px;color:#e2e8f0;line-height:1.6;">• Materiais críticos<br>• Estoque em atenção<br>• Valor em estoque<br>• Giro de estoque<br>• OCs pendentes<br>• Materiais parados</div>
+      </div>
+      <div style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:10px;">
+        <div style="font-size:9px;color:#f97316;font-weight:700;margin-bottom:6px;">EFETIVO</div>
+        <div style="font-size:11px;color:#e2e8f0;line-height:1.6;">• Trabalhadores hoje<br>• Própria vs subcontr.<br>• Evolução temporal<br>• Por função/empresa<br>• Cobertura de reg.</div>
+      </div>
+      <div style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:10px;">
+        <div style="font-size:9px;color:#84cc16;font-weight:700;margin-bottom:6px;">DIÁRIO (RDO)</div>
+        <div style="font-size:11px;color:#e2e8f0;line-height:1.6;">• Taxa aprovação RDOs<br>• Dias com chuva<br>• Progresso atividades<br>• Horas-homem<br>• Canal (web/IA/WA)</div>
+      </div>
+      <div style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:10px;">
+        <div style="font-size:9px;color:#94a3b8;font-weight:700;margin-bottom:6px;">GED</div>
+        <div style="font-size:11px;color:#e2e8f0;line-height:1.6;">• Docs vigentes<br>• Vencendo 30d<br>• Pendentes IFA<br>• Rejeitados<br>• Espaço utilizado</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TIER 3 -->
+  <div style="grid-column:1/-1;margin-top:4px;">
+    <div style="font-size:10px;font-weight:700;color:#a855f7;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">🔮 Tier 3 — KPIs Cruzados (correlações entre módulos)</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+      <div style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:10px;">
+        <div style="font-size:10px;color:#a855f7;font-weight:700;margin-bottom:4px;">RDO ↔ NC</div>
+        <div style="font-size:11px;color:#94a3b8;">Dias com chuva correlacionados com abertura de NCs</div>
+      </div>
+      <div style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:10px;">
+        <div style="font-size:10px;color:#a855f7;font-weight:700;margin-bottom:4px;">FVS ↔ CP</div>
+        <div style="font-size:11px;color:#94a3b8;">Obras com melhor conformidade FVS têm melhor resistência de CPs?</div>
+      </div>
+      <div style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:10px;">
+        <div style="font-size:10px;color:#a855f7;font-weight:700;margin-bottom:4px;">Score Geral</div>
+        <div style="font-size:11px;color:#94a3b8;">Score composto: FVS + Concretagem + Ensaios + NCs (pesos configuráveis)</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top:16px;padding:12px;background:#1e293b;border-radius:6px;border-left:3px solid #f59e0b;">
+  <div style="font-size:10px;color:#f59e0b;font-weight:700;margin-bottom:4px;">TOTAL: 60+ KPIs mapeados</div>
+  <div style="font-size:11px;color:#94a3b8;">Todos derivados de dados reais já existentes no banco. Nenhum endpoint de KPI global existe ainda — todos precisarão ser criados no backend (1 endpoint por módulo ou endpoint unificado de dashboard).</div>
+</div>

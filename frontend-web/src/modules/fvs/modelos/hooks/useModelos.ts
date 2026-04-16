@@ -91,6 +91,30 @@ export function useDeleteServicoModelo(modeloId: number) {
   });
 }
 
+export function useObrasModelo(modeloId: number) {
+  return useQuery({
+    queryKey: ['modelo-obras', modeloId],
+    queryFn: () => fvsService.getObrasModelo(modeloId),
+    enabled: !!modeloId,
+  });
+}
+
+export function useVincularObrasModelo(modeloId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (obraIds: number[]) => fvsService.vincularModeloObras(modeloId, obraIds),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['modelo-obras', modeloId] }),
+  });
+}
+
+export function useDesvincularObraModelo(modeloId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (obraId: number) => fvsService.desvincularModeloObraByModelo(modeloId, obraId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['modelo-obras', modeloId] }),
+  });
+}
+
 export function useModelosByObra(obraId: number) {
   return useQuery({
     queryKey: ['obra-modelos', obraId],

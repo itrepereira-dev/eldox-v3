@@ -4,83 +4,83 @@
    Fonte mono:      Geist Mono (400 / 500)
    ═══════════════════════════════════════════════════════ */
 
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Geist+Mono:wght@400;500&display=swap');
 
-/* ── DARK (padrão) ─────────────────────────────────── */
+/* ── DARK — Slate Deep ─────────────────────────────── */
 :root,
 [data-theme="dark"] {
   /* Backgrounds */
-  --bg-void:    #0d1117;
-  --bg-base:    #0d1117;
-  --bg-surface: #161b22;
-  --bg-raised:  #1c2128;
-  --bg-hover:   #1c2128;
+  --bg-void:    #0f172a;
+  --bg-base:    #0f172a;
+  --bg-surface: #1e293b;
+  --bg-raised:  #1e293b;
+  --bg-hover:   #334155;
   --bg-overlay: rgba(0, 0, 0, 0.7);
 
   /* Accent */
-  --accent:       #2f81f7;
-  --accent-hover: #388bfd;
-  --accent-dim:   rgba(47, 129, 247, 0.18);
+  --accent:       #3b82f6;
+  --accent-hover: #60a5fa;
+  --accent-dim:   rgba(59, 130, 246, 0.18);
 
   /* Bordas */
-  --border:        #30363d;
-  --border-bright: #30363d;
-  --border-dim:    #21262d;
+  --border:        #334155;
+  --border-bright: #475569;
+  --border-dim:    #1e293b;
 
   /* Texto */
-  --text-high:  #e6edf3;
-  --text-mid:   #e6edf3;
-  --text-low:   #7d8590;
-  --text-faint: #484f58;
+  --text-high:  #f1f5f9;
+  --text-mid:   #e2e8f0;
+  --text-low:   #94a3b8;
+  --text-faint: #64748b;
   /* Aliases numéricos (usados nas páginas de obras) */
-  --text-100: #e6edf3;
-  --text-60:  #7d8590;
-  --text-40:  #484f58;
+  --text-100: #f1f5f9;
+  --text-60:  #94a3b8;
+  --text-40:  #64748b;
 
   /* Status — OK (verde) */
-  --ok:         #3fb950;
-  --ok-bg:      #1a3a2a;
-  --ok-border:  rgba(63, 185, 80, 0.28);
-  --ok-text:    #3fb950;
+  --ok:         #22c55e;
+  --ok-bg:      rgba(34, 197, 94, 0.12);
+  --ok-border:  rgba(34, 197, 94, 0.25);
+  --ok-text:    #22c55e;
 
   /* Status — Run / Info (azul) */
-  --run:        #58a6ff;
-  --run-bg:     #1a2a3a;
-  --run-border: rgba(88, 166, 255, 0.28);
-  --run-text:   #58a6ff;
+  --run:        #3b82f6;
+  --run-bg:     rgba(59, 130, 246, 0.12);
+  --run-border: rgba(59, 130, 246, 0.25);
+  --run-text:   #3b82f6;
 
   /* Status — Warn (âmbar) */
-  --warn:        #d29922;
-  --warn-bg:     #3a2e1a;
-  --warn-border: rgba(210, 153, 34, 0.28);
-  --warn-text:   #d29922;
+  --warn:        #f59e0b;
+  --warn-bg:     rgba(245, 158, 11, 0.12);
+  --warn-border: rgba(245, 158, 11, 0.25);
+  --warn-text:   #f59e0b;
 
   /* Status — NC / Error (vermelho) */
-  --nc:        #f85149;
-  --nc-bg:     #3a1a1a;
-  --nc-border: rgba(248, 81, 73, 0.28);
-  --nc-text:   #f85149;
+  --nc:        #ef4444;
+  --nc-bg:     rgba(239, 68, 68, 0.12);
+  --nc-border: rgba(239, 68, 68, 0.25);
+  --nc-text:   #ef4444;
 
   /* Status — Off / Disabled */
-  --off:        #7d8590;
-  --off-bg:     rgba(125, 133, 144, 0.08);
-  --off-border: rgba(125, 133, 144, 0.20);
-  --off-text:   #7d8590;
+  --off:        #64748b;
+  --off-bg:     rgba(100, 116, 139, 0.08);
+  --off-border: rgba(100, 116, 139, 0.20);
+  --off-text:   #64748b;
 
   /* Sombras */
-  --shadow-xs:    0 1px 2px rgba(0,0,0,.30);
-  --shadow-sm:    0 2px 8px rgba(0,0,0,.25);
-  --shadow-md:    0 4px 16px rgba(0,0,0,.30);
-  --shadow-lg:    0 8px 32px rgba(0,0,0,.40);
-  --shadow-hover: 0 2px 12px rgba(47,129,247,.15);
-  --shadow-glow:  0 0 24px rgba(47,129,247,.12);
+  --shadow-xs:    0 1px 2px rgba(0,0,0,.40);
+  --shadow-sm:    0 2px 8px rgba(0,0,0,.35);
+  --shadow-md:    0 4px 16px rgba(0,0,0,.40);
+  --shadow-lg:    0 8px 32px rgba(0,0,0,.50);
+  --shadow-hover: 0 2px 12px rgba(59,130,246,.20);
+  --shadow-glow:  0 0 24px rgba(59,130,246,.15);
 
   /* Glass */
-  --glass-bg:   rgba(13, 17, 23, 0.80);
+  --glass-bg:   rgba(15, 23, 42, 0.85);
   --glass-blur: blur(16px);
 
   /* Gradientes */
-  --gradient-accent:  linear-gradient(135deg, #2f81f7 0%, #1f6feb 100%);
+  --gradient-accent:  linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
   --gradient-surface: linear-gradient(180deg, var(--bg-surface) 0%, var(--bg-raised) 100%);
 
   /* Layout */
@@ -90,66 +90,98 @@
   /* Transições */
   --transition-fast:   0.15s ease;
   --transition-normal: 0.25s ease;
+
+  /* ── Aliases para módulo Obras ── */
+  --bg-elevated:  #1e293b;
+  --bg-border:    #334155;
+  --status-error: #ef4444;
+  --accent-fg:    #ffffff;
+  --text-50:      #64748b;
+
+  /* Purple — usado por EldoxIA / sugestões */
+  --purple:        #a855f7;
+  --purple-bg:     rgba(168, 85, 247, 0.12);
+  --purple-border: rgba(168, 85, 247, 0.25);
 }
 
-/* ── LIGHT ─────────────────────────────────────────── */
+/* ── Tokens compartilhados (não variam por tema) ── */
+:root {
+  --radius-sm:  4px;
+  --radius-md:  6px;
+  --radius-lg:  12px;
+  --font-data:  'Geist Mono', 'Courier New', monospace;
+}
+
+/* ── LIGHT — Slate Cool ────────────────────────────── */
 [data-theme="light"] {
-  --bg-void:    #f0f3f6;
-  --bg-base:    #f6f8fa;
+  --bg-void:    #f1f5f9;
+  --bg-base:    #f8fafc;
   --bg-surface: #ffffff;
-  --bg-raised:  #f6f8fa;
-  --bg-hover:   #eaeef2;
+  --bg-raised:  #f1f5f9;
+  --bg-hover:   #e2e8f0;
   --bg-overlay: rgba(0, 0, 0, 0.40);
 
-  --accent:       #0969da;
-  --accent-hover: #0550ae;
-  --accent-dim:   rgba(9, 105, 218, 0.10);
+  --accent:       #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-dim:   rgba(37, 99, 235, 0.10);
 
-  --border:        #d0d7de;
-  --border-bright: #afb8c1;
-  --border-dim:    #d8dee4;
+  --border:        #e2e8f0;
+  --border-bright: #cbd5e1;
+  --border-dim:    #e8edf2;
 
-  --text-high:  #0d1117;
-  --text-mid:   #24292f;
-  --text-low:   #3d444d;
-  --text-faint: #57606a;
+  --text-high:  #0f172a;
+  --text-mid:   #1e293b;
+  --text-low:   #475569;
+  --text-faint: #94a3b8;
   /* Aliases numéricos */
-  --text-100: #0d1117;
-  --text-60:  #3d444d;
-  --text-40:  #57606a;
+  --text-100: #0f172a;
+  --text-60:  #475569;
+  --text-40:  #94a3b8;
 
-  --ok:         #1a7f37;
-  --ok-bg:      #dafbe1;
-  --ok-border:  rgba(26, 127, 55, 0.20);
-  --ok-text:    #1a7f37;
+  --ok:         #16a34a;
+  --ok-bg:      #f0fdf4;
+  --ok-border:  rgba(22, 163, 74, 0.20);
+  --ok-text:    #16a34a;
 
-  --run:        #0969da;
-  --run-bg:     #ddf4ff;
-  --run-border: rgba(9, 105, 218, 0.20);
-  --run-text:   #0969da;
+  --run:        #2563eb;
+  --run-bg:     #eff6ff;
+  --run-border: rgba(37, 99, 235, 0.20);
+  --run-text:   #2563eb;
 
-  --warn:        #9a6700;
-  --warn-bg:     #fff8c5;
-  --warn-border: rgba(154, 103, 0, 0.20);
-  --warn-text:   #9a6700;
+  --warn:        #d97706;
+  --warn-bg:     #fffbeb;
+  --warn-border: rgba(217, 119, 6, 0.20);
+  --warn-text:   #d97706;
 
-  --nc:        #cf222e;
-  --nc-bg:     #ffebe9;
-  --nc-border: rgba(207, 34, 46, 0.20);
-  --nc-text:   #cf222e;
+  --nc:        #dc2626;
+  --nc-bg:     #fef2f2;
+  --nc-border: rgba(220, 38, 38, 0.20);
+  --nc-text:   #dc2626;
 
-  --off:        #656d76;
-  --off-bg:     rgba(101, 109, 118, 0.08);
-  --off-border: rgba(101, 109, 118, 0.20);
-  --off-text:   #656d76;
+  --off:        #64748b;
+  --off-bg:     rgba(100, 116, 139, 0.08);
+  --off-border: rgba(100, 116, 139, 0.20);
+  --off-text:   #64748b;
 
-  --shadow-xs: 0 1px 2px rgba(0,0,0,.05);
-  --shadow-sm: 0 2px 8px rgba(0,0,0,.06);
-  --shadow-md: 0 4px 16px rgba(0,0,0,.08);
-  --shadow-lg: 0 8px 32px rgba(0,0,0,.12);
-  --shadow-hover: 0 2px 12px rgba(9,105,218,.10);
-  --shadow-glow:  0 0 24px rgba(9,105,218,.08);
+  --shadow-xs:    0 1px 2px rgba(15,23,42,.06);
+  --shadow-sm:    0 2px 8px rgba(15,23,42,.08);
+  --shadow-md:    0 4px 16px rgba(15,23,42,.10);
+  --shadow-lg:    0 8px 32px rgba(15,23,42,.14);
+  --shadow-hover: 0 2px 12px rgba(37,99,235,.12);
+  --shadow-glow:  0 0 24px rgba(37,99,235,.10);
 
-  --glass-bg:   rgba(255, 255, 255, 0.85);
-  --gradient-surface: linear-gradient(180deg, #ffffff 0%, #f6f8fa 100%);
+  --glass-bg:         rgba(255, 255, 255, 0.90);
+  --gradient-surface: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+
+  /* ── Aliases para módulo Obras ── */
+  --bg-elevated:  #f1f5f9;
+  --bg-border:    #e2e8f0;
+  --status-error: #dc2626;
+  --accent-fg:    #ffffff;
+  --text-50:      #64748b;
+
+  /* Purple — usado por EldoxIA / sugestões */
+  --purple:        #9333ea;
+  --purple-bg:     rgba(147, 51, 234, 0.08);
+  --purple-border: rgba(147, 51, 234, 0.18);
 }

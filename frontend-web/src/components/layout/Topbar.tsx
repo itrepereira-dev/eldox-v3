@@ -191,8 +191,7 @@ export function Topbar({ breadcrumb = [], primaryAction }: TopbarProps) {
       className={cn(
         'relative flex items-center justify-between gap-3 px-4 sm:px-6',
         'h-[56px] flex-shrink-0',
-        'bg-[var(--glass-bg)] border-b border-[var(--border-dim)]',
-        'backdrop-blur-md',
+        'bg-[var(--bg-surface)] border-b border-[var(--border)]',
         'z-40',
         /* scan-line decorativo */
         'after:content-[""] after:absolute after:bottom-0 after:left-0 after:right-0',

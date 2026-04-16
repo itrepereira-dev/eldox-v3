@@ -45,3 +45,27 @@ export function useDeleteFicha() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['fvs-fichas'] }),
   });
 }
+
+export function useGerarTokenCliente(fichaId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (diasValidade?: number) => fvsService.gerarTokenCliente(fichaId, diasValidade ?? 30),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ficha', fichaId] }),
+  });
+}
+
+export function useRevogarTokenCliente(fichaId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => fvsService.revogarTokenCliente(fichaId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ficha', fichaId] }),
+  });
+}
+
+export function useCalcularRisco(fichaId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => fvsService.calcularRisco(fichaId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ficha', fichaId] }),
+  });
+}

@@ -75,8 +75,8 @@ CREATE INDEX IF NOT EXISTS idx_obra_modelo_fvs_tenant_obra ON obra_modelo_fvs(te
 ALTER TABLE fvs_fichas
   ADD COLUMN IF NOT EXISTS modelo_id        INT REFERENCES fvs_modelos(id),
   ADD COLUMN IF NOT EXISTS exige_ro         BOOL NOT NULL DEFAULT true,
-  ADD COLUMN IF NOT EXISTS exige_reinspecao BOOL NOT NULL DEFAULT true;
--- exige_parecer já existe desde Sprint 2
+  ADD COLUMN IF NOT EXISTS exige_reinspecao BOOL NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS exige_parecer    BOOL NOT NULL DEFAULT true;
 
 CREATE INDEX IF NOT EXISTS idx_fvs_fichas_modelo_id ON fvs_fichas(modelo_id)
   WHERE modelo_id IS NOT NULL;

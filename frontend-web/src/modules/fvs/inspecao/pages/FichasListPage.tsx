@@ -3,19 +3,21 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useFichas, useDeleteFicha } from '../hooks/useFichas';
 import type { FichaFvs } from '../../../../services/fvs.service';
+import { cn } from '@/lib/cn';
+import { Plus } from 'lucide-react';
 
 const REGIME_LABEL: Record<string, string> = {
-  pbqph: 'PBQP-H',
+  pbqph:         'PBQP-H',
   norma_tecnica: 'Norma Técnica',
-  livre: 'Livre',
+  livre:         'Livre',
 };
 
-const STATUS_LABEL: Record<string, { label: string; color: string }> = {
-  rascunho:          { label: 'Rascunho',        color: '#6b7280' },
-  em_inspecao:       { label: 'Em Inspeção',      color: '#3b82f6' },
-  concluida:         { label: 'Concluída',         color: '#22c55e' },
-  aguardando_parecer: { label: 'Aguard. Parecer', color: '#f97316' },
-  aprovada:          { label: 'Aprovada',          color: '#15803d' },
+const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
+  rascunho:           { label: 'Rascunho',        cls: 'bg-[var(--bg-raised)] text-[var(--text-faint)] border border-[var(--border-dim)]' },
+  em_inspecao:        { label: 'Em Inspeção',      cls: 'bg-blue-50 text-blue-700 border border-blue-200' },
+  concluida:          { label: 'Concluída',         cls: 'bg-[var(--ok-bg)] text-[var(--ok-text)] border border-[var(--ok-border)]' },
+  aguardando_parecer: { label: 'Aguard. Parecer',  cls: 'bg-[var(--warn-bg)] text-[var(--warn-text)] border border-[var(--warn-border)]' },
+  aprovada:           { label: 'Aprovada',          cls: 'bg-emerald-50 text-emerald-800 border border-emerald-200' },
 };
 
 export function FichasListPage() {
@@ -28,100 +30,125 @@ export function FichasListPage() {
   const total = data?.total ?? 0;
   const totalPages = Math.ceil(total / 20);
 
-  if (isLoading) return <div style={{ padding: 24 }}>Carregando...</div>;
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-48 text-[var(--text-faint)] text-sm">
+        Carregando...
+      </div>
+    );
+  }
 
   return (
-    <div style={{ padding: 24 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Fichas FVS</h1>
+    <div className="p-6">
+      {/* Cabeçalho */}
+      <div className="flex items-center justify-between mb-5">
+        <h1 className="text-xl font-semibold text-[var(--text-high)] m-0">Inspeções</h1>
         <button
           onClick={() => navigate('/fvs/fichas/nova')}
-          style={{
-            background: '#3b82f6', color: '#fff', border: 'none',
-            borderRadius: 6, padding: '8px 16px', cursor: 'pointer', fontSize: 14,
-          }}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-md bg-[var(--accent)] text-white text-sm font-medium hover:opacity-90 transition-opacity"
         >
-          + Nova Ficha
+          <Plus size={15} />
+          Nova Inspeção
         </button>
       </div>
 
       {fichas.length === 0 ? (
-        <p style={{ color: '#6b7280' }}>Nenhuma ficha encontrada. Crie a primeira!</p>
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <p className="text-[var(--text-faint)] text-sm">Nenhuma inspeção encontrada. Crie a primeira!</p>
+        </div>
       ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-              <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600 }}>Nome</th>
-              <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600 }}>Regime</th>
-              <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600 }}>Status</th>
-              <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600 }}>Progresso</th>
-              <th style={{ padding: '8px 12px' }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {fichas.map((f) => {
-              const statusInfo = STATUS_LABEL[f.status] ?? { label: f.status, color: '#6b7280' };
-              return (
-                <tr key={f.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                  <td style={{ padding: '10px 12px', fontWeight: 500 }}>{f.nome}</td>
-                  <td style={{ padding: '10px 12px' }}>
-                    <span style={{ background: '#f3f4f6', borderRadius: 4, padding: '2px 8px', fontSize: 12 }}>
-                      {REGIME_LABEL[f.regime] ?? f.regime}
-                    </span>
-                  </td>
-                  <td style={{ padding: '10px 12px' }}>
-                    <span style={{ color: statusInfo.color, fontSize: 12, fontWeight: 600 }}>
-                      {statusInfo.label}
-                    </span>
-                  </td>
-                  <td style={{ padding: '10px 12px', minWidth: 120 }}>
-                    <div style={{ background: '#e5e7eb', borderRadius: 99, height: 6, width: '100%' }}>
-                      <div style={{
-                        background: '#22c55e', height: '100%', borderRadius: 99,
-                        width: `${f.progresso ?? 0}%`, transition: 'width 0.3s',
-                      }} />
-                    </div>
-                    <span style={{ fontSize: 11, color: '#6b7280' }}>{f.progresso ?? 0}%</span>
-                  </td>
-                  <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-                    <button
-                      onClick={() => navigate(`/fvs/fichas/${f.id}`)}
-                      style={{
-                        background: 'transparent', border: '1px solid #d1d5db',
-                        borderRadius: 5, padding: '4px 12px', cursor: 'pointer', fontSize: 13, marginRight: 8,
-                      }}
-                    >
-                      Abrir
-                    </button>
-                    {f.status === 'rascunho' && (
-                      <button
-                        onClick={() => {
-                          if (confirm(`Excluir "${f.nome}"?`)) deleteFicha.mutate(f.id);
-                        }}
-                        style={{
-                          background: 'transparent', border: '1px solid #fca5a5',
-                          borderRadius: 5, padding: '4px 12px', cursor: 'pointer',
-                          fontSize: 13, color: '#ef4444',
-                        }}
-                      >
-                        Excluir
-                      </button>
+        <div className="border border-[var(--border-dim)] rounded-lg overflow-hidden">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="border-b border-[var(--border-dim)] bg-[var(--bg-raised)]">
+                {['Nome', 'Regime', 'Status', 'Progresso', ''].map(col => (
+                  <th key={col} className="text-left px-4 py-2.5 text-xs font-semibold text-[var(--text-faint)] uppercase tracking-wide">
+                    {col}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {fichas.map((f, i) => {
+                const st = STATUS_LABEL[f.status] ?? { label: f.status, cls: 'bg-[var(--bg-raised)] text-[var(--text-faint)]' };
+                return (
+                  <tr
+                    key={f.id}
+                    className={cn(
+                      'border-b border-[var(--border-dim)] last:border-0 hover:bg-[var(--bg-hover)] transition-colors',
+                      i % 2 === 0 ? 'bg-[var(--bg-base)]' : 'bg-[var(--bg-raised)]',
                     )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                  >
+                    <td className="px-4 py-3 font-medium">
+                      <button
+                        onClick={() => navigate(`/fvs/fichas/${f.id}`)}
+                        className="text-[var(--accent)] hover:underline text-left"
+                      >
+                        {f.nome}
+                      </button>
+                    </td>
+                    <td className="px-4 py-3 text-[var(--text-mid)]">
+                      <span className="text-xs px-2.5 py-0.5 rounded-full bg-[var(--bg-raised)] border border-[var(--border-dim)] text-[var(--text-faint)]">
+                        {REGIME_LABEL[f.regime] ?? f.regime}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={cn('text-xs font-semibold px-2.5 py-0.5 rounded-full', st.cls)}>
+                        {st.label}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 min-w-[140px]">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 bg-[var(--border-dim)] rounded-full h-1.5">
+                          <div
+                            className="bg-[var(--ok-text)] h-full rounded-full transition-all"
+                            style={{ width: `${f.progresso ?? 0}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-[var(--text-faint)] w-8 text-right">{f.progresso ?? 0}%</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2 justify-end">
+                        <button
+                          onClick={() => navigate(`/fvs/fichas/${f.id}`)}
+                          className="text-xs px-2.5 py-1 rounded border border-[var(--border-dim)] text-[var(--text-mid)] hover:bg-[var(--bg-hover)] transition-colors"
+                        >
+                          Abrir
+                        </button>
+                        {f.status === 'rascunho' && (
+                          <button
+                            onClick={() => { if (confirm(`Excluir "${f.nome}"?`)) deleteFicha.mutate(f.id); }}
+                            className="text-xs px-2.5 py-1 rounded border border-[var(--nc-border)] text-[var(--nc-text)] hover:bg-[var(--nc-bg)] transition-colors"
+                          >
+                            Excluir
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {totalPages > 1 && (
-        <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
-          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} style={{ padding: '4px 12px', cursor: 'pointer' }}>
+        <div className="flex items-center gap-2 mt-4 justify-end">
+          <button
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page === 1}
+            className="px-3 py-1.5 text-sm rounded-md border border-[var(--border-dim)] text-[var(--text-mid)] hover:bg-[var(--bg-hover)] transition-colors disabled:opacity-40"
+          >
             ← Anterior
           </button>
-          <span style={{ padding: '4px 8px', fontSize: 13 }}>Página {page} de {totalPages}</span>
-          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} style={{ padding: '4px 12px', cursor: 'pointer' }}>
+          <span className="text-sm text-[var(--text-faint)]">Página {page} de {totalPages}</span>
+          <button
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+            className="px-3 py-1.5 text-sm rounded-md border border-[var(--border-dim)] text-[var(--text-mid)] hover:bg-[var(--bg-hover)] transition-colors disabled:opacity-40"
+          >
             Próxima →
           </button>
         </div>

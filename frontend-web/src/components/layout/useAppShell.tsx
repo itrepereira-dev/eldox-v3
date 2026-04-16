@@ -15,11 +15,14 @@ interface AppShellContextValue {
   closeMobile: () => void
   obraAtiva: string
   setObraAtiva: (obra: string) => void
+  obraAtivaId: number | null
+  setObraAtivaId: (id: number | null) => void
 }
 
 const AppShellContext = createContext<AppShellContextValue | null>(null)
 
-const COLLAPSED_KEY = 'eldox-sidebar-collapsed'
+const COLLAPSED_KEY   = 'eldox-sidebar-collapsed'
+const OBRA_ATIVA_KEY  = 'eldox-obra-ativa-id'
 
 export function AppShellProvider({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState<boolean>(() => {
@@ -28,7 +31,22 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
   })
 
   const [mobileOpen, setMobileOpen] = useState(false)
-  const [obraAtiva, setObraAtiva] = useState('Torre Residencial A')
+  const [obraAtiva, setObraAtiva] = useState('')
+  const [obraAtivaId, setObraAtivaIdState] = useState<number | null>(() => {
+    if (typeof window === 'undefined') return null
+    const saved = localStorage.getItem(OBRA_ATIVA_KEY)
+    const parsed = saved ? parseInt(saved, 10) : null
+    return parsed && !isNaN(parsed) ? parsed : null
+  })
+
+  const setObraAtivaId = useCallback((id: number | null) => {
+    setObraAtivaIdState(id)
+    if (id !== null) {
+      localStorage.setItem(OBRA_ATIVA_KEY, String(id))
+    } else {
+      localStorage.removeItem(OBRA_ATIVA_KEY)
+    }
+  }, [])
 
   const toggleCollapsed = useCallback(() => {
     setCollapsed(prev => {
@@ -52,7 +70,7 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
 
   return (
     <AppShellContext.Provider
-      value={{ collapsed, mobileOpen, toggleCollapsed, openMobile, closeMobile, obraAtiva, setObraAtiva }}
+      value={{ collapsed, mobileOpen, toggleCollapsed, openMobile, closeMobile, obraAtiva, setObraAtiva, obraAtivaId, setObraAtivaId: setObraAtivaId }}
     >
       {children}
     </AppShellContext.Provider>

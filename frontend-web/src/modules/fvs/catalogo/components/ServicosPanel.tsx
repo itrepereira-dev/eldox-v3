@@ -8,13 +8,18 @@ interface Props {
   categoria: FvsCategoria | null
   servicos: FvsServico[]
   isLoading: boolean
-  onNovoServico: () => void
-  onClonar: (id: number) => void
-  onEditar: (servico: FvsServico) => void
-  onExcluir: (id: number) => void
+  onNovoServico:  () => void
+  onClonar:       (id: number) => void
+  onEditar:       (servico: FvsServico) => void
+  onExcluir:      (id: number) => void
+  onToggleAtivo:  (id: number, ativo: boolean) => void
+  onMoverItem:    (servicoId: number, itens: { id: number; ordem: number }[]) => void
 }
 
-export function ServicosPanel({ categoria, servicos, isLoading, onNovoServico, onClonar, onEditar, onExcluir }: Props) {
+export function ServicosPanel({
+  categoria, servicos, isLoading,
+  onNovoServico, onClonar, onEditar, onExcluir, onToggleAtivo, onMoverItem,
+}: Props) {
   if (!categoria) {
     return (
       <div className="flex-1 flex items-center justify-center text-[var(--text-faint)] text-sm">
@@ -23,18 +28,24 @@ export function ServicosPanel({ categoria, servicos, isLoading, onNovoServico, o
     )
   }
 
+  const ativos   = servicos.filter(s => s.ativo).length
+  const inativos = servicos.filter(s => !s.ativo).length
+
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-dim)] flex-shrink-0">
         <div>
           <p className="text-[13px] font-semibold text-[var(--text-high)]">{categoria.nome}</p>
-          <p className="text-[11px] text-[var(--text-faint)]">{servicos.length} serviço{servicos.length !== 1 ? 's' : ''}</p>
+          <p className="text-[11px] text-[var(--text-faint)]">
+            {ativos} ativo{ativos !== 1 ? 's' : ''}
+            {inativos > 0 && ` · ${inativos} inativo${inativos !== 1 ? 's' : ''}`}
+          </p>
         </div>
         <button
           onClick={onNovoServico}
           className={cn(
             'flex items-center gap-1.5 px-3 h-8 rounded-sm text-[12px] font-semibold',
-            'bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white transition-colors',
+            'bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] transition-colors',
           )}
         >
           <Plus size={12} />
@@ -64,6 +75,8 @@ export function ServicosPanel({ categoria, servicos, isLoading, onNovoServico, o
                 onClonar={onClonar}
                 onEditar={onEditar}
                 onExcluir={onExcluir}
+                onToggleAtivo={onToggleAtivo}
+                onMoverItem={onMoverItem}
               />
             ))}
           </div>

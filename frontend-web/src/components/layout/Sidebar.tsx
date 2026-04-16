@@ -2,9 +2,12 @@ import logoPrincipal from '@/assets/logo-principal.png'
 import simboloPrincipal from '@/assets/simbolo-principal.png'
 import { cn } from '@/lib/cn'
 import { useAppShell } from './useAppShell'
-import { NavItem, NavSection } from './NavItem'
+import { NavItem, NavItemGroup, NavSection } from './NavItem'
 import { useTheme } from '@/components/ui'
 import { useAuthStore } from '@/store/auth.store'
+import { useQuery } from '@tanstack/react-query'
+import { obrasService } from '@/services/obras.service'
+import { useEffect } from 'react'
 import {
   LayoutDashboard,
   Layers,
@@ -13,20 +16,53 @@ import {
   FlaskConical,
   FolderOpen,
   Users,
-  Truck,
   Clock,
-  Sparkles,
-  ChevronLeft,
-  ChevronRight,
-  ChevronDown,
   Settings,
   Sun,
   Moon,
+  BookOpen,
+  Boxes,
+  Building2,
+  BookOpenCheck,
+  Warehouse,
+  BarChart2,
+  TestTubes,
+  Gauge,
+  ListChecks,
 } from 'lucide-react'
 
 /* ── larguras ────────────────────────────────────────── */
 const EXPANDED_W = 240
 const COLLAPSED_W = 60
+
+/* ── Hook: resolve obraAtivaId automaticamente ───────── */
+function useResolvedObraId(): number | null {
+  const { obraAtivaId, setObraAtivaId } = useAppShell()
+
+  // Só busca obras se não há obra ativa no contexto
+  const { data: obras } = useQuery({
+    queryKey: ['obras-sidebar-fallback'],
+    queryFn: () => obrasService.getAll({ limit: 1 }),
+    enabled: obraAtivaId === null,
+    staleTime: 60_000,
+  })
+
+  // Quando obras carregam e não há obra ativa, salva a primeira
+  useEffect(() => {
+    if (obraAtivaId === null) {
+      const lista = Array.isArray(obras) ? obras : (obras as any)?.items ?? []
+      const primeira = lista[0]
+      if (primeira?.id) {
+        setObraAtivaId(primeira.id)
+      }
+    }
+  }, [obras, obraAtivaId, setObraAtivaId])
+
+  if (obraAtivaId !== null) return obraAtivaId
+
+  const lista = Array.isArray(obras) ? obras : (obras as any)?.items ?? []
+  return lista[0]?.id ?? null
+}
 
 /* ── Logo ────────────────────────────────────────────── */
 function SidebarLogo() {
@@ -35,85 +71,27 @@ function SidebarLogo() {
   return (
     <div
       className={cn(
-        'flex items-center px-4 py-3.5 border-b border-[var(--border-dim)]',
+        'flex items-center px-4 py-3.5',
         'min-h-[56px]',
         collapsed && 'justify-center px-0',
       )}
     >
       {collapsed ? (
-        /* símbolo isolado quando colapsado */
         <img
           src={simboloPrincipal}
           alt="EldoX"
-          className="w-8 h-8 object-contain select-none"
+          className="w-8 h-8 object-contain select-none dark:brightness-0 dark:invert"
           draggable={false}
         />
       ) : (
-        /* logo completa */
         <img
           src={logoPrincipal}
           alt="EldoX"
-          className="h-8 object-contain select-none"
+          className="h-8 object-contain select-none dark:brightness-0 dark:invert"
           draggable={false}
         />
       )}
     </div>
-  )
-}
-
-/* ── Obra Selector ───────────────────────────────────── */
-function ObraSelector() {
-  const { obraAtiva, collapsed } = useAppShell()
-  if (collapsed) return null
-
-  return (
-    <div className="mx-3 my-2">
-      <button
-        className={cn(
-          'w-full flex items-center gap-2 px-2.5 py-2',
-          'bg-[var(--bg-raised)] border border-[var(--border-dim)] rounded-sm',
-          'text-left cursor-pointer',
-          'hover:bg-[var(--bg-hover)] hover:border-[var(--border)]',
-          'transition-all duration-[150ms]',
-        )}
-      >
-        <Layers size={13} className="text-[var(--text-faint)] flex-shrink-0" />
-        <div className="flex-1 overflow-hidden">
-          <p className="text-[12px] font-medium text-[var(--text-high)] truncate">
-            {obraAtiva}
-          </p>
-          <p className="text-[10px] text-[var(--text-faint)]">Projeto ativo</p>
-        </div>
-        <ChevronDown size={12} className="text-[var(--text-faint)] flex-shrink-0" />
-      </button>
-    </div>
-  )
-}
-
-/* ── Collapse Toggle ─────────────────────────────────── */
-function CollapseBtn() {
-  const { collapsed, toggleCollapsed } = useAppShell()
-
-  return (
-    <button
-      onClick={toggleCollapsed}
-      title={collapsed ? 'Expandir sidebar' : 'Recolher sidebar'}
-      aria-label={collapsed ? 'Expandir sidebar' : 'Recolher sidebar'}
-      className={cn(
-        'absolute -right-3 top-[68px] z-10',
-        'w-6 h-6 rounded-full',
-        'bg-[var(--bg-raised)] border border-[var(--border)]',
-        'flex items-center justify-center',
-        'text-[var(--text-faint)] hover:text-[var(--accent)]',
-        'hover:border-[var(--accent)]',
-        'transition-all duration-[150ms] shadow-xs',
-      )}
-    >
-      {collapsed
-        ? <ChevronRight size={12} />
-        : <ChevronLeft  size={12} />
-      }
-    </button>
   )
 }
 
@@ -146,9 +124,10 @@ function SidebarFooter() {
       {/* avatar */}
       <div
         className={cn(
-          'flex-shrink-0 w-8 h-8 rounded-full',
-          'bg-[var(--accent-dim)] flex items-center justify-center',
-          'text-[11px] font-bold text-[var(--accent)] select-none',
+          'flex-shrink-0 w-7 h-7 rounded-full',
+          'flex items-center justify-center',
+          'text-[11px] font-bold text-white select-none',
+          'bg-gradient-to-br from-[var(--accent)] to-[#a855f7]',
         )}
       >
         {initials}
@@ -199,6 +178,97 @@ function SidebarFooter() {
   )
 }
 
+/* ── FVM Nav helper ──────────────────────────────────── */
+function FvmControleLink({ onClick }: { onClick?: () => void }) {
+  const obraAtivaId = useResolvedObraId()
+  const to = obraAtivaId ? `/fvm/obras/${obraAtivaId}` : '/obras'
+
+  return (
+    <NavItem
+      to={to}
+      icon={<Boxes size={18} />}
+      label="Controle de Materiais"
+      onClick={onClick}
+    />
+  )
+}
+
+/* ── Concretagem Nav helper ──────────────────────────── */
+function ConcretagemNavGroup({ onClick }: { onClick?: () => void }) {
+  const obraAtivaId = useResolvedObraId()
+  const base = obraAtivaId ? `/obras/${obraAtivaId}/concretagem` : '/obras'
+
+  return (
+    <NavItemGroup
+      icon={<FlaskConical size={18} />}
+      label="Concretagem"
+      items={[
+        { to: base,                   label: 'Dashboard', end: true },
+        { to: `${base}/betonadas`,    label: 'Betonadas' },
+        { to: `${base}/croqui`,       label: 'Croqui' },
+      ]}
+      onClick={onClick}
+    />
+  )
+}
+
+/* ── Ensaios Nav helper ──────────────────────────────── */
+function EnsaiosNavGroup({ onClick }: { onClick?: () => void }) {
+  const obraAtivaId = useResolvedObraId()
+  const base = obraAtivaId ? `/obras/${obraAtivaId}/ensaios` : '/obras'
+
+  return (
+    <NavItemGroup
+      icon={<TestTubes size={18} />}
+      label="Ensaios"
+      items={[
+        { to: base,                       label: 'Conformidade', end: true },
+        { to: `${base}/laboratoriais`,    label: 'Laboratoriais' },
+        { to: `${base}/revisoes`,         label: 'Revisões' },
+      ]}
+      onClick={onClick}
+    />
+  )
+}
+
+/* ── Almoxarifado Nav helper ─────────────────────────── */
+function AlmoxarifadoNavGroup({ onClick }: { onClick?: () => void }) {
+  const obraAtivaId = useResolvedObraId()
+  const base = obraAtivaId ? `/obras/${obraAtivaId}/almoxarifado` : '/obras'
+
+  return (
+    <NavItemGroup
+      icon={<Warehouse size={18} />}
+      label="Almoxarifado"
+      items={[
+        { to: base,                    label: 'Dashboard', end: true },
+        { to: `${base}/estoque`,       label: 'Estoque' },
+        { to: `${base}/solicitacoes`,  label: 'Solicitações' },
+        { to: `${base}/ocs`,           label: 'Compras (OC)' },
+        { to: `${base}/nfes`,          label: 'NF-e' },
+        { to: `${base}/planejamento`,  label: 'Planejamento' },
+        { to: `${base}/insights`,      label: 'Insights IA' },
+      ]}
+      onClick={onClick}
+    />
+  )
+}
+
+/* ── Efetivo Nav helper ──────────────────────────────── */
+function EfetivoNavLink({ onClick }: { onClick?: () => void }) {
+  const obraAtivaId = useResolvedObraId()
+  const to = obraAtivaId ? `/obras/${obraAtivaId}/efetivo` : '/obras'
+
+  return (
+    <NavItem
+      to={to}
+      icon={<Users size={18} />}
+      label="Efetivo"
+      onClick={onClick}
+    />
+  )
+}
+
 /* ── Sidebar Principal ───────────────────────────────── */
 interface SidebarProps {
   onNavClick?: () => void
@@ -213,14 +283,13 @@ export function Sidebar({ onNavClick, className }: SidebarProps) {
       style={{ width: collapsed ? COLLAPSED_W : EXPANDED_W }}
       className={cn(
         'relative flex flex-col h-full',
-        'bg-[var(--bg-void)] border-r border-[var(--border-dim)]',
+        'bg-[var(--bg-surface)]',
         'transition-[width] duration-[220ms] ease-in-out overflow-hidden',
         className,
       )}
     >
-      <CollapseBtn />
       <SidebarLogo />
-      <ObraSelector />
+      <div className="h-px w-full bg-[var(--border-dim)] flex-shrink-0" />
 
       {/* Nav */}
       <nav
@@ -237,6 +306,7 @@ export function Sidebar({ onNavClick, className }: SidebarProps) {
           />
           <NavItem
             to="/obras"
+            end
             icon={<Layers size={18} />}
             label="Obras"
             badge={{ variant: 'run', count: 3 }}
@@ -245,46 +315,66 @@ export function Sidebar({ onNavClick, className }: SidebarProps) {
         </NavSection>
 
         <NavSection label="Qualidade">
-          <NavItem
-            to="/fvs/fichas"
+          <NavItemGroup
             icon={<ClipboardList size={18} />}
-            label="Fichas FVS"
+            label="Fichas de Inspeções"
+            items={[
+              { to: '/fvs/fichas',  label: 'Inspeções' },
+              { to: '/fvs/modelos', label: 'Templates' },
+            ]}
             onClick={onNavClick}
           />
           <NavItem
-            to="/nc"
+            to="/fvs/dashboard"
+            icon={<BarChart2 size={18} />}
+            label="Dashboard FVS"
+            onClick={onNavClick}
+          />
+          <NavItem
+            to="/ncs"
             icon={<AlertTriangle size={18} />}
             label="Não conformidades"
             badge={{ variant: 'nc', count: 7 }}
             onClick={onNavClick}
           />
+          <ConcretagemNavGroup onClick={onNavClick} />
+          <EnsaiosNavGroup onClick={onNavClick} />
+        </NavSection>
+
+        <NavSection label="Materiais">
+          <FvmControleLink onClick={onNavClick} />
           <NavItem
-            to="/concretagem"
-            icon={<FlaskConical size={18} />}
-            label="Concretagem"
+            to="/fvm/catalogo"
+            icon={<BookOpen size={18} />}
+            label="Catálogo FVM"
+            onClick={onNavClick}
+          />
+          <NavItem
+            to="/fvm/fornecedores"
+            icon={<Building2 size={18} />}
+            label="Fornecedores"
             onClick={onNavClick}
           />
         </NavSection>
 
+        <NavSection label="Gestão de Estoque">
+          <AlmoxarifadoNavGroup onClick={onNavClick} />
+        </NavSection>
+
         <NavSection label="Operacional">
+          <NavItem
+            to="/diario"
+            icon={<BookOpenCheck size={18} />}
+            label="Diário de Obra"
+            onClick={onNavClick}
+          />
           <NavItem
             to="/ged/admin"
             icon={<FolderOpen size={18} />}
             label="GED"
             onClick={onNavClick}
           />
-          <NavItem
-            to="/efetivo"
-            icon={<Users size={18} />}
-            label="Efetivo"
-            onClick={onNavClick}
-          />
-          <NavItem
-            to="/frota"
-            icon={<Truck size={18} />}
-            label="Frota"
-            onClick={onNavClick}
-          />
+          <EfetivoNavLink onClick={onNavClick} />
           <NavItem
             to="/aprovacoes"
             icon={<Clock size={18} />}
@@ -292,18 +382,24 @@ export function Sidebar({ onNavClick, className }: SidebarProps) {
             badge={{ variant: 'warn', count: 4 }}
             onClick={onNavClick}
           />
-        </NavSection>
-
-        <NavSection label="Inteligência">
           <NavItem
-            to="/ia"
-            icon={<Sparkles size={18} />}
-            label="Eldox IA"
-            accent
-            pulse
+            to="/semaforo"
+            icon={<Gauge size={18} />}
+            label="Semáforo"
+            onClick={onNavClick}
+          />
+          <NavItemGroup
+            icon={<ListChecks size={18} />}
+            label="Cadastros"
+            items={[
+              { to: '/configuracoes/fvs/catalogo',    label: 'Serviços FVS' },
+              { to: '/configuracoes/ensaios/tipos',   label: 'Tipos de Ensaio' },
+              { to: '/configuracoes/efetivo/cadastros', label: 'Cadastros Efetivo' },
+            ]}
             onClick={onNavClick}
           />
         </NavSection>
+
       </nav>
 
       <SidebarFooter />

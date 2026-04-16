@@ -1,0 +1,112 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: eldox_v3_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_v3_data:/var/lib/postgresql/data
+    networks:
+      - eldox_v3
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: eldox_v3_redis
+    restart: unless-stopped
+    volumes:
+      - redis_v3_data:/data
+    networks:
+      - eldox_v3
+
+  minio:
+    image: minio/minio:latest
+    container_name: eldox_v3_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+    volumes:
+      - minio_v3_data:/data
+    networks:
+      - eldox_v3
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    image: ghcr.io/${GITHUB_REPO}/eldox-backend:latest
+    container_name: eldox_v3_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      REDIS_URL: redis://redis:6379
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET: ${MINIO_BUCKET:-eldox-ged}
+      MINIO_USE_SSL: "false"
+    networks:
+      - eldox_v3
+      - coolify
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.eldox-v3-api.rule=Host(`${DOMAIN}`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.eldox-v3-api.entrypoints=websecure"
+      - "traefik.http.routers.eldox-v3-api.tls=true"
+      - "traefik.http.routers.eldox-v3-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.eldox-v3-api.priority=10"
+      - "traefik.http.services.eldox-v3-api.loadbalancer.server.port=3000"
+      - "traefik.docker.network=coolify"
+
+  frontend:
+    image: ghcr.io/${GITHUB_REPO}/eldox-frontend:latest
+    container_name: eldox_v3_frontend
+    restart: unless-stopped
+    networks:
+      - eldox_v3
+      - coolify
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.eldox-v3-web.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.eldox-v3-web.entrypoints=websecure"
+      - "traefik.http.routers.eldox-v3-web.tls=true"
+      - "traefik.http.routers.eldox-v3-web.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.eldox-v3-web.priority=1"
+      - "traefik.http.services.eldox-v3-web.loadbalancer.server.port=80"
+      - "traefik.docker.network=coolify"
+
+networks:
+  eldox_v3:
+    driver: bridge
+  coolify:
+    external: true
+
+volumes:
+  postgres_v3_data:
+  redis_v3_data:
+  minio_v3_data:

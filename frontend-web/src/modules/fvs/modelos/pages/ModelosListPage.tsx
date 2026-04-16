@@ -6,10 +6,13 @@ import {
   useReabrirModelo, useDuplicarModelo,
 } from '../hooks/useModelos';
 import type { FvsModelo } from '../../../../services/fvs.service';
+import { VincularObraModal } from '../components/VincularObraModal';
+import { cn } from '@/lib/cn';
+import { Plus, Building2 } from 'lucide-react';
 
-const STATUS_LABEL: Record<string, { label: string; color: string }> = {
-  rascunho:  { label: 'Rascunho',  color: '#6b7280' },
-  concluido: { label: 'Concluído', color: '#22c55e' },
+const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
+  rascunho:  { label: 'Rascunho',  cls: 'bg-[var(--bg-raised)] text-[var(--text-faint)] border border-[var(--border-dim)]' },
+  concluido: { label: 'Concluído', cls: 'bg-[var(--ok-bg)] text-[var(--ok-text)] border border-[var(--ok-border)]' },
 };
 
 const REGIME_LABEL: Record<string, string> = {
@@ -21,11 +24,14 @@ export function ModelosListPage() {
   const navigate = useNavigate();
   const [filtroStatus, setFiltroStatus] = useState<string | undefined>(undefined);
   const { data: modelos = [], isLoading } = useModelos({ status: filtroStatus });
-  const deletar = useDeleteModelo();
+  const deletar  = useDeleteModelo();
   const concluir = useConcluirModelo();
-  const reabrir = useReabrirModelo();
+  const reabrir  = useReabrirModelo();
   const duplicar = useDuplicarModelo();
   const [erro, setErro] = useState('');
+
+  // Modal de vincular obra
+  const [modeloObra, setModeloObra] = useState<FvsModelo | null>(null);
 
   async function handleAcao(acao: 'concluir' | 'reabrir' | 'duplicar' | 'excluir', modelo: FvsModelo) {
     setErro('');
@@ -46,17 +52,24 @@ export function ModelosListPage() {
     }
   }
 
-  if (isLoading) return <div style={{ padding: 24 }}>Carregando...</div>;
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-48 text-[var(--text-faint)] text-sm">
+        Carregando...
+      </div>
+    );
+  }
 
   return (
-    <div style={{ padding: 24 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Templates de Inspeção</h1>
-        <div style={{ display: 'flex', gap: 8 }}>
+    <div className="p-6">
+      {/* Cabeçalho */}
+      <div className="flex items-center justify-between mb-5">
+        <h1 className="text-xl font-semibold text-[var(--text-high)] m-0">Templates de Inspeção</h1>
+        <div className="flex items-center gap-3">
           <select
             value={filtroStatus ?? ''}
-            onChange={(e) => setFiltroStatus(e.target.value || undefined)}
-            style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 13 }}
+            onChange={e => setFiltroStatus(e.target.value || undefined)}
+            className="text-sm px-3 py-1.5 rounded-md border border-[var(--border-dim)] bg-[var(--bg-base)] text-[var(--text-mid)] focus:outline-none focus:border-[var(--accent)]"
           >
             <option value="">Todos os status</option>
             <option value="rascunho">Rascunho</option>
@@ -64,84 +77,137 @@ export function ModelosListPage() {
           </select>
           <button
             onClick={() => navigate('/fvs/modelos/novo')}
-            style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 16px', cursor: 'pointer', fontSize: 14 }}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-md bg-[var(--accent)] text-white text-sm font-medium hover:opacity-90 transition-opacity"
           >
-            + Novo Template
+            <Plus size={15} />
+            Novo Template
           </button>
         </div>
       </div>
 
-      {erro && <p style={{ color: '#dc2626', marginBottom: 12, fontSize: 13 }}>{erro}</p>}
+      {erro && (
+        <p className="text-sm text-[var(--nc-text)] mb-4 px-3 py-2 rounded-md bg-[var(--nc-bg)] border border-[var(--nc-border)]">
+          {erro}
+        </p>
+      )}
 
       {modelos.length === 0 ? (
-        <p style={{ color: '#6b7280' }}>Nenhum template encontrado. Crie o primeiro!</p>
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <p className="text-[var(--text-faint)] text-sm">Nenhum template encontrado. Crie o primeiro!</p>
+        </div>
       ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-          <thead>
-            <tr style={{ borderBottom: '2px solid #e5e7eb' }}>
-              <th style={{ textAlign: 'left', padding: '8px 12px' }}>Nome</th>
-              <th style={{ textAlign: 'left', padding: '8px 12px' }}>Regime</th>
-              <th style={{ textAlign: 'left', padding: '8px 12px' }}>Escopo</th>
-              <th style={{ textAlign: 'left', padding: '8px 12px' }}>Status</th>
-              <th style={{ textAlign: 'left', padding: '8px 12px' }}>Bloqueado</th>
-              <th style={{ textAlign: 'left', padding: '8px 12px' }}>Versão</th>
-              <th style={{ padding: '8px 12px' }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {modelos.map((m) => {
-              const st = STATUS_LABEL[m.status] ?? { label: m.status, color: '#6b7280' };
-              return (
-                <tr key={m.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                  <td style={{ padding: '10px 12px', fontWeight: 500 }}>
-                    <span
-                      onClick={() => navigate(`/fvs/modelos/${m.id}`)}
-                      style={{ cursor: 'pointer', color: '#3b82f6' }}
-                    >
-                      {m.nome}
-                    </span>
-                  </td>
-                  <td style={{ padding: '10px 12px', color: '#6b7280' }}>{REGIME_LABEL[m.regime] ?? m.regime}</td>
-                  <td style={{ padding: '10px 12px', color: '#6b7280' }}>{m.escopo}</td>
-                  <td style={{ padding: '10px 12px' }}>
-                    <span style={{
-                      background: st.color + '22', color: st.color,
-                      borderRadius: 999, padding: '2px 10px', fontSize: 12, fontWeight: 600,
-                    }}>
-                      {st.label}
-                    </span>
-                  </td>
-                  <td style={{ padding: '10px 12px', color: m.bloqueado ? '#dc2626' : '#22c55e' }}>
-                    {m.bloqueado ? 'Sim' : 'Não'}
-                  </td>
-                  <td style={{ padding: '10px 12px', color: '#6b7280' }}>v{m.versao}</td>
-                  <td style={{ padding: '10px 12px' }}>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      {m.status === 'rascunho' && !m.bloqueado && (
-                        <button onClick={() => handleAcao('concluir', m)} style={btnStyle('#22c55e')}>Concluir</button>
-                      )}
-                      {m.status === 'concluido' && !m.bloqueado && (
-                        <button onClick={() => handleAcao('reabrir', m)} style={btnStyle('#f59e0b')}>Reabrir</button>
-                      )}
-                      <button onClick={() => handleAcao('duplicar', m)} style={btnStyle('#6b7280')}>Duplicar</button>
-                      {!m.bloqueado && (
-                        <button onClick={() => handleAcao('excluir', m)} style={btnStyle('#dc2626')}>Excluir</button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <div className="border border-[var(--border-dim)] rounded-lg overflow-hidden">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="border-b border-[var(--border-dim)] bg-[var(--bg-raised)]">
+                {['Nome', 'Regime', 'Escopo', 'Status', 'Bloqueado', 'Versão', ''].map(col => (
+                  <th key={col} className="text-left px-4 py-2.5 text-xs font-semibold text-[var(--text-faint)] uppercase tracking-wide">
+                    {col}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {modelos.map((m, i) => {
+                const st = STATUS_LABEL[m.status] ?? { label: m.status, cls: 'bg-[var(--bg-raised)] text-[var(--text-faint)]' };
+                return (
+                  <tr
+                    key={m.id}
+                    className={cn(
+                      'border-b border-[var(--border-dim)] last:border-0 hover:bg-[var(--bg-hover)] transition-colors',
+                      i % 2 === 0 ? 'bg-[var(--bg-base)]' : 'bg-[var(--bg-raised)]',
+                    )}
+                  >
+                    <td className="px-4 py-3 font-medium">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => navigate(`/fvs/modelos/${m.id}`)}
+                          className="text-[var(--accent)] hover:underline text-left"
+                        >
+                          {m.nome}
+                        </button>
+                        {m.is_sistema && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 border border-blue-200 uppercase tracking-wide">
+                            Sistema
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-[var(--text-mid)]">{REGIME_LABEL[m.regime] ?? m.regime}</td>
+                    <td className="px-4 py-3 text-[var(--text-mid)] capitalize">{m.escopo}</td>
+                    <td className="px-4 py-3">
+                      <span className={cn('text-xs font-semibold px-2.5 py-0.5 rounded-full', st.cls)}>
+                        {st.label}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={cn('text-xs font-semibold', m.bloqueado ? 'text-[var(--nc-text)]' : 'text-[var(--ok-text)]')}>
+                        {m.bloqueado ? 'Sim' : 'Não'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-[var(--text-faint)]">v{m.versao}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        {!m.is_sistema && m.status === 'rascunho' && !m.bloqueado && (
+                          <button
+                            onClick={() => handleAcao('concluir', m)}
+                            className="text-xs px-2.5 py-1 rounded border border-[var(--ok-border)] text-[var(--ok-text)] hover:bg-[var(--ok-bg)] transition-colors"
+                          >
+                            Concluir
+                          </button>
+                        )}
+                        {/* Botão Obra — antes de Reabrir */}
+                        <button
+                          onClick={() => setModeloObra(m)}
+                          className="flex items-center gap-1 text-xs px-2.5 py-1 rounded border border-[var(--border-dim)] text-[var(--text-mid)] hover:bg-[var(--bg-hover)] transition-colors"
+                        >
+                          <Building2 size={11} /> Obra
+                          {(m.obras_count ?? 0) > 0 && (
+                            <span className="bg-[var(--accent)] text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center leading-none">
+                              {m.obras_count}
+                            </span>
+                          )}
+                        </button>
+                        {!m.is_sistema && m.status === 'concluido' && !m.bloqueado && (
+                          <button
+                            onClick={() => handleAcao('reabrir', m)}
+                            className="text-xs px-2.5 py-1 rounded border border-[var(--warn-border)] text-[var(--warn-text)] hover:bg-[var(--warn-bg)] transition-colors"
+                          >
+                            Reabrir
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleAcao('duplicar', m)}
+                          className="text-xs px-2.5 py-1 rounded border border-[var(--border-dim)] text-[var(--text-faint)] hover:bg-[var(--bg-hover)] transition-colors"
+                        >
+                          Duplicar
+                        </button>
+                        {!m.is_sistema && !m.bloqueado && (
+                          <button
+                            onClick={() => handleAcao('excluir', m)}
+                            className="text-xs px-2.5 py-1 rounded border border-[var(--nc-border)] text-[var(--nc-text)] hover:bg-[var(--nc-bg)] transition-colors"
+                          >
+                            Excluir
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Modal de vincular obra */}
+      {modeloObra && (
+        <VincularObraModal
+          modeloId={modeloObra.id}
+          modeloNome={modeloObra.nome}
+          onClose={() => setModeloObra(null)}
+        />
       )}
     </div>
   );
-}
-
-function btnStyle(color: string): React.CSSProperties {
-  return {
-    background: 'transparent', color, border: `1px solid ${color}`,
-    borderRadius: 4, padding: '3px 10px', cursor: 'pointer', fontSize: 12,
-  };
 }

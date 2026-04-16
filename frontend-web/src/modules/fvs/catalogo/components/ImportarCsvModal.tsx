@@ -3,9 +3,9 @@ import { cn } from '@/lib/cn'
 import { fvsService, type ImportResult } from '@/services/fvs.service'
 import { X, Upload, Download, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
 
-const CSV_TEMPLATE = `categoria,codigo,nome,norma,item_descricao,criticidade,foto_modo
-Alvenaria,PO 10.01,EXECUÇÃO DE ALVENARIA DE VEDAÇÃO,NBR 8545,BLOCOS ALINHADOS (DESVIO MÁX. 3MM/M)?,maior,opcional
-Alvenaria,PO 10.01,EXECUÇÃO DE ALVENARIA DE VEDAÇÃO,NBR 8545,JUNTAS COM ESPESSURA UNIFORME (10±3MM)?,menor,opcional`
+const CSV_TEMPLATE = `categoria,codigo,nome,norma,item_descricao,criterio_aceite,tolerancia,metodo_verificacao,criticidade,foto_modo
+Alvenaria,PO 10.01,EXECUÇÃO DE ALVENARIA DE VEDAÇÃO,NBR 8545,BLOCOS ALINHADOS (DESVIO MÁX. 3MM/M)?,Desvio máximo de 3mm por metro linear,±3mm/m,Régua de 2m + prumo,maior,opcional
+Alvenaria,PO 10.01,EXECUÇÃO DE ALVENARIA DE VEDAÇÃO,NBR 8545,JUNTAS COM ESPESSURA UNIFORME (10±3MM)?,Espessura entre 7mm e 13mm,7–13mm,Medição com paquímetro,menor,opcional`
 
 interface Props { open: boolean; onSuccess: () => void; onClose: () => void }
 
@@ -72,7 +72,7 @@ export function ImportarCsvModal({ open, onSuccess, onClose }: Props) {
           <div className="flex items-center justify-between p-3 bg-[var(--bg-raised)] rounded border border-[var(--border-dim)]">
             <div>
               <p className="text-[12px] font-medium text-[var(--text-high)]">Template CSV</p>
-              <p className="text-[11px] text-[var(--text-faint)]">Colunas: categoria, codigo, nome, norma, item_descricao, criticidade, foto_modo</p>
+              <p className="text-[11px] text-[var(--text-faint)]">Colunas: categoria, codigo, nome, norma, item_descricao, criterio_aceite, tolerancia, metodo_verificacao, criticidade, foto_modo</p>
             </div>
             <button
               onClick={downloadTemplate}
@@ -135,7 +135,7 @@ export function ImportarCsvModal({ open, onSuccess, onClose }: Props) {
           <button
             onClick={handleConfirm}
             disabled={!preview || hasErrors || confirming}
-            className="px-4 h-9 rounded-sm text-[13px] font-semibold bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white transition-colors disabled:opacity-50"
+            className="px-4 h-9 rounded-sm text-[13px] font-semibold bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] transition-colors disabled:opacity-50"
           >
             {confirming ? <Loader2 size={14} className="animate-spin" /> : 'Confirmar Importação'}
           </button>

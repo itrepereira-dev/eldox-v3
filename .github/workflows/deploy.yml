@@ -1,0 +1,66 @@
+name: Deploy Eldox v3
+
+on:
+  push:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  REPO: ${{ github.repository }}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login no GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build e push backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.REPO }}/eldox-backend:latest
+
+      - name: Build e push frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend-web
+          push: true
+          build-args: |
+            VITE_API_URL=${{ secrets.VITE_API_URL }}
+          tags: ${{ env.REGISTRY }}/${{ env.REPO }}/eldox-frontend:latest
+
+      - name: Deploy no servidor
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            cd /opt/eldox-v3
+
+            # Atualiza imagens
+            echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker compose -f infra/docker-compose.prod.yml pull
+
+            # Reinicia com zero downtime
+            docker compose -f infra/docker-compose.prod.yml up -d --remove-orphans
+
+            # Aguarda backend ficar saudável
+            sleep 10
+            docker compose -f infra/docker-compose.prod.yml ps
+
+            echo "Deploy concluído ✓"

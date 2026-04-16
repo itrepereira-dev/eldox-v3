@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
   FileText,
@@ -73,13 +73,13 @@ const STATUS_TABS: Array<{ value: GedStatus | 'TODOS'; label: string }> = [
 
 export function GedAdminPage() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const { user } = useAuthStore();
 
   const [statusFiltro, setStatusFiltro] = useState<GedStatus | 'TODOS'>('TODOS');
   const [disciplinaFiltro, setDisciplinaFiltro] = useState<string>('');
   const [busca, setBusca] = useState('');
-  const [uploadOpen, setUploadOpen] = useState(false);
+  const [_uploadOpen, setUploadOpen] = useState(false);
+
   const [page, setPage] = useState(1);
   const [abaAtiva, setAbaAtiva] = useState<'documentos' | 'compartilhamento'>('documentos');
 

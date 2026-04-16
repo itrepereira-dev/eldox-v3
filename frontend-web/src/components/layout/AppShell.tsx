@@ -1,8 +1,10 @@
-import { type ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
+import { useLocation, useParams } from 'react-router-dom'
 import { cn } from '@/lib/cn'
 import { AppShellProvider, useAppShell } from './useAppShell'
 import { Sidebar } from './Sidebar'
 import { Topbar, type TopbarProps } from './Topbar'
+import { AgenteFloat } from '../agente/AgenteFloat'
 
 /* ── Mobile Drawer Overlay ───────────────────────────── */
 function MobileDrawer() {
@@ -43,8 +45,28 @@ interface AppShellInnerProps extends TopbarProps {
   children: ReactNode
 }
 
+function ObraAtivaSync() {
+  const { obraAtivaId, setObraAtivaId } = useAppShell()
+  const { obraId } = useParams<{ obraId?: string }>()
+  const location = useLocation()
+
+  useEffect(() => {
+    // Extrai obraId tanto de params (rotas aninhadas) quanto do pathname
+    const fromParams = obraId ? parseInt(obraId, 10) : null
+    const match = location.pathname.match(/\/obras\/(\d+)/)
+    const fromPath = match ? parseInt(match[1], 10) : null
+    const id = fromParams ?? fromPath
+
+    if (id && !isNaN(id) && id !== obraAtivaId) {
+      setObraAtivaId(id)
+    }
+  }, [location.pathname, obraId, obraAtivaId, setObraAtivaId])
+
+  return null
+}
+
 function AppShellInner({ children, breadcrumb, primaryAction }: AppShellInnerProps) {
-  const { collapsed } = useAppShell()
+  const { collapsed: _collapsed } = useAppShell()
 
   return (
     <div
@@ -54,8 +76,10 @@ function AppShellInner({ children, breadcrumb, primaryAction }: AppShellInnerPro
         'font-sans antialiased',
       )}
     >
+      <ObraAtivaSync />
+
       {/* ── Sidebar desktop (fixa à esquerda) ── */}
-      <div className="hidden lg:flex flex-shrink-0 h-screen">
+      <div className="relative hidden lg:flex flex-shrink-0 h-screen">
         <Sidebar />
       </div>
 
@@ -63,7 +87,7 @@ function AppShellInner({ children, breadcrumb, primaryAction }: AppShellInnerPro
       <MobileDrawer />
 
       {/* ── Área direita: topbar + conteúdo ── */}
-      <div className="flex flex-col flex-1 min-w-0 h-screen overflow-hidden">
+      <div className="flex flex-col flex-1 min-w-0 h-screen overflow-hidden border-l border-[var(--border-dim)]">
         <Topbar breadcrumb={breadcrumb} primaryAction={primaryAction} />
 
         {/* ── Conteúdo principal ── */}
@@ -79,6 +103,7 @@ function AppShellInner({ children, breadcrumb, primaryAction }: AppShellInnerPro
           {children}
         </main>
       </div>
+      <AgenteFloat />
     </div>
   )
 }

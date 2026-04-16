@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grid Scale</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0f172a; color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+
+  .shell { display: flex; height: 100vh; }
+
+  /* Sidebar simulada */
+  .sidebar {
+    width: 240px;
+    min-width: 240px;
+    background: #1e293b;
+    border-right: 1px solid #334155;
+    display: flex;
+    flex-direction: column;
+    padding: 16px 0;
+  }
+  .sidebar-logo {
+    padding: 0 16px 16px;
+    border-bottom: 1px solid #334155;
+    font-size: 18px;
+    font-weight: 800;
+    color: #3b82f6;
+    letter-spacing: -0.5px;
+  }
+  .sidebar-section { padding: 12px 8px 4px; font-size: 9px; color: #475569; text-transform: uppercase; letter-spacing: 1px; }
+  .sidebar-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 16px; font-size: 12px; color: #94a3b8;
+    cursor: pointer; border-radius: 4px; margin: 0 4px;
+  }
+  .sidebar-item.active { background: #1d4ed8; color: #fff; }
+  .sidebar-item:hover:not(.active) { background: #1e293b; color: #e2e8f0; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+  /* Main content */
+  .main { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+
+  /* Top bar */
+  .topbar {
+    padding: 12px 24px;
+    border-bottom: 1px solid #1e293b;
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .topbar-title { font-size: 18px; font-weight: 700; }
+  .topbar-sub { font-size: 12px; color: #64748b; margin-top: 1px; }
+  .btn-edit {
+    background: #1e293b; border: 1px solid #334155; border-radius: 6px;
+    padding: 7px 14px; font-size: 12px; color: #94a3b8; cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+  }
+
+  /* Dashboard area */
+  .dashboard-area { padding: 20px 24px; flex: 1; }
+
+  /* Grid de 12 colunas */
+  .widget-grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    grid-auto-rows: 90px;
+    gap: 10px;
+  }
+
+  /* Widgets */
+  .w { background: #1e293b; border-radius: 8px; padding: 14px; border: 1px solid #334155; overflow: hidden; }
+  .w-label { font-size: 9px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+  .w-value { font-size: 24px; font-weight: 800; line-height: 1; margin-bottom: 4px; }
+  .w-sub { font-size: 10px; color: #64748b; }
+  .w-title { font-size: 11px; font-weight: 600; color: #94a3b8; margin-bottom: 8px; }
+
+  .red { color: #ef4444; border-top: 2px solid #ef4444; }
+  .yellow { color: #f59e0b; border-top: 2px solid #f59e0b; }
+  .green { color: #22c55e; border-top: 2px solid #22c55e; }
+  .blue { color: #3b82f6; border-top: 2px solid #3b82f6; }
+  .purple { color: #a855f7; border-top: 2px solid #a855f7; }
+  .cyan { color: #06b6d4; border-top: 2px solid #06b6d4; }
+  .orange { color: #f97316; border-top: 2px solid #f97316; }
+
+  /* Progress bar */
+  .pbar { background: #334155; border-radius: 2px; height: 6px; overflow: hidden; margin-top: 6px; }
+  .pbar-fill { height: 100%; border-radius: 2px; }
+
+  /* Feed */
+  .feed-item { display: flex; gap: 8px; align-items: flex-start; padding: 5px 0; border-bottom: 1px solid #1e293b; }
+  .feed-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+  .feed-text { font-size: 10px; color: #94a3b8; line-height: 1.4; }
+  .feed-time { font-size: 9px; color: #475569; margin-top: 2px; }
+
+  /* Semaforo */
+  .obra-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid #1e293b; }
+  .obra-name { font-size: 10px; color: #e2e8f0; }
+  .semaforo-dots { display: flex; gap: 4px; }
+  .sdot { width: 9px; height: 9px; border-radius: 50%; }
+
+  /* Mini bar chart */
+  .bars { display: flex; gap: 4px; align-items: flex-end; height: 40px; margin-top: 8px; }
+  .bar { flex: 1; border-radius: 2px 2px 0 0; background: #3b82f6; opacity: 0.7; }
+
+  /* Label de tamanho */
+  .size-badge {
+    position: absolute; top: 4px; right: 6px;
+    font-size: 8px; color: #475569; font-family: monospace;
+  }
+  .w { position: relative; }
+
+  /* Nota de rodapé */
+  .footer-note {
+    padding: 10px 24px 16px;
+    font-size: 11px; color: #475569;
+    display: flex; gap: 24px; flex-wrap: wrap;
+  }
+  .badge { display: inline-flex; align-items: center; gap: 4px; background: #1e293b; border: 1px solid #334155; border-radius: 4px; padding: 3px 8px; font-size: 10px; color: #94a3b8; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-logo">EldoX</div>
+    <div style="padding: 8px 4px; flex: 1; overflow: hidden;">
+      <div class="sidebar-section">Principal</div>
+      <div class="sidebar-item active">📊 Dashboard</div>
+      <div class="sidebar-item">🏗️ Obras</div>
+      <div class="sidebar-section">Qualidade</div>
+      <div class="sidebar-item">📋 Fichas de Inspeção</div>
+      <div class="sidebar-item">⚠️ Não Conformidades</div>
+      <div class="sidebar-item">🏛️ Concretagem</div>
+      <div class="sidebar-item">🧪 Ensaios</div>
+      <div class="sidebar-section">Materiais</div>
+      <div class="sidebar-item">📦 Controle de Materiais</div>
+      <div class="sidebar-item">📚 Catálogo FVM</div>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+
+    <div class="topbar">
+      <div>
+        <div class="topbar-title">Bom dia, Itamar 👋</div>
+        <div class="topbar-sub">Dashboard geral · 15 de abril de 2026</div>
+      </div>
+      <div class="btn-edit">✏️ Editar dashboard</div>
+    </div>
+
+    <div class="dashboard-area">
+      <div class="widget-grid">
+
+        <!-- Linha 1: 6 KPI cards 2x1 -->
+        <div class="w red" style="grid-column: span 2;">
+          <span class="size-badge">2×1</span>
+          <div class="w-label">NCs Abertas</div>
+          <div class="w-value" style="color:#ef4444;">12</div>
+          <div class="w-sub">3 críticas · 2 vencidas</div>
+        </div>
+
+        <div class="w yellow" style="grid-column: span 2;">
+          <span class="size-badge">2×1</span>
+          <div class="w-label">Aprovações</div>
+          <div class="w-value" style="color:#f59e0b;">4</div>
+          <div class="w-sub">aguardando você</div>
+        </div>
+
+        <div class="w green" style="grid-column: span 2;">
+          <span class="size-badge">2×1</span>
+          <div class="w-label">Conformidade FVS</div>
+          <div class="w-value" style="color:#22c55e;">82%</div>
+          <div class="w-sub">↑ +3% esta semana</div>
+        </div>
+
+        <div class="w blue" style="grid-column: span 2;">
+          <span class="size-badge">2×1</span>
+          <div class="w-label">Obras Ativas</div>
+          <div class="w-value" style="color:#3b82f6;">5</div>
+          <div class="w-sub">de 7 cadastradas</div>
+        </div>
+
+        <div class="w cyan" style="grid-column: span 2;">
+          <span class="size-badge">2×1</span>
+          <div class="w-label">Volume Concretado</div>
+          <div class="w-value" style="color:#06b6d4;">248m³</div>
+          <div class="w-sub">previsto 260m³</div>
+        </div>
+
+        <div class="w orange" style="grid-column: span 2;">
+          <span class="size-badge">2×1</span>
+          <div class="w-label">Efetivo Hoje</div>
+          <div class="w-value" style="color:#f97316;">34</div>
+          <div class="w-sub">trabalhadores</div>
+        </div>
+
+        <!-- Linha 2: Semáforo 4x2 + Feed 4x2 + Estoque 4x2 -->
+
+        <div class="w" style="grid-column: span 4; grid-row: span 2;">
+          <span class="size-badge">4×2</span>
+          <div class="w-title">🚦 Semáforo de Obras</div>
+          <div class="obra-row">
+            <div class="obra-name">Obra Central</div>
+            <div class="semaforo-dots">
+              <div class="sdot" style="background:#22c55e;" title="FVS"></div>
+              <div class="sdot" style="background:#22c55e;" title="NC"></div>
+              <div class="sdot" style="background:#f59e0b;" title="Alm"></div>
+              <div class="sdot" style="background:#22c55e;" title="GED"></div>
+            </div>
+          </div>
+          <div class="obra-row">
+            <div class="obra-name">Residencial Norte</div>
+            <div class="semaforo-dots">
+              <div class="sdot" style="background:#22c55e;"></div>
+              <div class="sdot" style="background:#22c55e;"></div>
+              <div class="sdot" style="background:#22c55e;"></div>
+              <div class="sdot" style="background:#22c55e;"></div>
+            </div>
+          </div>
+          <div class="obra-row">
+            <div class="obra-name">Torre Sul</div>
+            <div class="semaforo-dots">
+              <div class="sdot" style="background:#ef4444;"></div>
+              <div class="sdot" style="background:#f59e0b;"></div>
+              <div class="sdot" style="background:#ef4444;"></div>
+              <div class="sdot" style="background:#f59e0b;"></div>
+            </div>
+          </div>
+          <div class="obra-row">
+            <div class="obra-name">Condomínio Leste</div>
+            <div class="semaforo-dots">
+              <div class="sdot" style="background:#22c55e;"></div>
+              <div class="sdot" style="background:#22c55e;"></div>
+              <div class="sdot" style="background:#22c55e;"></div>
+              <div class="sdot" style="background:#22c55e;"></div>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:8px;padding-top:6px;border-top:1px solid #1e293b;">
+            <div style="font-size:8px;color:#64748b;display:flex;align-items:center;gap:3px;"><div class="sdot" style="width:6px;height:6px;background:#22c55e;"></div>FVS</div>
+            <div style="font-size:8px;color:#64748b;display:flex;align-items:center;gap:3px;"><div class="sdot" style="width:6px;height:6px;background:#3b82f6;"></div>NCs</div>
+            <div style="font-size:8px;color:#64748b;display:flex;align-items:center;gap:3px;"><div class="sdot" style="width:6px;height:6px;background:#f97316;"></div>Alm.</div>
+            <div style="font-size:8px;color:#64748b;display:flex;align-items:center;gap:3px;"><div class="sdot" style="width:6px;height:6px;background:#a855f7;"></div>GED</div>
+          </div>
+        </div>
+
+        <div class="w" style="grid-column: span 4; grid-row: span 2;">
+          <span class="size-badge">4×2</span>
+          <div class="w-title">⚡ Atividade Recente</div>
+          <div class="feed-item">
+            <div class="feed-dot" style="background:#ef4444;"></div>
+            <div>
+              <div class="feed-text">NC aberta em <strong>Torre Sul</strong> — Concretagem</div>
+              <div class="feed-time">há 12 min</div>
+            </div>
+          </div>
+          <div class="feed-item">
+            <div class="feed-dot" style="background:#22c55e;"></div>
+            <div>
+              <div class="feed-text">Laudo aprovado — Lote #42 · Aço CA-50</div>
+              <div class="feed-time">há 45 min</div>
+            </div>
+          </div>
+          <div class="feed-item">
+            <div class="feed-dot" style="background:#3b82f6;"></div>
+            <div>
+              <div class="feed-text">Doc. enviado ao GED — Planta Rev. 3</div>
+              <div class="feed-time">há 1h</div>
+            </div>
+          </div>
+          <div class="feed-item">
+            <div class="feed-dot" style="background:#f59e0b;"></div>
+            <div>
+              <div class="feed-text">Estoque crítico: <strong>Cimento CP-II</strong></div>
+              <div class="feed-time">há 2h</div>
+            </div>
+          </div>
+          <div class="feed-item" style="border:none;">
+            <div class="feed-dot" style="background:#a855f7;"></div>
+            <div>
+              <div class="feed-text">RDO registrado — Obra Central · 14/04</div>
+              <div class="feed-time">há 3h</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="w" style="grid-column: span 4; grid-row: span 2;">
+          <span class="size-badge">4×2</span>
+          <div class="w-title">📦 Estoque Crítico · Obra Central</div>
+          <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div style="font-size:11px;color:#e2e8f0;">Cimento CP-II</div>
+              <div style="font-size:9px;font-weight:700;color:#ef4444;background:#fef2f2;padding:2px 6px;border-radius:3px;">CRÍTICO</div>
+            </div>
+            <div class="pbar"><div class="pbar-fill" style="background:#ef4444;width:12%;"></div></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
+              <div style="font-size:11px;color:#e2e8f0;">Vergalhão 10mm</div>
+              <div style="font-size:9px;font-weight:700;color:#f59e0b;background:#fffbeb;padding:2px 6px;border-radius:3px;">ATENÇÃO</div>
+            </div>
+            <div class="pbar"><div class="pbar-fill" style="background:#f59e0b;width:35%;"></div></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
+              <div style="font-size:11px;color:#e2e8f0;">Brita 1</div>
+              <div style="font-size:9px;font-weight:700;color:#f59e0b;background:#fffbeb;padding:2px 6px;border-radius:3px;">ATENÇÃO</div>
+            </div>
+            <div class="pbar"><div class="pbar-fill" style="background:#f59e0b;width:28%;"></div></div>
+          </div>
+        </div>
+
+        <!-- Linha 3: FVS Evolução 4x2 + Laudos 2x2 + Efetivo 2x2 + GED 4x2 -->
+
+        <div class="w" style="grid-column: span 4; grid-row: span 2;">
+          <span class="size-badge">4×2</span>
+          <div class="w-title">📊 FVS — Evolução de Conformidade</div>
+          <div style="display:flex;justify-content:space-between;align-items:flex-end;height:60px;gap:2px;margin-top:8px;">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;">
+              <div style="font-size:7px;color:#475569;">JAN</div>
+              <div style="background:#3b82f6;border-radius:2px 2px 0 0;width:100%;height:35px;"></div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;">
+              <div style="font-size:7px;color:#475569;">FEV</div>
+              <div style="background:#3b82f6;border-radius:2px 2px 0 0;width:100%;height:42px;"></div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;">
+              <div style="font-size:7px;color:#475569;">MAR</div>
+              <div style="background:#3b82f6;border-radius:2px 2px 0 0;width:100%;height:38px;"></div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;">
+              <div style="font-size:7px;color:#475569;">ABR</div>
+              <div style="background:#22c55e;border-radius:2px 2px 0 0;width:100%;height:50px;"></div>
+            </div>
+          </div>
+          <div style="font-size:9px;color:#64748b;margin-top:4px;">Taxa de conformidade · últimos 4 meses</div>
+        </div>
+
+        <div class="w" style="grid-column: span 2; grid-row: span 2;">
+          <span class="size-badge">2×2</span>
+          <div class="w-title">🧪 Laudos Pendentes</div>
+          <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px;">
+            <div style="text-align:center;">
+              <div style="font-size:32px;font-weight:800;color:#f59e0b;line-height:1;">7</div>
+              <div style="font-size:9px;color:#64748b;">aguardando revisão</div>
+            </div>
+            <div style="display:flex;justify-content:space-around;">
+              <div style="text-align:center;">
+                <div style="font-size:14px;font-weight:700;color:#a855f7;">3</div>
+                <div style="font-size:8px;color:#64748b;">alta prioridade</div>
+              </div>
+              <div style="text-align:center;">
+                <div style="font-size:14px;font-weight:700;color:#64748b;">4</div>
+                <div style="font-size:8px;color:#64748b;">normal</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="w" style="grid-column: span 2; grid-row: span 2;">
+          <span class="size-badge">2×2</span>
+          <div class="w-title">👷 Efetivo Hoje</div>
+          <div style="text-align:center;margin-top:8px;">
+            <div style="font-size:32px;font-weight:800;color:#f97316;line-height:1;">34</div>
+            <div style="font-size:9px;color:#64748b;margin-top:4px;">trabalhadores</div>
+          </div>
+          <div style="display:flex;gap:6px;margin-top:12px;">
+            <div style="flex:1;background:#1d4ed8;border-radius:4px;padding:6px;text-align:center;">
+              <div style="font-size:12px;font-weight:700;color:#93c5fd;">22</div>
+              <div style="font-size:8px;color:#64748b;">própria</div>
+            </div>
+            <div style="flex:1;background:#1e293b;border-radius:4px;padding:6px;text-align:center;border:1px solid #334155;">
+              <div style="font-size:12px;font-weight:700;color:#94a3b8;">12</div>
+              <div style="font-size:8px;color:#64748b;">subcontr.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="w" style="grid-column: span 4; grid-row: span 2;">
+          <span class="size-badge">4×2</span>
+          <div class="w-title">📄 GED — Documentos</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px;">
+            <div style="background:#0f172a;border-radius:4px;padding:8px;">
+              <div style="font-size:9px;color:#64748b;">Vigentes</div>
+              <div style="font-size:20px;font-weight:700;color:#22c55e;">48</div>
+            </div>
+            <div style="background:#0f172a;border-radius:4px;padding:8px;">
+              <div style="font-size:9px;color:#64748b;">Pend. IFA</div>
+              <div style="font-size:20px;font-weight:700;color:#f59e0b;">5</div>
+            </div>
+            <div style="background:#0f172a;border-radius:4px;padding:8px;">
+              <div style="font-size:9px;color:#64748b;">Vencendo 30d</div>
+              <div style="font-size:20px;font-weight:700;color:#ef4444;">2</div>
+            </div>
+            <div style="background:#0f172a;border-radius:4px;padding:8px;">
+              <div style="font-size:9px;color:#64748b;">Rejeitados</div>
+              <div style="font-size:20px;font-weight:700;color:#64748b;">1</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="footer-note">
+      <span>📐 Grade: 12 colunas · altura por linha: 90px · gap: 10px</span>
+      <span class="badge">Linha 1: 6 widgets (2×1)</span>
+      <span class="badge">Linha 2: 3 widgets (4×2)</span>
+      <span class="badge">Linha 3: 4 widgets (4×2, 2×2, 2×2, 4×2)</span>
+      <span class="badge" style="background:#1d4ed8;color:#fff;border-color:#1d4ed8;">Total visível: <strong>13 widgets</strong> · ~2,5 telas de scroll</span>
+    </div>
+
+  </div>
+
+</div>
+</body>
+</html>

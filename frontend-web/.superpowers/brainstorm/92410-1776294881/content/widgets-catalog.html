@@ -1,0 +1,118 @@
+<h2>Quais widgets devem estar disponíveis no catálogo?</h2>
+<p class="subtitle">Selecione todos que fazem sentido para o Dashboard Geral. Você pode escolher vários.</p>
+
+<div class="options" data-multiselect>
+
+  <div class="option" data-choice="obras-status" onclick="toggleSelect(this)">
+    <div class="letter">📊</div>
+    <div class="content">
+      <h3>Obras — Status geral</h3>
+      <p>Total de obras, quantas em execução, paralisadas, concluídas</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="obras-lista" onclick="toggleSelect(this)">
+    <div class="letter">🏗️</div>
+    <div class="content">
+      <h3>Obras — Painel por obra</h3>
+      <p>Lista de obras com semáforo de saúde (NCs, conformidade, estoque) — versão compacta</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="ncs-abertas" onclick="toggleSelect(this)">
+    <div class="letter">⚠️</div>
+    <div class="content">
+      <h3>Não Conformidades — Abertas</h3>
+      <p>Contador de NCs abertas com link direto para a lista filtrada</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="fvs-conformidade" onclick="toggleSelect(this)">
+    <div class="letter">✅</div>
+    <div class="content">
+      <h3>FVS — Taxa de conformidade</h3>
+      <p>Percentual de inspeções aprovadas, barra de progresso por obra</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="aprovacoes" onclick="toggleSelect(this)">
+    <div class="letter">🕐</div>
+    <div class="content">
+      <h3>Aprovações pendentes</h3>
+      <p>Fila de itens aguardando aprovação do usuário logado</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="laudos-revisao" onclick="toggleSelect(this)">
+    <div class="letter">🧪</div>
+    <div class="content">
+      <h3>Ensaios — Laudos pendentes</h3>
+      <p>Laudos laboratoriais aguardando revisão técnica</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="estoque-critico" onclick="toggleSelect(this)">
+    <div class="letter">📦</div>
+    <div class="content">
+      <h3>Almoxarifado — Estoque crítico</h3>
+      <p>Materiais abaixo do ponto de reposição</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="ged-vencendo" onclick="toggleSelect(this)">
+    <div class="letter">📄</div>
+    <div class="content">
+      <h3>GED — Documentos vencendo</h3>
+      <p>Documentos com validade próxima (próximos 30 dias)</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="semaforo" onclick="toggleSelect(this)">
+    <div class="letter">🚦</div>
+    <div class="content">
+      <h3>Semáforo de módulos</h3>
+      <p>Indicador verde/amarelo/vermelho para cada módulo do sistema</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="rdo-recente" onclick="toggleSelect(this)">
+    <div class="letter">📋</div>
+    <div class="content">
+      <h3>Diário de Obra — Últimos registros</h3>
+      <p>Resumo dos últimos RDOs registrados por obra</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="efetivo" onclick="toggleSelect(this)">
+    <div class="letter">👷</div>
+    <div class="content">
+      <h3>Efetivo — Presença hoje</h3>
+      <p>Total de trabalhadores registrados no dia atual</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="concretagem" onclick="toggleSelect(this)">
+    <div class="letter">🏛️</div>
+    <div class="content">
+      <h3>Concretagem — Betonadas recentes</h3>
+      <p>Últimas betonadas registradas e status de cura</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="atividade-feed" onclick="toggleSelect(this)">
+    <div class="letter">⚡</div>
+    <div class="content">
+      <h3>Feed de atividade recente</h3>
+      <p>Timeline unificada com os últimos eventos de todos os módulos</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="ocs-pendentes" onclick="toggleSelect(this)">
+    <div class="letter">🛒</div>
+    <div class="content">
+      <h3>Almoxarifado — OCs pendentes</h3>
+      <p>Ordens de compra aguardando aprovação ou entrega</p>
+    </div>
+  </div>
+
+</div>

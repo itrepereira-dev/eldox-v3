@@ -2,6 +2,8 @@
 import { useState, useRef } from 'react';
 import { useEvidencias, useCreateEvidencia, useDeleteEvidencia } from '../hooks/useRegistros';
 import type { FvsRegistro } from '../../../../services/fvs.service';
+import { cn } from '@/lib/cn';
+import { X, Camera } from 'lucide-react';
 
 interface Props {
   registro: FvsRegistro;
@@ -19,9 +21,9 @@ export function RegistroNcModal({ registro, regime, onSalvar, onCancelar, salvan
   const createEv = useCreateEvidencia();
   const deleteEv = useDeleteEvidencia();
 
-  const isPbqph = regime === 'pbqph';
+  const isPbqph  = regime === 'pbqph';
   const isCritico = registro.item_criticidade === 'critico';
-  const semFoto = evidencias.length === 0;
+  const semFoto  = evidencias.length === 0;
 
   function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -31,48 +33,100 @@ export function RegistroNcModal({ registro, regime, onSalvar, onCancelar, salvan
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
-      <div style={{ background: '#fff', borderRadius: 10, padding: 24, maxWidth: 540, width: '90%' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h3 style={{ margin: 0, fontSize: 16, color: '#ef4444' }}>Não Conforme — {registro.item_descricao}</h3>
-          <button onClick={onCancelar} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer' }}>×</button>
-        </div>
-        {isCritico && (
-          <span style={{ display: 'inline-block', background: '#fef2f2', color: '#ef4444', fontSize: 11, fontWeight: 700, borderRadius: 4, padding: '2px 8px', marginBottom: 12 }}>CRÍTICO</span>
-        )}
-        <label style={{ display: 'block', marginBottom: 16 }}>
-          <span style={{ fontSize: 13, fontWeight: 500 }}>Observação {isPbqph ? '(obrigatória)' : '(opcional)'}</span>
-          <textarea
-            value={obs}
-            onChange={e => setObs(e.target.value)}
-            rows={4}
-            style={{ display: 'block', width: '100%', marginTop: 6, padding: '8px 10px', border: `1px solid ${isPbqph && !obs.trim() ? '#ef4444' : '#d1d5db'}`, borderRadius: 6, fontSize: 13, resize: 'vertical', boxSizing: 'border-box' }}
-            placeholder="Descreva a não conformidade observada..."
-          />
-          {isPbqph && !obs.trim() && <span style={{ fontSize: 12, color: '#ef4444' }}>Obrigatório em PBQP-H</span>}
-        </label>
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <span style={{ fontSize: 13, fontWeight: 500 }}>Fotos {isPbqph && isCritico ? '(obrigatória na conclusão)' : '(opcional)'}</span>
-            <button onClick={() => fileRef.current?.click()} disabled={createEv.isPending} style={{ fontSize: 12, background: 'transparent', border: '1px solid #d1d5db', borderRadius: 5, padding: '3px 10px', cursor: 'pointer' }}>+ Foto</button>
-            <input ref={fileRef} type="file" accept="image/*" onChange={handleUpload} style={{ display: 'none' }} />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50" onClick={onCancelar} />
+      <div className="relative z-10 w-full max-w-lg bg-[var(--bg-base)] border border-[var(--border-dim)] rounded-xl shadow-xl">
+        {/* Header */}
+        <div className="flex items-start justify-between px-5 py-4 border-b border-[var(--border-dim)]">
+          <div>
+            <h3 className="text-base font-semibold text-[var(--nc-text)] m-0">Não Conforme</h3>
+            <p className="text-xs text-[var(--text-faint)] m-0 mt-0.5 max-w-[340px] truncate">{registro.item_descricao}</p>
           </div>
-          {isPbqph && isCritico && semFoto && <p style={{ color: '#f59e0b', fontSize: 12, margin: '0 0 8px' }}>⚠ Foto obrigatória — será validada ao concluir a ficha.</p>}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {evidencias.map(ev => (
-              <div key={ev.id} style={{ position: 'relative' }}>
-                <div style={{ width: 64, height: 64, background: '#f3f4f6', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#6b7280', textAlign: 'center', padding: 2 }}>
-                  {ev.nome_original ?? 'foto'}
+          <div className="flex items-center gap-2 ml-3">
+            {isCritico && (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--nc-bg)] text-[var(--nc-text)] border border-[var(--nc-border)]">
+                CRÍTICO
+              </span>
+            )}
+            <button onClick={onCancelar} className="text-[var(--text-faint)] hover:text-[var(--text-high)] transition-colors">
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+
+        <div className="px-5 py-4 flex flex-col gap-4">
+          {/* Observação */}
+          <div>
+            <label className="block text-xs font-semibold text-[var(--text-faint)] uppercase tracking-wide mb-1.5">
+              Observação {isPbqph ? <span className="text-[var(--nc-text)]">(obrigatória)</span> : '(opcional)'}
+            </label>
+            <textarea
+              value={obs}
+              onChange={e => setObs(e.target.value)}
+              rows={4}
+              placeholder="Descreva a não conformidade observada..."
+              className={cn(
+                'w-full px-3 py-2 text-sm rounded-md border bg-[var(--bg-base)] text-[var(--text-high)] focus:outline-none resize-y transition-colors',
+                isPbqph && !obs.trim() ? 'border-[var(--nc-border)] focus:border-[var(--nc-text)]' : 'border-[var(--border-dim)] focus:border-[var(--accent)]',
+              )}
+            />
+            {isPbqph && !obs.trim() && (
+              <p className="text-xs text-[var(--nc-text)] mt-1">Obrigatório em PBQP-H</p>
+            )}
+          </div>
+
+          {/* Fotos */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-semibold text-[var(--text-faint)] uppercase tracking-wide">
+                Fotos {isPbqph && isCritico ? <span className="text-[var(--warn-text)]">(obrigatória na conclusão)</span> : '(opcional)'}
+              </label>
+              <button
+                onClick={() => fileRef.current?.click()}
+                disabled={createEv.isPending}
+                className="flex items-center gap-1 text-xs px-2.5 py-1 rounded border border-[var(--border-dim)] text-[var(--text-mid)] hover:bg-[var(--bg-hover)] transition-colors disabled:opacity-40"
+              >
+                <Camera size={11} /> Foto
+              </button>
+              <input ref={fileRef} type="file" accept="image/*" onChange={handleUpload} className="hidden" />
+            </div>
+            {isPbqph && isCritico && semFoto && (
+              <p className="text-xs text-[var(--warn-text)] mb-2">⚠ Foto obrigatória — será validada ao concluir a ficha.</p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              {evidencias.map(ev => (
+                <div key={ev.id} className="relative">
+                  <div className="w-16 h-16 bg-[var(--bg-raised)] border border-[var(--border-dim)] rounded-md flex items-center justify-center text-[10px] text-[var(--text-faint)] text-center p-1 overflow-hidden">
+                    {ev.nome_original ?? 'foto'}
+                  </div>
+                  <button
+                    onClick={() => deleteEv.mutate({ id: ev.id, registroId: registro.id! })}
+                    className="absolute -top-1.5 -right-1.5 bg-[var(--nc-text)] text-white rounded-full w-[16px] h-[16px] text-[10px] flex items-center justify-center hover:opacity-80"
+                  >
+                    ×
+                  </button>
                 </div>
-                <button onClick={() => deleteEv.mutate({ id: ev.id, registroId: registro.id! })} style={{ position: 'absolute', top: -4, right: -4, background: '#ef4444', color: '#fff', border: 'none', borderRadius: '50%', width: 16, height: 16, fontSize: 10, cursor: 'pointer', lineHeight: '16px', padding: 0 }}>×</button>
-              </div>
-            ))}
-            {evidencias.length === 0 && <span style={{ fontSize: 12, color: '#9ca3af' }}>Nenhuma foto</span>}
+              ))}
+              {evidencias.length === 0 && (
+                <span className="text-xs text-[var(--text-faint)]">Nenhuma foto</span>
+              )}
+            </div>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-          <button onClick={onCancelar} style={{ padding: '8px 16px', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer' }}>Cancelar</button>
-          <button onClick={() => onSalvar(obs)} disabled={salvando || (isPbqph && !obs.trim())} style={{ padding: '8px 20px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-[var(--border-dim)]">
+          <button
+            onClick={onCancelar}
+            className="px-4 py-1.5 text-sm rounded-md border border-[var(--border-dim)] text-[var(--text-mid)] hover:bg-[var(--bg-hover)] transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => onSalvar(obs)}
+            disabled={salvando || (isPbqph && !obs.trim())}
+            className="px-4 py-1.5 text-sm rounded-md bg-[var(--nc-text)] text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-40"
+          >
             {salvando ? 'Salvando...' : 'Salvar NC'}
           </button>
         </div>

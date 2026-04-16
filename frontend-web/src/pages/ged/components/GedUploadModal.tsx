@@ -19,7 +19,7 @@ const uploadSchema = z.object({
   pastaId: z.string().min(1, 'Selecione uma pasta'),
   categoriaId: z.string().min(1, 'Selecione uma categoria'),
   disciplina: z.string().optional(),
-  numeroRevisao: z.string().default('0'),
+  numeroRevisao: z.string(),
   dataValidade: z.string().optional(),
   descricao: z.string().optional(),
 });
@@ -189,7 +189,7 @@ export function GedUploadModal({
         </div>
 
         {/* Body */}
-        <form onSubmit={handleSubmit(onSubmit)} style={{ padding: '24px' }}>
+        <form onSubmit={handleSubmit(onSubmit as any)} style={{ padding: '24px' }}>
           {/* Drop zone */}
           <div
             onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}

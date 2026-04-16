@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Theme Comparison</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #111; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 24px; }
+
+h2 { color: #f1f5f9; font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+.sub { color: #64748b; font-size: 12px; margin-bottom: 24px; }
+.section-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; color: #64748b; }
+
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 32px; }
+.row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 32px; }
+
+/* Tag de opção */
+.opt-label {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 4px; font-size: 10px; font-weight: 700;
+  margin-bottom: 8px; letter-spacing: 0.5px;
+}
+.current-tag { background: #334155; color: #94a3b8; }
+.new-tag { background: #1d4ed8; color: #93c5fd; }
+.opt-a { background: #1d4ed8; color: #93c5fd; }
+.opt-b { background: #7c3aed; color: #c4b5fd; }
+.opt-c { background: #0f766e; color: #99f6e4; }
+
+.card-wrapper { display: flex; flex-direction: column; }
+.opt-title { font-size: 13px; font-weight: 600; color: #e2e8f0; margin-bottom: 4px; }
+.opt-desc { font-size: 11px; color: #64748b; margin-bottom: 10px; line-height: 1.5; }
+
+/* ─── Mini app shell ─── */
+.app { border-radius: 10px; overflow: hidden; border: 1px solid #1e293b; }
+.app-inner { display: flex; height: 280px; }
+.app-sidebar { width: 140px; min-width: 140px; padding: 12px 0; display: flex; flex-direction: column; gap: 2px; }
+.app-main { flex: 1; display: flex; flex-direction: column; }
+.app-topbar { height: 40px; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; flex-shrink: 0; }
+.app-content { flex: 1; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+
+.s-logo { padding: 0 12px 10px; font-size: 13px; font-weight: 800; letter-spacing: -0.5px; border-bottom-width: 1px; border-bottom-style: solid; margin-bottom: 6px; }
+.s-section { padding: 6px 8px 2px; font-size: 7px; text-transform: uppercase; letter-spacing: 0.8px; }
+.s-item { display: flex; align-items: center; gap: 6px; padding: 5px 10px; font-size: 10px; border-radius: 4px; margin: 0 4px; }
+
+.topbar-title { font-size: 12px; font-weight: 700; }
+.topbar-btn { padding: 4px 8px; border-radius: 4px; font-size: 9px; border-width: 1px; border-style: solid; }
+
+/* widget grid mini */
+.mini-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-bottom: 5px; }
+.mini-kpi { border-radius: 5px; padding: 7px; border-width: 1px; border-style: solid; }
+.kpi-label { font-size: 7px; margin-bottom: 2px; }
+.kpi-val { font-size: 15px; font-weight: 800; line-height: 1; }
+.kpi-sub { font-size: 7px; margin-top: 1px; }
+
+.mini-wide { border-radius: 5px; padding: 8px; border-width: 1px; border-style: solid; flex: 1; }
+.wide-title { font-size: 8px; font-weight: 600; margin-bottom: 6px; }
+.wide-row { display: flex; justify-content: space-between; align-items: center; padding: 2px 0; }
+.wide-name { font-size: 8px; }
+.wide-dots { display: flex; gap: 2px; }
+.wdot { width: 6px; height: 6px; border-radius: 50%; }
+.mini-wides { display: flex; gap: 5px; flex: 1; }
+
+/* ─── DARK ATUAL (GitHub) ─── */
+.dark-current .app { background: #0d1117; border-color: #21262d; }
+.dark-current .app-sidebar { background: #161b22; border-right: 1px solid #21262d; }
+.dark-current .s-logo { color: #2f81f7; border-bottom-color: #21262d; }
+.dark-current .s-section { color: #484f58; }
+.dark-current .s-item { color: #7d8590; }
+.dark-current .s-item.active { background: #1f6feb22; color: #58a6ff; }
+.dark-current .app-topbar { background: #0d1117; border-bottom: 1px solid #21262d; }
+.dark-current .topbar-title { color: #e6edf3; }
+.dark-current .topbar-btn { background: #161b22; border-color: #30363d; color: #7d8590; }
+.dark-current .app-content { background: #0d1117; }
+.dark-current .mini-kpi { background: #161b22; border-color: #30363d; }
+.dark-current .kpi-label { color: #484f58; }
+.dark-current .kpi-sub { color: #484f58; }
+.dark-current .mini-wide { background: #161b22; border-color: #30363d; }
+.dark-current .wide-title { color: #7d8590; }
+.dark-current .wide-name { color: #e6edf3; }
+
+/* ─── DARK NOVO (Mockup) ─── */
+.dark-new .app { background: #0f172a; border-color: #1e293b; }
+.dark-new .app-sidebar { background: #1e293b; border-right: 1px solid #334155; }
+.dark-new .s-logo { color: #3b82f6; border-bottom-color: #334155; }
+.dark-new .s-section { color: #475569; }
+.dark-new .s-item { color: #94a3b8; }
+.dark-new .s-item.active { background: #1d4ed8; color: #fff; }
+.dark-new .app-topbar { background: #0f172a; border-bottom: 1px solid #1e293b; }
+.dark-new .topbar-title { color: #f1f5f9; }
+.dark-new .topbar-btn { background: #1e293b; border-color: #334155; color: #94a3b8; }
+.dark-new .app-content { background: #0f172a; }
+.dark-new .mini-kpi { background: #1e293b; border-color: #334155; }
+.dark-new .kpi-label { color: #64748b; }
+.dark-new .kpi-sub { color: #64748b; }
+.dark-new .mini-wide { background: #1e293b; border-color: #334155; }
+.dark-new .wide-title { color: #94a3b8; }
+.dark-new .wide-name { color: #e2e8f0; }
+
+/* ─── LIGHT A: Warm Cream (Notion-like) ─── */
+.light-a .app { background: #faf9f7; border-color: #e8e4df; }
+.light-a .app-sidebar { background: #f3f0ed; border-right: 1px solid #e8e4df; }
+.light-a .s-logo { color: #4f46e5; border-bottom-color: #e8e4df; }
+.light-a .s-section { color: #a8a29e; }
+.light-a .s-item { color: #78716c; }
+.light-a .s-item.active { background: #4f46e5; color: #fff; }
+.light-a .app-topbar { background: #faf9f7; border-bottom: 1px solid #e8e4df; }
+.light-a .topbar-title { color: #1c1917; }
+.light-a .topbar-btn { background: #f3f0ed; border-color: #e8e4df; color: #78716c; }
+.light-a .app-content { background: #faf9f7; }
+.light-a .mini-kpi { background: #fff; border-color: #e8e4df; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+.light-a .kpi-label { color: #a8a29e; }
+.light-a .kpi-sub { color: #a8a29e; }
+.light-a .mini-wide { background: #fff; border-color: #e8e4df; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+.light-a .wide-title { color: #78716c; }
+.light-a .wide-name { color: #1c1917; }
+
+/* ─── LIGHT B: Slate Cool (Vercel/Linear) ─── */
+.light-b .app { background: #f8fafc; border-color: #e2e8f0; }
+.light-b .app-sidebar { background: #f1f5f9; border-right: 1px solid #e2e8f0; }
+.light-b .s-logo { color: #2563eb; border-bottom-color: #e2e8f0; }
+.light-b .s-section { color: #94a3b8; }
+.light-b .s-item { color: #64748b; }
+.light-b .s-item.active { background: #2563eb; color: #fff; }
+.light-b .app-topbar { background: #fff; border-bottom: 1px solid #e2e8f0; }
+.light-b .topbar-title { color: #0f172a; }
+.light-b .topbar-btn { background: #f1f5f9; border-color: #e2e8f0; color: #64748b; }
+.light-b .app-content { background: #f8fafc; }
+.light-b .mini-kpi { background: #fff; border-color: #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
+.light-b .kpi-label { color: #94a3b8; }
+.light-b .kpi-sub { color: #94a3b8; }
+.light-b .mini-wide { background: #fff; border-color: #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
+.light-b .wide-title { color: #64748b; }
+.light-b .wide-name { color: #0f172a; }
+
+/* ─── LIGHT C: Stone Warm (premium, editorial) ─── */
+.light-c .app { background: #f9f7f5; border-color: #e6e0d9; }
+.light-c .app-sidebar { background: #f0ece7; border-right: 1px solid #e6e0d9; }
+.light-c .s-logo { color: #0f766e; border-bottom-color: #e6e0d9; }
+.light-c .s-section { color: #9c9186; }
+.light-c .s-item { color: #6b6059; }
+.light-c .s-item.active { background: #0f766e; color: #fff; }
+.light-c .app-topbar { background: #f9f7f5; border-bottom: 1px solid #e6e0d9; }
+.light-c .topbar-title { color: #1c1512; }
+.light-c .topbar-btn { background: #f0ece7; border-color: #e6e0d9; color: #6b6059; }
+.light-c .app-content { background: #f9f7f5; }
+.light-c .mini-kpi { background: #fff; border-color: #e6e0d9; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+.light-c .kpi-label { color: #9c9186; }
+.light-c .kpi-sub { color: #9c9186; }
+.light-c .mini-wide { background: #fff; border-color: #e6e0d9; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+.light-c .wide-title { color: #6b6059; }
+.light-c .wide-name { color: #1c1512; }
+
+/* selectable */
+.selectable { cursor: pointer; border-radius: 12px; padding: 12px; border: 2px solid transparent; transition: border-color 0.15s; }
+.selectable:hover { border-color: #334155; }
+.selectable.selected { border-color: #3b82f6; }
+.selectable.selected::after { content: '✓ Selecionado'; display: block; text-align: center; font-size: 10px; font-weight: 700; color: #3b82f6; margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<h2>Identidade Visual — Dark & Light Mode</h2>
+<p class="sub">Clique para selecionar sua preferência em cada modo</p>
+
+<!-- DARK MODE -->
+<div class="section-label">🌙 DARK MODE</div>
+<div class="row" style="margin-bottom: 40px;">
+
+  <div class="card-wrapper">
+    <div class="opt-label current-tag">ATUAL</div>
+    <div class="opt-title">GitHub Dark (atual)</div>
+    <div class="opt-desc">Baseado no tema do GitHub: fundo quase preto azulado, bordas sutis, accent azul frio. Funcional mas sem personalidade própria.</div>
+    <div class="selectable dark-current" id="dark-current" onclick="selectOpt(this, 'dark')">
+      <div class="app">
+        <div class="app-inner">
+          <div class="app-sidebar">
+            <div class="s-logo">EldoX</div>
+            <div class="s-section">Principal</div>
+            <div class="s-item active">📊 Dashboard</div>
+            <div class="s-item">🏗️ Obras</div>
+            <div class="s-section">Qualidade</div>
+            <div class="s-item">📋 Inspeções</div>
+            <div class="s-item">⚠️ NCs</div>
+            <div class="s-section">Materiais</div>
+            <div class="s-item">📦 FVM</div>
+          </div>
+          <div class="app-main">
+            <div class="app-topbar">
+              <div class="topbar-title">Bom dia, Itamar 👋</div>
+              <div class="topbar-btn">✏️ Editar</div>
+            </div>
+            <div class="app-content">
+              <div class="mini-grid">
+                <div class="mini-kpi" style="border-top: 2px solid #f85149;"><div class="kpi-label">NCs Abertas</div><div class="kpi-val" style="color:#f85149;">12</div><div class="kpi-sub">3 críticas</div></div>
+                <div class="mini-kpi" style="border-top: 2px solid #d29922;"><div class="kpi-label">Aprovações</div><div class="kpi-val" style="color:#d29922;">4</div><div class="kpi-sub">pendentes</div></div>
+                <div class="mini-kpi" style="border-top: 2px solid #3fb950;"><div class="kpi-label">FVS</div><div class="kpi-val" style="color:#3fb950;">82%</div><div class="kpi-sub">conformidade</div></div>
+              </div>
+              <div class="mini-wides">
+                <div class="mini-wide" style="flex:1.2;">
+                  <div class="wide-title">🚦 Semáforo</div>
+                  <div class="wide-row"><div class="wide-name">Obra Central</div><div class="wide-dots"><div class="wdot" style="background:#3fb950;"></div><div class="wdot" style="background:#3fb950;"></div><div class="wdot" style="background:#d29922;"></div></div></div>
+                  <div class="wide-row"><div class="wide-name">Torre Sul</div><div class="wide-dots"><div class="wdot" style="background:#f85149;"></div><div class="wdot" style="background:#d29922;"></div><div class="wdot" style="background:#f85149;"></div></div></div>
+                </div>
+                <div class="mini-wide" style="flex:0.8;">
+                  <div class="wide-title">📦 Estoque</div>
+                  <div style="font-size:8px; color:#f85149; font-weight:700; margin-top:4px;">3 críticos</div>
+                  <div style="font-size:8px; color:#d29922; margin-top:2px;">5 em atenção</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card-wrapper">
+    <div class="opt-label new-tag">NOVO — Identidade do Mockup</div>
+    <div class="opt-title">Slate Deep (proposto)</div>
+    <div class="opt-desc">Slate 950/800 do Tailwind: mais profundidade, mais contraste, sidebar visualmente separada, accent azul vibrante. Mantém a seriedade com personalidade.</div>
+    <div class="selectable dark-new" id="dark-new" onclick="selectOpt(this, 'dark')">
+      <div class="app">
+        <div class="app-inner">
+          <div class="app-sidebar">
+            <div class="s-logo">EldoX</div>
+            <div class="s-section">Principal</div>
+            <div class="s-item active">📊 Dashboard</div>
+            <div class="s-item">🏗️ Obras</div>
+            <div class="s-section">Qualidade</div>
+            <div class="s-item">📋 Inspeções</div>
+            <div class="s-item">⚠️ NCs</div>
+            <div class="s-section">Materiais</div>
+            <div class="s-item">📦 FVM</div>
+          </div>
+          <div class="app-main">
+            <div class="app-topbar">
+              <div class="topbar-title">Bom dia, Itamar 👋</div>
+              <div class="topbar-btn">✏️ Editar</div>
+            </div>
+            <div class="app-content">
+              <div class="mini-grid">
+                <div class="mini-kpi" style="border-top: 2px solid #ef4444;"><div class="kpi-label">NCs Abertas</div><div class="kpi-val" style="color:#ef4444;">12</div><div class="kpi-sub">3 críticas</div></div>
+                <div class="mini-kpi" style="border-top: 2px solid #f59e0b;"><div class="kpi-label">Aprovações</div><div class="kpi-val" style="color:#f59e0b;">4</div><div class="kpi-sub">pendentes</div></div>
+                <div class="mini-kpi" style="border-top: 2px solid #22c55e;"><div class="kpi-label">FVS</div><div class="kpi-val" style="color:#22c55e;">82%</div><div class="kpi-sub">conformidade</div></div>
+              </div>
+              <div class="mini-wides">
+                <div class="mini-wide" style="flex:1.2;">
+                  <div class="wide-title">🚦 Semáforo</div>
+                  <div class="wide-row"><div class="wide-name">Obra Central</div><div class="wide-dots"><div class="wdot" style="background:#22c55e;"></div><div class="wdot" style="background:#22c55e;"></div><div class="wdot" style="background:#f59e0b;"></div></div></div>
+                  <div class="wide-row"><div class="wide-name">Torre Sul</div><div class="wide-dots"><div class="wdot" style="background:#ef4444;"></div><div class="wdot" style="background:#f59e0b;"></div><div class="wdot" style="background:#ef4444;"></div></div></div>
+                </div>
+                <div class="mini-wide" style="flex:0.8;">
+                  <div class="wide-title">📦 Estoque</div>
+                  <div style="font-size:8px; color:#ef4444; font-weight:700; margin-top:4px;">3 críticos</div>
+                  <div style="font-size:8px; color:#f59e0b; margin-top:2px;">5 em atenção</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- LIGHT MODE -->
+<div class="section-label">☀️ LIGHT MODE — escolha uma direção</div>
+<div class="row-3">
+
+  <div class="card-wrapper">
+    <div class="opt-label opt-a">OPÇÃO A</div>
+    <div class="opt-title">Warm Cream</div>
+    <div class="opt-desc">Fundo creme quente, sidebar bege suave, accent índigo. Tom Notion/Bear. Menos clínico, mais acolhedor.</div>
+    <div class="selectable light-a" id="light-a" onclick="selectOpt(this, 'light')">
+      <div class="app">
+        <div class="app-inner">
+          <div class="app-sidebar">
+            <div class="s-logo">EldoX</div>
+            <div class="s-section">Principal</div>
+            <div class="s-item active">📊 Dashboard</div>
+            <div class="s-item">🏗️ Obras</div>
+            <div class="s-section">Qualidade</div>
+            <div class="s-item">📋 Inspeções</div>
+            <div class="s-item">⚠️ NCs</div>
+          </div>
+          <div class="app-main">
+            <div class="app-topbar">
+              <div class="topbar-title">Bom dia, Itamar 👋</div>
+              <div class="topbar-btn">✏️ Editar</div>
+            </div>
+            <div class="app-content">
+              <div class="mini-grid">
+                <div class="mini-kpi" style="border-top:2px solid #dc2626;"><div class="kpi-label">NCs</div><div class="kpi-val" style="color:#dc2626;">12</div><div class="kpi-sub">3 críticas</div></div>
+                <div class="mini-kpi" style="border-top:2px solid #d97706;"><div class="kpi-label">Aprov.</div><div class="kpi-val" style="color:#d97706;">4</div><div class="kpi-sub">pendentes</div></div>
+                <div class="mini-kpi" style="border-top:2px solid #16a34a;"><div class="kpi-label">FVS</div><div class="kpi-val" style="color:#16a34a;">82%</div><div class="kpi-sub">conformidade</div></div>
+              </div>
+              <div class="mini-wides">
+                <div class="mini-wide">
+                  <div class="wide-title">🚦 Semáforo</div>
+                  <div class="wide-row"><div class="wide-name">Obra Central</div><div class="wide-dots"><div class="wdot" style="background:#16a34a;"></div><div class="wdot" style="background:#16a34a;"></div><div class="wdot" style="background:#d97706;"></div></div></div>
+                  <div class="wide-row"><div class="wide-name">Torre Sul</div><div class="wide-dots"><div class="wdot" style="background:#dc2626;"></div><div class="wdot" style="background:#d97706;"></div><div class="wdot" style="background:#dc2626;"></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card-wrapper">
+    <div class="opt-label opt-b">OPÇÃO B</div>
+    <div class="opt-title">Slate Cool</div>
+    <div class="opt-desc">Cinza azulado suave, superfície branca com sombra leve, accent azul. Tom Linear/Vercel. Moderno e limpo sem ser clínico.</div>
+    <div class="selectable light-b" id="light-b" onclick="selectOpt(this, 'light')">
+      <div class="app">
+        <div class="app-inner">
+          <div class="app-sidebar">
+            <div class="s-logo">EldoX</div>
+            <div class="s-section">Principal</div>
+            <div class="s-item active">📊 Dashboard</div>
+            <div class="s-item">🏗️ Obras</div>
+            <div class="s-section">Qualidade</div>
+            <div class="s-item">📋 Inspeções</div>
+            <div class="s-item">⚠️ NCs</div>
+          </div>
+          <div class="app-main">
+            <div class="app-topbar">
+              <div class="topbar-title">Bom dia, Itamar 👋</div>
+              <div class="topbar-btn">✏️ Editar</div>
+            </div>
+            <div class="app-content">
+              <div class="mini-grid">
+                <div class="mini-kpi" style="border-top:2px solid #dc2626;"><div class="kpi-label">NCs</div><div class="kpi-val" style="color:#dc2626;">12</div><div class="kpi-sub">3 críticas</div></div>
+                <div class="mini-kpi" style="border-top:2px solid #d97706;"><div class="kpi-label">Aprov.</div><div class="kpi-val" style="color:#d97706;">4</div><div class="kpi-sub">pendentes</div></div>
+                <div class="mini-kpi" style="border-top:2px solid #16a34a;"><div class="kpi-label">FVS</div><div class="kpi-val" style="color:#16a34a;">82%</div><div class="kpi-sub">conformidade</div></div>
+              </div>
+              <div class="mini-wides">
+                <div class="mini-wide">
+                  <div class="wide-title">🚦 Semáforo</div>
+                  <div class="wide-row"><div class="wide-name">Obra Central</div><div class="wide-dots"><div class="wdot" style="background:#16a34a;"></div><div class="wdot" style="background:#16a34a;"></div><div class="wdot" style="background:#d97706;"></div></div></div>
+                  <div class="wide-row"><div class="wide-name">Torre Sul</div><div class="wide-dots"><div class="wdot" style="background:#dc2626;"></div><div class="wdot" style="background:#d97706;"></div><div class="wdot" style="background:#dc2626;"></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card-wrapper">
+    <div class="opt-label opt-c">OPÇÃO C</div>
+    <div class="opt-title">Stone Warm</div>
+    <div class="opt-desc">Bege/pedra quente, accent verde teal. Tom editorial premium. Diferente de tudo no mercado de construção civil.</div>
+    <div class="selectable light-c" id="light-c" onclick="selectOpt(this, 'light')">
+      <div class="app">
+        <div class="app-inner">
+          <div class="app-sidebar">
+            <div class="s-logo">EldoX</div>
+            <div class="s-section">Principal</div>
+            <div class="s-item active">📊 Dashboard</div>
+            <div class="s-item">🏗️ Obras</div>
+            <div class="s-section">Qualidade</div>
+            <div class="s-item">📋 Inspeções</div>
+            <div class="s-item">⚠️ NCs</div>
+          </div>
+          <div class="app-main">
+            <div class="app-topbar">
+              <div class="topbar-title">Bom dia, Itamar 👋</div>
+              <div class="topbar-btn">✏️ Editar</div>
+            </div>
+            <div class="app-content">
+              <div class="mini-grid">
+                <div class="mini-kpi" style="border-top:2px solid #dc2626;"><div class="kpi-label">NCs</div><div class="kpi-val" style="color:#dc2626;">12</div><div class="kpi-sub">3 críticas</div></div>
+                <div class="mini-kpi" style="border-top:2px solid #d97706;"><div class="kpi-label">Aprov.</div><div class="kpi-val" style="color:#d97706;">4</div><div class="kpi-sub">pendentes</div></div>
+                <div class="mini-kpi" style="border-top:2px solid #16a34a;"><div class="kpi-label">FVS</div><div class="kpi-val" style="color:#16a34a;">82%</div><div class="kpi-sub">conformidade</div></div>
+              </div>
+              <div class="mini-wides">
+                <div class="mini-wide">
+                  <div class="wide-title">🚦 Semáforo</div>
+                  <div class="wide-row"><div class="wide-name">Obra Central</div><div class="wide-dots"><div class="wdot" style="background:#16a34a;"></div><div class="wdot" style="background:#16a34a;"></div><div class="wdot" style="background:#d97706;"></div></div></div>
+                  <div class="wide-row"><div class="wide-name">Torre Sul</div><div class="wide-dots"><div class="wdot" style="background:#dc2626;"></div><div class="wdot" style="background:#d97706;"></div><div class="wdot" style="background:#dc2626;"></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function selectOpt(el, group) {
+  document.querySelectorAll('.selectable').forEach(s => {
+    if (s.id.startsWith(group === 'dark' ? 'dark' : 'light')) {
+      s.classList.remove('selected');
+    }
+  });
+  el.classList.add('selected');
+}
+</script>
+</body>
+</html>

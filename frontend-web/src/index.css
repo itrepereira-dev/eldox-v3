@@ -9,7 +9,7 @@
   html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 
   body {
-    font-family: 'Montserrat', system-ui, sans-serif;
+    font-family: 'DM Sans', system-ui, sans-serif;
     background-color: var(--bg-void);
     color: var(--text-high);
     line-height: 1.6;
@@ -53,4 +53,24 @@
 @keyframes fadeSlideIn {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+/* react-resizable handle override — Eldox theme */
+.react-resizable-handle {
+  background-image: none !important;
+  width: 16px !important;
+  height: 16px !important;
+  bottom: 4px !important;
+  right: 4px !important;
+}
+.react-resizable-handle::after {
+  content: '';
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 6px;
+  height: 6px;
+  border-right: 2px solid var(--border-bright);
+  border-bottom: 2px solid var(--border-bright);
+  border-radius: 0 0 2px 0;
 }

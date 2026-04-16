@@ -21,6 +21,7 @@ const STATUS_CLS: Record<StatusRegistro, string> = {
   nao_conforme:             'text-[var(--nc-text)]',
   excecao:                  'text-[var(--warn-text)]',
   nao_avaliado:             'text-[var(--text-faint)]',
+  nao_aplicavel:            'text-[var(--text-faint)]',
   conforme_apos_reinspecao: 'text-[var(--ok-text)]',
   nc_apos_reinspecao:       'text-[var(--nc-text)]',
   liberado_com_concessao:   'text-yellow-600',

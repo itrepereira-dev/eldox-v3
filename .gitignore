@@ -10,6 +10,7 @@ build/
 .env
 .env.local
 .env.*.local
+infra/.env
 
 # Logs
 *.log
@@ -38,3 +39,7 @@ coverage/
 # Misc
 *.tsbuildinfo
 .worktrees/
+
+# Superpowers brainstorm artifacts
+.superpowers/
+infra/.env

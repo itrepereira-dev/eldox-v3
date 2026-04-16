@@ -1,15 +1,17 @@
 // frontend-web/src/modules/fvs/inspecao/pages/FichaGradePage.tsx
 import { useState, useMemo } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { useFicha, usePatchFicha } from '../hooks/useFichas';
+import { useFicha, usePatchFicha, useGerarTokenCliente, useRevogarTokenCliente, useCalcularRisco } from '../hooks/useFichas';
 import { useGrade, useBulkInspecao } from '../hooks/useGrade';
 import { useSolicitarParecer } from '../hooks/useRo';
 import { RoPanel } from '../components/RoPanel';
 import { ParecerModal } from '../components/ParecerModal';
-import { GradeDrawer } from '../components/GradeDrawer';
+import { InspecaoModal } from '../components/InspecaoModal';
 import type { StatusGrade } from '../../../../services/fvs.service';
 import { cn } from '@/lib/cn';
-import { ArrowLeft, X, CheckSquare } from 'lucide-react';
+import { ArrowLeft, X, CheckSquare, Download, FileText, Share2, Copy, Check, Trash2, ShieldAlert } from 'lucide-react';
+
+const API_FVS = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL + '/fvs' : 'http://localhost:3000/api/v1/fvs';
 
 // ── Configurações visuais ─────────────────────────────────────────────────────
 
@@ -43,6 +45,13 @@ const LEGEND: { status: StatusGrade; label: string }[] = [
   { status: 'nao_avaliado', label: 'Não Avaliado' },
 ];
 
+function riscoColor(score: number | null | undefined): string {
+  if (score == null) return 'var(--text-faint)';
+  if (score >= 70) return 'var(--nc-text)';
+  if (score >= 40) return 'var(--warn-text)';
+  return 'var(--ok-text)';
+}
+
 // ── Componente principal ──────────────────────────────────────────────────────
 
 export function FichaGradePage() {
@@ -62,9 +71,16 @@ export function FichaGradePage() {
   const [erroConcluso, setErroConcluso] = useState<{ message: string; itensPendentes?: any[] } | null>(null);
   const [showParecer, setShowParecer]   = useState(false);
   const [erroSolicitacao, setErroSolicitacao] = useState<string | null>(null);
-  const [drawer, setDrawer]             = useState<{ localId: number; servicoId: number } | null>(null);
+  const [confirmInspecao, setConfirmInspecao] = useState<{ servicoId: number; localId: number; servicoNome?: string; localNome?: string; status: StatusGrade } | null>(null);
+  const [inspecao, setInspecao]         = useState<{ servicoId: number; localId: number; servicoNome?: string; localNome?: string } | null>(null);
   const [selecionados, setSelecionados] = useState<{ servicoId: number; localId: number }[]>([]);
   const [bulkErro, setBulkErro]         = useState<string | null>(null);
+  const [showTokenModal, setShowTokenModal] = useState(false);
+  const [tokenCopiado, setTokenCopiado]     = useState(false);
+  const [tokenGerado, setTokenGerado]       = useState<{ token: string; expires_at: string; url: string } | null>(null);
+  const gerarToken   = useGerarTokenCliente(id);
+  const revogarToken = useRevogarTokenCliente(id);
+  const calcularRisco = useCalcularRisco(id);
 
   // ── Filtros (URL-synced) ───────────────────────────────────────────────────
   const filtroPavimento = searchParams.get('pavimento') ? Number(searchParams.get('pavimento')) : null;
@@ -196,6 +212,18 @@ export function FichaGradePage() {
     catch (e: any) { setErroSolicitacao(e?.response?.data?.message ?? 'Erro ao solicitar parecer.'); }
   }
 
+  async function handleGerarToken() {
+    const result = await gerarToken.mutateAsync(undefined);
+    setTokenGerado(result);
+  }
+
+  async function handleCopiarLink() {
+    const url = `${window.location.origin}/fvs-cliente/${tokenGerado?.token ?? (ficha as any).token_cliente}`;
+    await navigator.clipboard.writeText(url);
+    setTokenCopiado(true);
+    setTimeout(() => setTokenCopiado(false), 2000);
+  }
+
   const canClick  = ficha?.status === 'em_inspecao';
   const canSelect = ficha?.status === 'em_inspecao' && !filtroStatus;
 
@@ -208,7 +236,7 @@ export function FichaGradePage() {
     );
   }
 
-  const progresso = grade.resumo.progresso_pct;
+  const progresso = grade.resumo?.progresso_pct ?? 0;
 
   return (
     <div className="p-6">
@@ -234,9 +262,17 @@ export function FichaGradePage() {
               />
             </div>
             <span className="text-xs text-[var(--text-faint)] font-mono">
-              {progresso}% aprovadas ({grade.resumo.aprovadas}/{grade.resumo.total_celulas})
+              {progresso}% aprovadas ({grade.resumo?.aprovadas ?? 0}/{grade.resumo?.total_celulas ?? 0})
             </span>
           </div>
+          {ficha.risco_score != null && (
+            <div className="mt-1 flex items-center gap-1.5">
+              <ShieldAlert size={12} style={{ color: riscoColor(ficha.risco_score) }} />
+              <span className="text-xs font-mono" style={{ color: riscoColor(ficha.risco_score) }}>
+                Risco: {ficha.risco_score}/100
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -266,6 +302,55 @@ export function FichaGradePage() {
           <span className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md bg-[var(--ok-bg)] text-[var(--ok-text)] border border-[var(--ok-border)]">
             ✓ Ficha Aprovada
           </span>
+        )}
+
+        {/* PDF — disponível em qualquer status (exceto rascunho) */}
+        {ficha.status !== 'rascunho' && (
+          <>
+            <a
+              href={`${API_FVS}/fichas/${id}/pdf`}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-md border border-[var(--border-dim)] text-[var(--text-high)] hover:bg-[var(--bg-hover)] transition-colors"
+              title="Baixar PDF completo"
+            >
+              <Download size={14} />
+              PDF
+            </a>
+            <a
+              href={`${API_FVS}/fichas/${id}/pdf?apenasNc=true`}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-md border border-[var(--border-dim)] text-[var(--text-high)] hover:bg-[var(--bg-hover)] transition-colors"
+              title="Baixar PDF somente NCs"
+            >
+              <FileText size={14} />
+              PDF (NCs)
+            </a>
+          </>
+        )}
+
+        {ficha.status !== 'rascunho' && (
+          <button
+            onClick={() => calcularRisco.mutate()}
+            disabled={calcularRisco.isPending}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-md border border-[var(--border-dim)] text-[var(--text-high)] hover:bg-[var(--bg-hover)] transition-colors disabled:opacity-50"
+            title="Calcular risco com IA"
+          >
+            <ShieldAlert size={14} />
+            {calcularRisco.isPending ? 'Calculando...' : 'Calcular Risco'}
+          </button>
+        )}
+
+        {(ficha.status === 'concluida' || ficha.status === 'aprovada') && (
+          <button
+            onClick={() => setShowTokenModal(true)}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-md border border-[var(--border-dim)] text-[var(--text-high)] hover:bg-[var(--bg-hover)] transition-colors"
+            title="Compartilhar com cliente"
+          >
+            <Share2 size={14} />
+            Compartilhar
+          </button>
         )}
       </div>
 
@@ -375,22 +460,15 @@ export function FichaGradePage() {
                     <td key={loc.id} className="px-3 py-2 text-center">
                       <span
                         onClick={() => {
-                          if (canSelect) {
-                            setSelecionados(prev => {
-                              const idx = prev.findIndex(s => s.servicoId === srv.id && s.localId === loc.id);
-                              return idx >= 0 ? prev.filter((_, ii) => ii !== idx) : [...prev, { servicoId: srv.id, localId: loc.id }];
-                            });
-                          } else if (status !== 'nao_avaliado') {
-                            setDrawer({ localId: loc.id, servicoId: srv.id });
-                          } else if (canClick) {
-                            navigate(`/fvs/fichas/${id}/inspecao?servicoId=${srv.id}&localId=${loc.id}`);
+                          if (canClick) {
+                            setConfirmInspecao({ servicoId: srv.id, localId: loc.id, servicoNome: srv.nome, localNome: loc.nome, status });
                           }
                         }}
                         title={`${srv.nome} — ${loc.nome}: ${status}`}
                         className={cn(
                           'inline-flex items-center justify-center w-8 h-8 rounded-md text-xs font-bold transition-all',
                           CELL_CLS[status],
-                          (canClick || status !== 'nao_avaliado') ? 'cursor-pointer hover:opacity-80' : 'cursor-default',
+                          canClick ? 'cursor-pointer hover:opacity-80' : 'cursor-default',
                           ficha.status === 'rascunho' ? 'opacity-40' : '',
                           isSelected ? 'ring-2 ring-[var(--accent)] ring-offset-1' : '',
                         )}
@@ -489,16 +567,110 @@ export function FichaGradePage() {
       )}
 
       {showParecer && (
-        <ParecerModal fichaId={id} onClose={() => setShowParecer(false)} />
+        <ParecerModal
+          fichaId={id}
+          regime={ficha.regime}
+          onClose={() => setShowParecer(false)}
+          onSuccess={() => setShowParecer(false)}
+        />
       )}
 
-      {drawer && (
-        <GradeDrawer
+      {confirmInspecao && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div
+            className="bg-[var(--bg-base)] border border-[var(--border-dim)] rounded-xl shadow-2xl p-6 w-full max-w-sm"
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 className="text-base font-semibold text-[var(--text-high)] mb-1">
+              {confirmInspecao.status === 'nao_avaliado' ? 'Iniciar inspeção?' : 'Retomar inspeção?'}
+            </h3>
+            <p className="text-sm text-[var(--text-faint)] mb-5">
+              <span className="font-medium text-[var(--text-high)]">{confirmInspecao.servicoNome}</span>
+              {' — '}
+              {confirmInspecao.localNome}
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setConfirmInspecao(null)}
+                className="px-4 py-2 text-sm rounded-md border border-[var(--border-dim)] text-[var(--text-faint)] hover:bg-[var(--bg-hover)] transition-colors"
+              >
+                Não
+              </button>
+              <button
+                onClick={() => {
+                  const { status: _s, ...rest } = confirmInspecao;
+                  setInspecao(rest);
+                  setConfirmInspecao(null);
+                }}
+                className="px-4 py-2 text-sm rounded-md bg-[var(--accent)] text-white font-medium hover:opacity-90 transition-opacity"
+              >
+                Sim
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {inspecao && (
+        <InspecaoModal
           fichaId={id}
-          localId={drawer.localId}
-          servicoId={drawer.servicoId}
-          onClose={() => setDrawer(null)}
+          servicoId={inspecao.servicoId}
+          localId={inspecao.localId}
+          servicoNome={inspecao.servicoNome}
+          localNome={inspecao.localNome}
+          onClose={() => setInspecao(null)}
         />
+      )}
+
+      {showTokenModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-[var(--bg-base)] border border-[var(--border-dim)] rounded-xl shadow-2xl p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-semibold text-[var(--text-high)]">Compartilhar com Cliente</h3>
+              <button onClick={() => { setShowTokenModal(false); setTokenGerado(null); }} className="p-1 text-[var(--text-faint)] hover:text-[var(--text-high)]"><X size={16} /></button>
+            </div>
+
+            {!(tokenGerado || (ficha as any).token_cliente) ? (
+              <div className="space-y-4">
+                <p className="text-sm text-[var(--text-faint)]">Gere um link seguro para o cliente visualizar o relatório de inspeção.</p>
+                <button
+                  onClick={handleGerarToken}
+                  disabled={gerarToken.isPending}
+                  className="w-full px-4 py-2 text-sm rounded-md bg-[var(--accent)] text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                >
+                  {gerarToken.isPending ? 'Gerando...' : 'Gerar Link'}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-xs text-[var(--text-faint)]">Link de acesso do cliente (válido por 30 dias):</p>
+                <div className="flex items-center gap-2 p-2 rounded-lg bg-[var(--bg-raised)] border border-[var(--border-dim)]">
+                  <code className="flex-1 text-xs text-[var(--text-high)] truncate">
+                    {`${window.location.origin}/fvs-cliente/${tokenGerado?.token ?? (ficha as any).token_cliente}`}
+                  </code>
+                  <button
+                    onClick={handleCopiarLink}
+                    className="flex-shrink-0 p-1.5 rounded-md hover:bg-[var(--bg-hover)] transition-colors"
+                    title="Copiar link"
+                  >
+                    {tokenCopiado ? <Check size={14} className="text-[var(--ok-text)]" /> : <Copy size={14} className="text-[var(--text-faint)]" />}
+                  </button>
+                </div>
+                {tokenCopiado && <p className="text-xs text-[var(--ok-text)]">Link copiado!</p>}
+                <div className="pt-2 border-t border-[var(--border-dim)]">
+                  <button
+                    onClick={async () => { await revogarToken.mutateAsync(); setTokenGerado(null); setShowTokenModal(false); }}
+                    disabled={revogarToken.isPending}
+                    className="flex items-center gap-1.5 text-xs text-[var(--nc-text)] hover:underline disabled:opacity-50"
+                  >
+                    <Trash2 size={12} />
+                    {revogarToken.isPending ? 'Revogando...' : 'Revogar acesso'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

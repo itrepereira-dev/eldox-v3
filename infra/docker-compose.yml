@@ -6,15 +6,15 @@ services:
     container_name: eldox_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: eldox
-      POSTGRES_USER: eldox
-      POSTGRES_PASSWORD: eldox_dev_pass
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - '5432:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U eldox']
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER}']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -39,8 +39,8 @@ services:
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: eldox_minio
-      MINIO_ROOT_PASSWORD: eldox_minio_pass
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     ports:
       - '9000:9000'
       - '9001:9001'

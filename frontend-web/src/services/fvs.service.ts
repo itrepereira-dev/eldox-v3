@@ -109,6 +109,7 @@ export type RegimeFicha = 'pbqph' | 'norma_tecnica' | 'livre';
 export type StatusFicha = 'rascunho' | 'em_inspecao' | 'concluida' | 'aguardando_parecer' | 'aprovada';
 export type StatusRegistro =
   | 'nao_avaliado'
+  | 'nao_aplicavel'
   | 'conforme'
   | 'nao_conforme'
   | 'excecao'
@@ -169,7 +170,16 @@ export interface FichaFvs {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+  modelo_id: number | null;
+  exige_ro: boolean;
+  exige_reinspecao: boolean;
+  exige_parecer?: boolean;
+  fotos_obrigatorias: 'todas' | 'apenas_nc' | 'nenhuma' | 'itens_selecionados';
+  fotos_itens_ids: number[] | null;
   progresso?: number;
+  risco_score?: number | null;
+  token_cliente?: string | null;
+  token_cliente_expires_at?: string | null;
 }
 
 export interface FichaDetalhada extends FichaFvs {
@@ -254,12 +264,14 @@ export interface FvsRegistro {
   item_descricao: string;
   item_criticidade: Criticidade;
   item_criterio_aceite: string | null;
+  item_tolerancia: string | null;
   evidencias_count: number;
   equipe_responsavel: string | null;
   created_at: string;
   updated_at: string;
   ciclo?: number;
   desbloqueado?: boolean;
+  nc_id?: number | null;
 }
 
 export interface FvsEvidencia {
@@ -267,6 +279,7 @@ export interface FvsEvidencia {
   registro_id: number;
   ged_versao_id: number;
   nome_original: string;
+  mime_type?: string;
   created_at: string;
   url?: string;
 }
@@ -291,9 +304,12 @@ export interface FvsModelo {
   exige_ro: boolean;
   exige_reinspecao: boolean;
   exige_parecer: boolean;
+  fotos_obrigatorias: 'todas' | 'apenas_nc' | 'nenhuma' | 'itens_selecionados';
+  fotos_itens_ids: number[] | null;
+  is_sistema: boolean;
   concluido_por: number | null;
   concluido_em: string | null;
-  criado_por: number;
+  criado_por: number | null;
   deleted_at: string | null;
   servicos?: FvsModeloServico[];
   obras_count?: number;
@@ -306,6 +322,7 @@ export interface FvsModeloServico {
   servico_id: number;
   ordem: number;
   itens_excluidos: number[] | null;
+  item_fotos: Record<string, number>;
   servico_nome?: string;
 }
 
@@ -328,12 +345,15 @@ export interface CreateModeloPayload {
   exigeRo?: boolean;
   exigeReinspecao?: boolean;
   exigeParecer?: boolean;
+  fotosObrigatorias?: 'todas' | 'apenas_nc' | 'nenhuma' | 'itens_selecionados';
+  fotosItensIds?: number[] | null;
 }
 
 export interface CreateModeloServicoPayload {
   servicoId: number;
   ordem?: number;
   itensExcluidos?: number[];
+  itemFotos?: Record<string, number>;
 }
 
 export interface CreateFichaPayload {
@@ -645,6 +665,31 @@ export const fvsService = {
     nivel_detalhe: 'basico' | 'intermediario' | 'avancado';
   }): Promise<GerarCatalogoIAResult> {
     const { data } = await api.post('/fvs/ia/gerar-catalogo', payload);
+    return data;
+  },
+
+  // ─── Token Portal Cliente ─────────────────────────────────────────────────
+  async gerarTokenCliente(fichaId: number, diasValidade = 30): Promise<{ token: string; expires_at: string; url: string }> {
+    const { data } = await api.post(`/fvs/fichas/${fichaId}/gerar-token-cliente`, { diasValidade });
+    return data;
+  },
+  async revogarTokenCliente(fichaId: number): Promise<void> {
+    await api.delete(`/fvs/fichas/${fichaId}/token-cliente`);
+  },
+
+  // ─── Análise IA de Foto ────────────────────────────────────────────────────
+  async analisarFotoIA(evidenciaId: number, imageBase64: string, mimeType?: string): Promise<{
+    status_sugerido: string; confianca: number; observacoes: string; pontos_atencao: string[]; fonte: string;
+  }> {
+    const { data } = await api.post(`/fvs/evidencias/${evidenciaId}/analisar-foto`, {
+      image_base64: imageBase64, mime_type: mimeType ?? 'image/jpeg',
+    });
+    return data;
+  },
+
+  // ─── Risco ────────────────────────────────────────────────────────────────
+  async calcularRisco(fichaId: number): Promise<{ fichaId: number; risco_score: number; calculado_em: string }> {
+    const { data } = await api.post(`/fvs/fichas/${fichaId}/calcular-risco`);
     return data;
   },
 };

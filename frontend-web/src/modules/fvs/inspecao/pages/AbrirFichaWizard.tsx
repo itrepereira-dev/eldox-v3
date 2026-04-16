@@ -1,16 +1,14 @@
 // frontend-web/src/modules/fvs/inspecao/pages/AbrirFichaWizard.tsx
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useCreateFicha } from '../hooks/useFichas';
 import { useServicos } from '../../catalogo/hooks/useCatalogo';
 import { useModelosByObra } from '../../modelos/hooks/useModelos';
 import type { RegimeFicha } from '../../../../services/fvs.service';
-
-interface StepOneData {
-  nome: string;
-  obraId: number | null;
-  regime: RegimeFicha;
-}
+import { obrasService } from '../../../../services/obras.service';
+import { cn } from '@/lib/cn';
+import { Hash } from 'lucide-react';
 
 interface ServicoComLocais {
   servicoId: number;
@@ -22,19 +20,56 @@ interface Props {
   locaisPorObra?: Record<number, { id: number; nome: string; pavimento_nome?: string }[]>;
 }
 
-export function AbrirFichaWizard({ obras = [], locaisPorObra = {} }: Props) {
+function gerarCodigo(obraNome: string, modeloNome?: string): string {
+  const sigla = (str: string, max: number) =>
+    str.split(/\s+/).map(w => w[0] ?? '').join('').toUpperCase().slice(0, max);
+  const now = new Date();
+  const data = [
+    now.getDate().toString().padStart(2, '0'),
+    (now.getMonth() + 1).toString().padStart(2, '0'),
+    now.getFullYear(),
+  ].join('');
+  const siglaObra  = sigla(obraNome, 4);
+  const siglaModel = modeloNome ? sigla(modeloNome, 3) : 'MAN';
+  return `FVS-${siglaObra}-${siglaModel}-${data}`;
+}
+
+export function AbrirFichaWizard({ obras: obrasProp = [], locaisPorObra = {} }: Props) {
   const navigate = useNavigate();
   const createFicha = useCreateFicha();
   const { data: servicos = [] } = useServicos();
 
-  const [step, setStep] = useState(1);
-  const [stepOne, setStepOne] = useState<StepOneData>({ nome: '', obraId: null, regime: 'livre' });
+  const { data: obrasData = [] } = useQuery({
+    queryKey: ['obras-wizard'],
+    queryFn: () => obrasService.getAll(),
+    enabled: obrasProp.length === 0,
+  });
+  const obras: { id: number; nome: string }[] =
+    obrasProp.length > 0 ? obrasProp : ((obrasData as any)?.items ?? obrasData ?? []);
+
+  const [step, setStep]         = useState(1);
+  const [obraId, setObraId]     = useState<number | null>(null);
+  const [regime, setRegime]     = useState<RegimeFicha>('livre');
   const [modeloId, setModeloId] = useState<number | null>(null);
   const [servicosSelecionados, setServicosSelecionados] = useState<ServicoComLocais[]>([]);
-  const [error, setError] = useState('');
+  const [error, setError]       = useState('');
 
-  const { data: modelosDisponiveis = [] } = useModelosByObra(stepOne.obraId ?? 0);
-  const locais = stepOne.obraId ? (locaisPorObra[stepOne.obraId] ?? []) : [];
+  const { data: modelosDisponiveis = [] } = useModelosByObra(obraId ?? 0);
+
+  const { data: locaisData = [] } = useQuery({
+    queryKey: ['obra-locais-wizard', obraId],
+    queryFn: () => obrasService.getLocais(obraId!, { nivel: 2 }),
+    enabled: !!obraId && Object.keys(locaisPorObra).length === 0,
+  });
+  const locais = obraId
+    ? (locaisPorObra[obraId] ?? locaisData.map(l => ({ id: l.id, nome: l.nomeCompleto })))
+    : [];
+
+  const obraSelecionada  = obras.find(o => o.id === obraId);
+  const modeloSelecionado = modelosDisponiveis.find(m => m.modelo_id === modeloId);
+  const codigoGerado = obraSelecionada
+    ? gerarCodigo(obraSelecionada.nome, modeloSelecionado?.modelo_nome)
+    : '';
 
   function toggleServico(servicoId: number) {
     setServicosSelecionados(prev => {
@@ -62,18 +97,16 @@ export function AbrirFichaWizard({ obras = [], locaisPorObra = {} }: Props) {
 
   async function handleConfirmar() {
     setError('');
-    if (!stepOne.obraId) { setError('Obra é obrigatória.'); return; }
+    if (!obraId) { setError('Obra é obrigatória.'); return; }
+
+    const nome = codigoGerado;
 
     if (modeloId) {
       try {
-        const ficha = await createFicha.mutateAsync({
-          obraId: stepOne.obraId,
-          nome: stepOne.nome,
-          modeloId,
-        });
+        const ficha = await createFicha.mutateAsync({ obraId, nome, modeloId });
         navigate(`/fvs/fichas/${ficha.id}`);
       } catch (e: any) {
-        setError(e?.response?.data?.message ?? 'Erro ao criar ficha');
+        setError(e?.response?.data?.message ?? 'Erro ao criar inspeção');
       }
       return;
     }
@@ -84,42 +117,45 @@ export function AbrirFichaWizard({ obras = [], locaisPorObra = {} }: Props) {
       return;
     }
     try {
-      const ficha = await createFicha.mutateAsync({
-        obraId: stepOne.obraId,
-        nome: stepOne.nome,
-        regime: stepOne.regime,
-        servicos: servicosComLocais,
-      });
+      const ficha = await createFicha.mutateAsync({ obraId, nome, regime, servicos: servicosComLocais });
       navigate(`/fvs/fichas/${ficha.id}`);
     } catch (e: any) {
-      setError(e?.response?.data?.message ?? 'Erro ao criar ficha');
+      setError(e?.response?.data?.message ?? 'Erro ao criar inspeção');
     }
   }
 
-  const inputStyle: React.CSSProperties = {
-    width: '100%', padding: '8px 10px', borderRadius: 6,
-    border: '1px solid #d1d5db', fontSize: 14, boxSizing: 'border-box',
-  };
+  const inputCls = 'w-full px-3 py-2 text-sm rounded-md border border-[var(--border-dim)] bg-[var(--bg-base)] text-[var(--text-high)] focus:outline-none focus:border-[var(--accent)] transition-colors';
 
+  // ── Step 1: Obra ─────────────────────────────────────────────────────────────
   if (step === 1) {
     return (
-      <div style={{ maxWidth: 500, padding: 24 }}>
-        <h2 style={{ marginTop: 0, fontSize: 18, fontWeight: 600 }}>Nova Ficha FVS — Dados Básicos</h2>
-        <div style={{ marginBottom: 14 }}>
-          <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 4 }}>Nome da Ficha *</label>
-          <input style={inputStyle} value={stepOne.nome} onChange={e => setStepOne(p => ({ ...p, nome: e.target.value }))} placeholder="Ex: FVS Bloco A - Alvenaria" />
-        </div>
-        <div style={{ marginBottom: 14 }}>
-          <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 4 }}>Obra *</label>
-          <select style={inputStyle} value={stepOne.obraId ?? ''} onChange={e => setStepOne(p => ({ ...p, obraId: parseInt(e.target.value) || null }))}>
+      <div className="p-6 max-w-lg">
+        <h2 className="text-lg font-semibold text-[var(--text-high)] mb-5">Nova Inspeção — Selecionar Obra</h2>
+
+        <div className="mb-5">
+          <label className="block text-sm font-medium text-[var(--text-mid)] mb-1.5">Obra *</label>
+          <select
+            className={inputCls}
+            value={obraId ?? ''}
+            onChange={e => setObraId(parseInt(e.target.value) || null)}
+          >
             <option value="">Selecionar obra...</option>
             {obras.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
           </select>
         </div>
-        {error && <p style={{ color: '#dc2626', fontSize: 13 }}>{error}</p>}
+
+        {error && (
+          <p className="text-sm text-[var(--nc-text)] px-3 py-2 rounded-md bg-[var(--nc-bg)] border border-[var(--nc-border)] mb-4">
+            {error}
+          </p>
+        )}
+
         <button
-          onClick={() => { if (!stepOne.nome || !stepOne.obraId) { setError('Nome e Obra são obrigatórios.'); return; } setError(''); setStep(2); }}
-          style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, padding: '9px 20px', cursor: 'pointer', fontSize: 14 }}
+          onClick={() => {
+            if (!obraId) { setError('Selecione uma obra.'); return; }
+            setError(''); setStep(2);
+          }}
+          className="px-5 py-2 rounded-md bg-[var(--accent)] text-white text-sm font-medium hover:opacity-90 transition-opacity"
         >
           Próximo →
         </button>
@@ -127,82 +163,134 @@ export function AbrirFichaWizard({ obras = [], locaisPorObra = {} }: Props) {
     );
   }
 
+  // ── Step 2: Template ──────────────────────────────────────────────────────────
   if (step === 2) {
     const temModelos = modelosDisponiveis.length > 0;
     return (
-      <div style={{ maxWidth: 500, padding: 24 }}>
-        <h2 style={{ marginTop: 0, fontSize: 18, fontWeight: 600 }}>Usar Template?</h2>
+      <div className="p-6 max-w-lg">
+        <h2 className="text-lg font-semibold text-[var(--text-high)] mb-2">Usar Template?</h2>
+
+        {/* Código gerado */}
+        {codigoGerado && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-[var(--bg-raised)] border border-[var(--border-dim)] mb-4">
+            <Hash size={13} className="text-[var(--text-faint)] flex-shrink-0" />
+            <span className="text-xs text-[var(--text-faint)]">Código gerado:</span>
+            <span className="text-xs font-mono font-semibold text-[var(--accent)]">{codigoGerado}</span>
+          </div>
+        )}
+
         {temModelos ? (
           <>
-            <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 16 }}>
+            <p className="text-sm text-[var(--text-faint)] mb-4">
               Há {modelosDisponiveis.length} template(s) vinculado(s) a esta obra. Selecione um ou prossiga sem template.
             </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', border: '2px solid ' + (modeloId === null ? '#3b82f6' : '#e5e7eb'), borderRadius: 8, cursor: 'pointer' }}>
-                <input type="radio" checked={modeloId === null} onChange={() => handleSelecionarModelo(null)} />
+            <div className="flex flex-col gap-2.5 mb-5">
+              <label className={cn(
+                'flex items-center gap-3 p-3.5 rounded-lg border-2 cursor-pointer transition-colors',
+                modeloId === null ? 'border-[var(--accent)] bg-[var(--accent-subtle,#eff6ff)]' : 'border-[var(--border-dim)] bg-[var(--bg-raised)]',
+              )}>
+                <input type="radio" checked={modeloId === null} onChange={() => handleSelecionarModelo(null)} className="accent-[var(--accent)]" />
                 <div>
-                  <p style={{ margin: 0, fontWeight: 600, fontSize: 14 }}>Criar manualmente</p>
-                  <p style={{ margin: 0, fontSize: 12, color: '#6b7280' }}>Selecionar serviços e locais individualmente</p>
+                  <p className={cn('text-sm font-semibold m-0', modeloId === null ? 'text-[var(--accent)]' : 'text-[var(--text-high)]')}>Criar manualmente</p>
+                  <p className="text-xs text-[var(--text-faint)] m-0 mt-0.5">Selecionar serviços e locais individualmente</p>
                 </div>
               </label>
               {modelosDisponiveis.map(m => (
-                <label key={m.modelo_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', border: '2px solid ' + (modeloId === m.modelo_id ? '#3b82f6' : '#e5e7eb'), borderRadius: 8, cursor: 'pointer' }}>
-                  <input type="radio" checked={modeloId === m.modelo_id} onChange={() => handleSelecionarModelo(m.modelo_id)} />
+                <label key={m.modelo_id} className={cn(
+                  'flex items-center gap-3 p-3.5 rounded-lg border-2 cursor-pointer transition-colors',
+                  modeloId === m.modelo_id ? 'border-[var(--accent)] bg-[var(--accent-subtle,#eff6ff)]' : 'border-[var(--border-dim)] bg-[var(--bg-raised)]',
+                )}>
+                  <input type="radio" checked={modeloId === m.modelo_id} onChange={() => handleSelecionarModelo(m.modelo_id)} className="accent-[var(--accent)]" />
                   <div>
-                    <p style={{ margin: 0, fontWeight: 600, fontSize: 14 }}>{m.modelo_nome}</p>
-                    <p style={{ margin: 0, fontSize: 12, color: '#6b7280' }}>Criadas nesta obra: {m.fichas_count} fichas</p>
+                    <p className={cn('text-sm font-semibold m-0', modeloId === m.modelo_id ? 'text-[var(--accent)]' : 'text-[var(--text-high)]')}>{m.modelo_nome}</p>
+                    <p className="text-xs text-[var(--text-faint)] m-0 mt-0.5">Criadas nesta obra: {m.fichas_count} inspeções</p>
                   </div>
                 </label>
               ))}
             </div>
           </>
         ) : (
-          <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 16 }}>
-            Nenhum template vinculado a esta obra. A ficha será criada manualmente.
+          <p className="text-sm text-[var(--text-faint)] mb-5">
+            Nenhum template vinculado a esta obra. A inspeção será criada manualmente.
           </p>
         )}
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => setStep(1)} style={{ background: 'transparent', border: '1px solid #d1d5db', borderRadius: 6, padding: '9px 16px', cursor: 'pointer', fontSize: 14 }}>← Voltar</button>
+
+        <div className="flex gap-2">
+          <button
+            onClick={() => setStep(1)}
+            className="px-4 py-2 rounded-md text-sm border border-[var(--border-dim)] text-[var(--text-mid)] hover:bg-[var(--bg-hover)] transition-colors"
+          >
+            ← Voltar
+          </button>
           <button
             onClick={() => { if (modeloId) { handleConfirmar(); } else setStep(3); }}
-            style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, padding: '9px 20px', cursor: 'pointer', fontSize: 14 }}
+            disabled={createFicha.isPending}
+            className="px-5 py-2 rounded-md bg-[var(--accent)] text-white text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-40"
           >
-            {modeloId ? 'Criar Ficha com Template' : 'Próximo →'}
+            {createFicha.isPending ? 'Criando...' : modeloId ? 'Criar Inspeção' : 'Próximo →'}
           </button>
         </div>
-        {error && <p style={{ color: '#dc2626', fontSize: 13, marginTop: 8 }}>{error}</p>}
+        {error && (
+          <p className="text-sm text-[var(--nc-text)] px-3 py-2 rounded-md bg-[var(--nc-bg)] border border-[var(--nc-border)] mt-3">
+            {error}
+          </p>
+        )}
       </div>
     );
   }
 
+  // ── Step 3: Serviços e Locais ─────────────────────────────────────────────────
   if (step === 3) {
     return (
-      <div style={{ maxWidth: 600, padding: 24 }}>
-        <h2 style={{ marginTop: 0, fontSize: 18, fontWeight: 600 }}>Selecionar Serviços e Locais</h2>
-        <div style={{ marginBottom: 14 }}>
-          <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 4 }}>Regime</label>
-          <select style={inputStyle} value={stepOne.regime} onChange={e => setStepOne(p => ({ ...p, regime: e.target.value as RegimeFicha }))}>
+      <div className="p-6 max-w-xl">
+        <h2 className="text-lg font-semibold text-[var(--text-high)] mb-1">Selecionar Serviços e Locais</h2>
+
+        {/* Código gerado */}
+        {codigoGerado && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-[var(--bg-raised)] border border-[var(--border-dim)] mb-4">
+            <Hash size={13} className="text-[var(--text-faint)] flex-shrink-0" />
+            <span className="text-xs text-[var(--text-faint)]">Código gerado:</span>
+            <span className="text-xs font-mono font-semibold text-[var(--accent)]">{codigoGerado}</span>
+          </div>
+        )}
+
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-[var(--text-mid)] mb-1.5">Regime</label>
+          <select
+            className={inputCls}
+            value={regime}
+            onChange={e => setRegime(e.target.value as RegimeFicha)}
+          >
             <option value="livre">Livre</option>
             <option value="pbqph">PBQP-H</option>
             <option value="norma_tecnica">Norma Técnica</option>
           </select>
         </div>
-        <div style={{ marginBottom: 16 }}>
+
+        <div className="flex flex-col gap-2 mb-5">
           {servicos.map(svc => {
             const sel = servicosSelecionados.find(s => s.servicoId === svc.id);
             return (
-              <div key={svc.id} style={{ border: '1px solid #e5e7eb', borderRadius: 8, marginBottom: 8, overflow: 'hidden' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', cursor: 'pointer', background: sel ? '#eff6ff' : '#fff' }}>
-                  <input type="checkbox" checked={!!sel} onChange={() => toggleServico(svc.id)} />
-                  <span style={{ fontSize: 14, fontWeight: 500 }}>{svc.nome}</span>
+              <div key={svc.id} className="border border-[var(--border-dim)] rounded-lg overflow-hidden">
+                <label className={cn(
+                  'flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors',
+                  sel ? 'bg-[var(--accent-subtle,#eff6ff)]' : 'bg-[var(--bg-base)] hover:bg-[var(--bg-hover)]',
+                )}>
+                  <input type="checkbox" checked={!!sel} onChange={() => toggleServico(svc.id)} className="accent-[var(--accent)] w-4 h-4 flex-shrink-0" />
+                  <span className={cn('text-sm font-medium', sel ? 'text-[var(--accent)]' : 'text-[var(--text-high)]')}>{svc.nome}</span>
                 </label>
                 {sel && locais.length > 0 && (
-                  <div style={{ padding: '8px 14px 12px', borderTop: '1px solid #e5e7eb', background: '#f9fafb' }}>
-                    <p style={{ margin: '0 0 6px', fontSize: 12, fontWeight: 500, color: '#6b7280' }}>Locais para este serviço:</p>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  <div className="px-4 py-3 border-t border-[var(--border-dim)] bg-[var(--bg-raised)]">
+                    <p className="text-xs font-semibold text-[var(--text-faint)] uppercase tracking-wide mb-2">Locais para este serviço:</p>
+                    <div className="flex flex-wrap gap-3">
                       {locais.map(local => (
-                        <label key={local.id} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, cursor: 'pointer' }}>
-                          <input type="checkbox" checked={sel.localIds.includes(local.id)} onChange={() => toggleLocal(svc.id, local.id)} />
+                        <label key={local.id} className="flex items-center gap-1.5 text-sm text-[var(--text-mid)] cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={sel.localIds.includes(local.id)}
+                            onChange={() => toggleLocal(svc.id, local.id)}
+                            className="accent-[var(--accent)] w-3.5 h-3.5"
+                          />
                           {local.nome}
                         </label>
                       ))}
@@ -213,11 +301,26 @@ export function AbrirFichaWizard({ obras = [], locaisPorObra = {} }: Props) {
             );
           })}
         </div>
-        {error && <p style={{ color: '#dc2626', fontSize: 13 }}>{error}</p>}
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => setStep(2)} style={{ background: 'transparent', border: '1px solid #d1d5db', borderRadius: 6, padding: '9px 16px', cursor: 'pointer', fontSize: 14 }}>← Voltar</button>
-          <button onClick={handleConfirmar} disabled={createFicha.isPending} style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, padding: '9px 20px', cursor: 'pointer', fontSize: 14 }}>
-            {createFicha.isPending ? 'Criando...' : 'Criar Ficha'}
+
+        {error && (
+          <p className="text-sm text-[var(--nc-text)] px-3 py-2 rounded-md bg-[var(--nc-bg)] border border-[var(--nc-border)] mb-4">
+            {error}
+          </p>
+        )}
+
+        <div className="flex gap-2">
+          <button
+            onClick={() => setStep(2)}
+            className="px-4 py-2 rounded-md text-sm border border-[var(--border-dim)] text-[var(--text-mid)] hover:bg-[var(--bg-hover)] transition-colors"
+          >
+            ← Voltar
+          </button>
+          <button
+            onClick={handleConfirmar}
+            disabled={createFicha.isPending}
+            className="px-5 py-2 rounded-md bg-[var(--accent)] text-white text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-40"
+          >
+            {createFicha.isPending ? 'Criando...' : 'Criar Inspeção'}
           </button>
         </div>
       </div>

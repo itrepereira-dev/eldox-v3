@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { obrasService, type Obra } from '../../services/obras.service';
+import { useAppShell } from '@/components/layout/useAppShell';
 import { Search, Grid2x2, List, Columns3, Plus, Building, MapPin } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { semaforoService, type CorSemaforo } from '../../services/semaforo.service';
@@ -57,8 +58,9 @@ const BADGE_CLS: Record<string, string> = {
 // ── Página principal ──────────────────────────────────────────────────────────
 
 export function ObrasListPage() {
-  const navigate     = useNavigate();
-  const queryClient  = useQueryClient();
+  const navigate         = useNavigate();
+  const queryClient      = useQueryClient();
+  const { setObraAtivaId } = useAppShell();
   const [search, setSearch]           = useState('');
   const [statusFiltro, setStatusFiltro] = useState('');
   const [confirmRemover, setConfirmRemover] = useState<number | null>(null);
@@ -113,7 +115,7 @@ export function ObrasListPage() {
           <div className="flex items-center gap-3">
             <div>
               <h1 className="text-2xl font-bold text-[var(--text-high)] tracking-tight m-0">
-                Minhas Obras{' '}
+                Obras{' '}
                 <span className="text-base font-normal text-[var(--text-faint)]">
                   ({total} {total === 1 ? 'obra' : 'obras'})
                 </span>
@@ -224,7 +226,7 @@ export function ObrasListPage() {
                 <ObraCard
                   key={obra.id}
                   obra={obra}
-                  onVer={() => navigate(`/obras/${obra.id}`)}
+                  onVer={() => { setObraAtivaId(obra.id); navigate(`/obras/${obra.id}`); }}
                   onRemover={() => setConfirmRemover(obra.id)}
                 />
               ))}
@@ -256,7 +258,7 @@ export function ObrasListPage() {
                   return (
                     <div
                       key={obra.id}
-                      onClick={() => navigate(`/obras/${obra.id}`)}
+                      onClick={() => { setObraAtivaId(obra.id); navigate(`/obras/${obra.id}`); }}
                       className="grid items-center px-4 py-3 border-b border-[var(--border-dim)] last:border-0 cursor-pointer transition-colors hover:bg-[var(--bg-raised)]"
                       style={{ gridTemplateColumns: '110px 1fr 150px 130px 140px 70px 40px', borderLeft: `3px solid ${cor}` }}
                     >
@@ -325,7 +327,7 @@ export function ObrasListPage() {
                         )}
                         {itens.map(obra => (
                           <KanbanCard key={obra.id} obra={obra} cor={cor}
-                            onVer={() => navigate(`/obras/${obra.id}`)}
+                            onVer={() => { setObraAtivaId(obra.id); navigate(`/obras/${obra.id}`); }}
                             onRemover={() => setConfirmRemover(obra.id)} />
                         ))}
                       </div>

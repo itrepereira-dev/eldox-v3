@@ -1,0 +1,103 @@
+<h2>Arquitetura do Widget Generator</h2>
+<p class="subtitle">Como novos KPIs se tornam widgets automaticamente — sem mexer no core do dashboard.</p>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px;">
+
+  <!-- Fluxo do desenvolvedor -->
+  <div>
+    <div style="font-size:10px;font-weight:700;color:#3b82f6;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Para adicionar um widget novo:</div>
+
+    <div style="display:flex;flex-direction:column;gap:0;">
+
+      <div style="display:flex;gap:10px;align-items:flex-start;">
+        <div style="width:24px;height:24px;border-radius:50%;background:#3b82f6;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:white;flex-shrink:0;">1</div>
+        <div style="background:#1e293b;border-radius:6px;padding:10px;flex:1;margin-bottom:6px;">
+          <div style="font-size:10px;font-weight:700;color:#f1f5f9;margin-bottom:4px;">Criar o componente do widget</div>
+          <div style="font-family:monospace;font-size:10px;color:#94a3b8;background:#0f172a;padding:8px;border-radius:4px;">
+            <span style="color:#f59e0b;">// widgets/NcsAbertasWidget.tsx</span><br>
+            <span style="color:#22c55e;">export function</span> NcsAbertasWidget(<span style="color:#3b82f6;">{ config }</span>) {<br>
+            &nbsp;&nbsp;<span style="color:#94a3b8;">// busca dados, renderiza KPI</span><br>
+            }
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;align-items:flex-start;">
+        <div style="width:24px;height:24px;border-radius:50%;background:#3b82f6;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:white;flex-shrink:0;">2</div>
+        <div style="background:#1e293b;border-radius:6px;padding:10px;flex:1;margin-bottom:6px;">
+          <div style="font-size:10px;font-weight:700;color:#f1f5f9;margin-bottom:4px;">Registrar no WidgetRegistry</div>
+          <div style="font-family:monospace;font-size:10px;color:#94a3b8;background:#0f172a;padding:8px;border-radius:4px;">
+            <span style="color:#3b82f6;">registry.register</span>({<br>
+            &nbsp;&nbsp;<span style="color:#f59e0b;">id:</span> <span style="color:#22c55e;">'ncs-abertas'</span>,<br>
+            &nbsp;&nbsp;<span style="color:#f59e0b;">titulo:</span> <span style="color:#22c55e;">'NCs Abertas'</span>,<br>
+            &nbsp;&nbsp;<span style="color:#f59e0b;">modulo:</span> <span style="color:#22c55e;">'ncs'</span>,<br>
+            &nbsp;&nbsp;<span style="color:#f59e0b;">tamanhos:</span> [<span style="color:#22c55e;">'1x1', '2x1'</span>],<br>
+            &nbsp;&nbsp;<span style="color:#f59e0b;">configSchema:</span> obraIdOptional,<br>
+            &nbsp;&nbsp;<span style="color:#f59e0b;">component:</span> NcsAbertasWidget,<br>
+            })
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;align-items:flex-start;">
+        <div style="width:24px;height:24px;border-radius:50%;background:#22c55e;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:white;flex-shrink:0;">✓</div>
+        <div style="background:#1e293b;border-radius:6px;padding:10px;flex:1;">
+          <div style="font-size:10px;font-weight:700;color:#22c55e;margin-bottom:4px;">Aparece automaticamente no catálogo</div>
+          <div style="font-size:11px;color:#94a3b8;">Sem mexer no DashboardGrid, no modal de adicionar widget, nem no sistema de persistência.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Estrutura de dados -->
+  <div>
+    <div style="font-size:10px;font-weight:700;color:#f59e0b;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">O que cada WidgetDefinition descreve:</div>
+
+    <div style="background:#1e293b;border-radius:6px;padding:12px;font-family:monospace;font-size:10px;line-height:1.8;">
+      <span style="color:#94a3b8;">interface</span> <span style="color:#f59e0b;">WidgetDefinition</span> {<br>
+      &nbsp;&nbsp;<span style="color:#3b82f6;">id:</span> string            <span style="color:#475569;">// slug único</span><br>
+      &nbsp;&nbsp;<span style="color:#3b82f6;">titulo:</span> string        <span style="color:#475569;">// label no catálogo</span><br>
+      &nbsp;&nbsp;<span style="color:#3b82f6;">descricao:</span> string     <span style="color:#475569;">// tooltip</span><br>
+      &nbsp;&nbsp;<span style="color:#3b82f6;">icone:</span> ReactNode       <span style="color:#475569;">// lucide icon</span><br>
+      &nbsp;&nbsp;<span style="color:#3b82f6;">modulo:</span> string        <span style="color:#475569;">// ncs|fvs|alm...</span><br>
+      &nbsp;&nbsp;<span style="color:#3b82f6;">tamanhos:</span> GridSize[]  <span style="color:#475569;">// 1x1 | 2x1 | 2x2 | 4x2</span><br>
+      &nbsp;&nbsp;<span style="color:#3b82f6;">configSchema:</span> ZodSchema <span style="color:#475569;">// valida params</span><br>
+      &nbsp;&nbsp;<span style="color:#3b82f6;">roles:</span> Role[]         <span style="color:#475569;">// quem pode ver</span><br>
+      &nbsp;&nbsp;<span style="color:#3b82f6;">tier:</span> 1 | 2 | 3       <span style="color:#475569;">// global|obra|cruzado</span><br>
+      &nbsp;&nbsp;<span style="color:#3b82f6;">component:</span> React.FC    <span style="color:#475569;">// o widget em si</span><br>
+      &nbsp;&nbsp;<span style="color:#3b82f6;">preview:</span> string        <span style="color:#475569;">// screenshot estático</span><br>
+      }
+    </div>
+
+    <div style="margin-top:10px;background:#1e293b;border-radius:6px;padding:12px;">
+      <div style="font-size:10px;font-weight:700;color:#f1f5f9;margin-bottom:6px;">Layout salvo por usuário (JSON no banco):</div>
+      <div style="font-family:monospace;font-size:10px;color:#94a3b8;line-height:1.8;">
+        [<br>
+        &nbsp;&nbsp;{ <span style="color:#f59e0b;">widgetId:</span> <span style="color:#22c55e;">'ncs-abertas'</span>,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#f59e0b;">x:</span> 0, <span style="color:#f59e0b;">y:</span> 0, <span style="color:#f59e0b;">w:</span> 2, <span style="color:#f59e0b;">h:</span> 1,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#f59e0b;">config:</span> { <span style="color:#f59e0b;">obraId:</span> 3 } },<br>
+        &nbsp;&nbsp;{ <span style="color:#f59e0b;">widgetId:</span> <span style="color:#22c55e;">'semaforo-geral'</span>,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#f59e0b;">x:</span> 2, <span style="color:#f59e0b;">y:</span> 0, <span style="color:#f59e0b;">w:</span> 4, <span style="color:#f59e0b;">h:</span> 2,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#f59e0b;">config:</span> {} }<br>
+        ]
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+  <div style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:10px;">
+    <div style="font-size:10px;font-weight:700;color:#22c55e;margin-bottom:4px;">Frontend</div>
+    <div style="font-size:11px;color:#94a3b8;line-height:1.6;">react-grid-layout + WidgetRegistry + DashboardGrid + AddWidgetDrawer + WidgetConfigModal</div>
+  </div>
+  <div style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:10px;">
+    <div style="font-size:10px;font-weight:700;color:#3b82f6;margin-bottom:4px;">Backend</div>
+    <div style="font-size:11px;color:#94a3b8;line-height:1.6;">GET/PUT /usuarios/me/dashboard-layout · Endpoints de KPI por módulo · Endpoint unificado /dashboard/summary</div>
+  </div>
+  <div style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:10px;">
+    <div style="font-size:10px;font-weight:700;color:#a855f7;margin-bottom:4px;">Banco</div>
+    <div style="font-size:11px;color:#94a3b8;line-height:1.6;">Campo dashboard_layout JSONB na tabela "Usuario" · Indexes nos campos de KPI mais pesados</div>
+  </div>
+</div>

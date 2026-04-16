@@ -1,138 +1,174 @@
-import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { Layers, FolderOpen, ArrowRight } from 'lucide-react';
-import { KpiCard, KpiGrid } from '@/components/ui/KpiCard';
-import { useAuthStore } from '../store/auth.store';
-import { obrasService } from '../services/obras.service';
-import { gedService } from '../services/ged.service';
+// src/pages/DashboardPage.tsx
+import { useState, useCallback } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Plus, Check, Pencil } from 'lucide-react'
+import { dashboardService } from '@/services/dashboard.service'
+import { DashboardGrid } from '@/modules/dashboard/DashboardGrid'
+import { AddWidgetDrawer } from '@/modules/dashboard/AddWidgetDrawer'
+import { WidgetConfigModal } from '@/modules/dashboard/WidgetConfigModal'
+import { useAuthStore } from '@/store/auth.store'
+import type { WidgetInstance } from '@/modules/dashboard/registry/types'
+import type { WidgetDefinition } from '@/modules/dashboard/registry/types'
+// importar para registrar todos os widgets (side-effect import)
+import '@/modules/dashboard/registry/widgets.tsx'
+
+const DEFAULT_LAYOUTS: Record<string, WidgetInstance[]> = {
+  ADMIN_TENANT: [
+    { instanceId: 'obras-1',   widgetId: 'obras-status',          x: 0, y: 0, w: 3, h: 1, config: {} },
+    { instanceId: 'ncs-1',    widgetId: 'ncs-abertas',            x: 3, y: 0, w: 3, h: 1, config: {} },
+    { instanceId: 'aprov-1',  widgetId: 'aprovacoes-pendentes',   x: 6, y: 0, w: 3, h: 1, config: {} },
+    { instanceId: 'sem-1',    widgetId: 'semaforo-geral',         x: 0, y: 1, w: 6, h: 2, config: {} },
+    { instanceId: 'feed-1',   widgetId: 'atividade-recente',      x: 6, y: 1, w: 6, h: 2, config: {} },
+  ],
+  ENGENHEIRO: [
+    { instanceId: 'ncs-1',    widgetId: 'ncs-abertas',            x: 0, y: 0, w: 3, h: 1, config: {} },
+    { instanceId: 'aprov-1',  widgetId: 'aprovacoes-pendentes',   x: 3, y: 0, w: 3, h: 1, config: {} },
+    { instanceId: 'sem-1',    widgetId: 'semaforo-geral',         x: 0, y: 1, w: 6, h: 2, config: {} },
+    { instanceId: 'feed-1',   widgetId: 'atividade-recente',      x: 6, y: 1, w: 6, h: 2, config: {} },
+  ],
+  TECNICO: [
+    { instanceId: 'aprov-1',  widgetId: 'aprovacoes-pendentes',   x: 0, y: 0, w: 4, h: 1, config: {} },
+    { instanceId: 'ncs-1',    widgetId: 'ncs-abertas',            x: 4, y: 0, w: 4, h: 1, config: {} },
+    { instanceId: 'feed-1',   widgetId: 'atividade-recente',      x: 0, y: 1, w: 8, h: 2, config: {} },
+  ],
+  VISITANTE: [
+    { instanceId: 'obras-1',  widgetId: 'obras-status',           x: 0, y: 0, w: 4, h: 1, config: {} },
+    { instanceId: 'sem-1',    widgetId: 'semaforo-geral',         x: 0, y: 1, w: 8, h: 2, config: {} },
+  ],
+}
 
 export function DashboardPage() {
-  const navigate = useNavigate();
-  const { user } = useAuthStore();
+  const { user } = useAuthStore()
+  const [editMode, setEditMode] = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [pendingDef, setPendingDef] = useState<WidgetDefinition | null>(null)
+  const [localLayout, setLocalLayout] = useState<WidgetInstance[] | null>(null)
+  const qc = useQueryClient()
 
-  const { data: obrasData } = useQuery({
-    queryKey: ['obras-dashboard'],
-    queryFn: () => obrasService.getAll({ limit: 100 }),
-  });
+  const { data, isLoading } = useQuery({
+    queryKey: ['dashboard-layout'],
+    queryFn: dashboardService.getLayout,
+  })
 
-  const obras = obrasData?.items ?? [];
-  const obrasAtivas = obras.filter((o) => o.status === 'EM_EXECUCAO').length;
-  const obrasTotal = obras.length;
+  const saveMutation = useMutation({
+    mutationFn: (layout: WidgetInstance[]) => dashboardService.saveLayout(layout),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['dashboard-layout'] })
+      setEditMode(false)
+      setLocalLayout(null)
+    },
+  })
 
-  // Usamos a primeira obra ativa para stats do GED, se existir
-  const primeiraObraAtiva = obras.find((o) => o.status === 'EM_EXECUCAO');
-  const { data: gedStats } = useQuery({
-    queryKey: ['ged-stats-dashboard', primeiraObraAtiva?.id],
-    queryFn: () => gedService.getStats(primeiraObraAtiva!.id),
-    enabled: !!primeiraObraAtiva,
-  });
+  const role = user?.role ?? 'TECNICO'
+  const savedLayout = data?.layout as WidgetInstance[] | null
+  const activeLayout = localLayout ?? savedLayout ?? DEFAULT_LAYOUTS[role] ?? DEFAULT_LAYOUTS.TECNICO
 
-  const primeiroNome = user?.nome?.split(' ')[0] ?? 'Usuário';
+  const handleAddWidget = (def: WidgetDefinition) => {
+    if (def.needsObraId) {
+      setDrawerOpen(false)
+      setPendingDef(def)
+    } else {
+      addWidgetToLayout(def, {})
+      setDrawerOpen(false)
+    }
+  }
+
+  const addWidgetToLayout = useCallback((def: WidgetDefinition, config: Record<string, unknown>) => {
+    const instanceId = `${def.id}-${Date.now()}`
+    const newWidget: WidgetInstance = {
+      instanceId,
+      widgetId: def.id,
+      x: 0,
+      y: Infinity,
+      w: def.defaultW,
+      h: def.defaultH,
+      config,
+    }
+    setLocalLayout((prev) => [...(prev ?? activeLayout), newWidget])
+    setPendingDef(null)
+  }, [activeLayout])
+
+  const handleSave = () => {
+    saveMutation.mutate(activeLayout)
+  }
+
+  const handleCancel = () => {
+    setLocalLayout(null)
+    setEditMode(false)
+  }
+
+  const primeiroNome = user?.nome?.split(' ')[0] ?? 'Usuário'
 
   return (
-    <div>
-      {/* Boas-vindas */}
-      <div style={{ marginBottom: '32px' }}>
-        <h1 style={{ fontSize: '22px', fontWeight: 700, color: 'var(--text-100)', marginBottom: '4px' }}>
-          Olá, {primeiroNome}
-        </h1>
-        <p style={{ fontSize: '14px', color: 'var(--text-60)' }}>
-          Bem-vindo ao Eldox v3 — Gestão de Obras e Documentos
-        </p>
-      </div>
-
-      {/* KPIs */}
-      <KpiGrid cols={3} className="mb-8">
-        <KpiCard
-          label="Obras Cadastradas"
-          value={obrasTotal}
-          sub={`${obrasAtivas} em execução`}
-          variant="run"
-          icon={<Layers size={16} />}
-        />
-        <KpiCard
-          label="Documentos Vigentes"
-          value={gedStats?.vigentes ?? '—'}
-          sub={primeiraObraAtiva ? primeiraObraAtiva.nome : 'Nenhuma obra ativa'}
-          variant="accent"
-          icon={<FolderOpen size={16} />}
-        />
-        <KpiCard
-          label="Vencendo em 30 dias"
-          value={gedStats?.vencendo30dias ?? '—'}
-          sub="Documentos a revisar"
-          variant={gedStats && gedStats.vencendo30dias > 0 ? 'warn' : 'ok'}
-          icon={<FolderOpen size={16} />}
-        />
-      </KpiGrid>
-
-      {/* Acesso rápido */}
-      <div style={{ marginBottom: '16px' }}>
-        <p style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-40)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>
-          Acesso rápido
-        </p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '12px' }}>
-          <QuickCard
-            title="Obras"
-            description="Gerencie as obras e locais de trabalho"
-            onClick={() => navigate('/obras')}
-          />
-          <QuickCard
-            title="GED Administrativo"
-            description="Documentos e categorias em nível de empresa"
-            onClick={() => navigate('/ged/admin')}
-          />
-          {primeiraObraAtiva && (
-            <QuickCard
-              title={`GED — ${primeiraObraAtiva.nome}`}
-              description="Documentos vigentes desta obra"
-              onClick={() => navigate(`/obras/${primeiraObraAtiva.id}/ged`)}
-            />
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-dim)] flex-shrink-0">
+        <div>
+          <h1 className="text-lg font-bold text-[var(--text-high)]">Bom dia, {primeiroNome} 👋</h1>
+          <p className="text-xs text-[var(--text-faint)] mt-0.5">
+            {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {editMode ? (
+            <>
+              <button
+                onClick={() => setDrawerOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[var(--bg-raised)] border border-[var(--border)] rounded-md text-[var(--text-mid)] hover:border-[var(--accent)] transition-colors"
+              >
+                <Plus size={12} /> Adicionar widget
+              </button>
+              <button
+                onClick={handleCancel}
+                className="px-3 py-1.5 text-xs text-[var(--text-faint)] hover:text-[var(--text-high)]"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saveMutation.isPending}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[var(--accent)] text-white rounded-md font-medium hover:bg-[var(--accent-hover)] disabled:opacity-60 transition-colors"
+              >
+                <Check size={12} /> {saveMutation.isPending ? 'Salvando...' : 'Salvar'}
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => setEditMode(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[var(--bg-raised)] border border-[var(--border-dim)] rounded-md text-[var(--text-faint)] hover:text-[var(--accent)] hover:border-[var(--accent)] transition-colors"
+            >
+              <Pencil size={12} /> Editar dashboard
+            </button>
           )}
         </div>
       </div>
-    </div>
-  );
-}
 
-function QuickCard({
-  title,
-  description,
-  onClick,
-}: {
-  title: string;
-  description: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        background: 'var(--bg-surface)',
-        border: '1px solid var(--bg-border)',
-        borderRadius: 'var(--radius-lg)',
-        padding: '20px',
-        cursor: 'pointer',
-        textAlign: 'left',
-        width: '100%',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: '12px',
-        transition: 'border-color 0.15s',
-      }}
-      onMouseEnter={(e) => {
-        (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--accent)';
-      }}
-      onMouseLeave={(e) => {
-        (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--bg-border)';
-      }}
-    >
-      <div>
-        <p style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-100)', marginBottom: '4px' }}>{title}</p>
-        <p style={{ fontSize: '12px', color: 'var(--text-60)' }}>{description}</p>
+      {/* Grid */}
+      <div className="flex-1 overflow-y-auto px-4 py-4">
+        {isLoading ? (
+          <div className="flex items-center justify-center h-32 text-[var(--text-faint)] text-sm">
+            Carregando dashboard...
+          </div>
+        ) : (
+          <DashboardGrid
+            layout={activeLayout}
+            editMode={editMode}
+            onLayoutChange={setLocalLayout}
+          />
+        )}
       </div>
-      <ArrowRight size={16} style={{ color: 'var(--text-40)', flexShrink: 0 }} />
-    </button>
-  );
+
+      <AddWidgetDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        onAdd={handleAddWidget}
+      />
+
+      <WidgetConfigModal
+        def={pendingDef}
+        onConfirm={(config) => pendingDef && addWidgetToLayout(pendingDef, config)}
+        onClose={() => setPendingDef(null)}
+      />
+    </div>
+  )
 }

@@ -1,0 +1,158 @@
+<h2>Dashboard Configurável — Modo de uso</h2>
+<p class="subtitle">Simulação de como ficaria o dashboard no dia a dia (modo visualização) e no modo de edição.</p>
+
+<div class="options">
+
+  <div class="option" data-choice="view-mode" onclick="toggleSelect(this)">
+    <div class="letter">👁️</div>
+    <div class="content">
+      <h3>Modo Visualização</h3>
+      <!-- Simulação do dashboard -->
+      <div style="background:#0f172a;border-radius:6px;padding:12px;margin-top:8px;">
+        <!-- Header -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <div style="font-size:11px;font-weight:700;color:#f1f5f9;">Bom dia, Itamar 👋</div>
+          <div style="background:#1e293b;border:1px solid #334155;border-radius:4px;padding:4px 8px;font-size:9px;color:#94a3b8;display:flex;align-items:center;gap:4px;">
+            ✏️ Editar dashboard
+          </div>
+        </div>
+        <!-- Grid de widgets -->
+        <div style="display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:auto;gap:6px;">
+          <!-- KPI 1x1 -->
+          <div style="grid-column:span 2;background:#1e293b;border-radius:4px;padding:8px;border-top:2px solid #ef4444;">
+            <div style="font-size:8px;color:#64748b;">NCs abertas</div>
+            <div style="font-size:20px;font-weight:700;color:#ef4444;">12</div>
+            <div style="font-size:8px;color:#64748b;">3 críticas</div>
+          </div>
+          <div style="grid-column:span 2;background:#1e293b;border-radius:4px;padding:8px;border-top:2px solid #f59e0b;">
+            <div style="font-size:8px;color:#64748b;">Aprovações</div>
+            <div style="font-size:20px;font-weight:700;color:#f59e0b;">4</div>
+            <div style="font-size:8px;color:#64748b;">aguardando você</div>
+          </div>
+          <div style="grid-column:span 2;background:#1e293b;border-radius:4px;padding:8px;border-top:2px solid #22c55e;">
+            <div style="font-size:8px;color:#64748b;">Conformidade FVS</div>
+            <div style="font-size:20px;font-weight:700;color:#22c55e;">82%</div>
+            <div style="font-size:8px;color:#64748b;">↑ +3% esta semana</div>
+          </div>
+          <div style="grid-column:span 2;background:#1e293b;border-radius:4px;padding:8px;border-top:2px solid #3b82f6;">
+            <div style="font-size:8px;color:#64748b;">Obras ativas</div>
+            <div style="font-size:20px;font-weight:700;color:#3b82f6;">5</div>
+            <div style="font-size:8px;color:#64748b;">de 7 cadastradas</div>
+          </div>
+
+          <!-- Semáforo 4x2 -->
+          <div style="grid-column:span 4;grid-row:span 2;background:#1e293b;border-radius:4px;padding:10px;">
+            <div style="font-size:9px;color:#64748b;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Semáforo de Obras</div>
+            <div style="display:flex;flex-direction:column;gap:5px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div style="font-size:10px;color:#f1f5f9;">Obra Central</div>
+                <div style="display:flex;gap:3px;">
+                  <div style="width:10px;height:10px;border-radius:50%;background:#22c55e;"></div>
+                  <div style="width:10px;height:10px;border-radius:50%;background:#22c55e;"></div>
+                  <div style="width:10px;height:10px;border-radius:50%;background:#f59e0b;"></div>
+                  <div style="width:10px;height:10px;border-radius:50%;background:#22c55e;"></div>
+                </div>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div style="font-size:10px;color:#f1f5f9;">Residencial Norte</div>
+                <div style="display:flex;gap:3px;">
+                  <div style="width:10px;height:10px;border-radius:50%;background:#22c55e;"></div>
+                  <div style="width:10px;height:10px;border-radius:50%;background:#22c55e;"></div>
+                  <div style="width:10px;height:10px;border-radius:50%;background:#22c55e;"></div>
+                  <div style="width:10px;height:10px;border-radius:50%;background:#22c55e;"></div>
+                </div>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div style="font-size:10px;color:#f1f5f9;">Torre Sul</div>
+                <div style="display:flex;gap:3px;">
+                  <div style="width:10px;height:10px;border-radius:50%;background:#ef4444;"></div>
+                  <div style="width:10px;height:10px;border-radius:50%;background:#f59e0b;"></div>
+                  <div style="width:10px;height:10px;border-radius:50%;background:#ef4444;"></div>
+                  <div style="width:10px;height:10px;border-radius:50%;background:#f59e0b;"></div>
+                </div>
+              </div>
+              <div style="margin-top:4px;display:flex;gap:6px;">
+                <div style="display:flex;align-items:center;gap:3px;font-size:8px;color:#64748b;"><div style="width:7px;height:7px;border-radius:50%;background:#22c55e;"></div>FVS</div>
+                <div style="display:flex;align-items:center;gap:3px;font-size:8px;color:#64748b;"><div style="width:7px;height:7px;border-radius:50%;background:#f59e0b;"></div>NCs</div>
+                <div style="display:flex;align-items:center;gap:3px;font-size:8px;color:#64748b;"><div style="width:7px;height:7px;border-radius:50%;background:#ef4444;"></div>Alm.</div>
+                <div style="display:flex;align-items:center;gap:3px;font-size:8px;color:#64748b;"><div style="width:7px;height:7px;border-radius:50%;background:#22c55e;"></div>GED</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Materiais críticos 4x2 -->
+          <div style="grid-column:span 4;grid-row:span 2;background:#1e293b;border-radius:4px;padding:10px;">
+            <div style="font-size:9px;color:#64748b;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Estoque Crítico</div>
+            <div style="display:flex;flex-direction:column;gap:5px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div style="font-size:10px;color:#f1f5f9;">Cimento CP-II</div>
+                <div style="font-size:9px;color:#ef4444;font-weight:700;">CRÍTICO</div>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div style="font-size:10px;color:#f1f5f9;">Vergalhão 10mm</div>
+                <div style="font-size:9px;color:#f59e0b;font-weight:700;">ATENÇÃO</div>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div style="font-size:10px;color:#f1f5f9;">Brita 1</div>
+                <div style="font-size:9px;color:#f59e0b;font-weight:700;">ATENÇÃO</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p style="margin-top:8px;">Grade travada, widgets apenas leitura. Botão "Editar" no topo direito.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="edit-mode" onclick="toggleSelect(this)">
+    <div class="letter">✏️</div>
+    <div class="content">
+      <h3>Modo Edição</h3>
+      <div style="background:#0f172a;border-radius:6px;padding:12px;margin-top:8px;">
+        <!-- Header edit mode -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <div style="font-size:10px;color:#f59e0b;font-weight:700;">✏️ Modo de edição</div>
+          <div style="display:flex;gap:6px;">
+            <div style="background:#334155;border-radius:4px;padding:4px 8px;font-size:9px;color:#94a3b8;">+ Adicionar widget</div>
+            <div style="background:#22c55e;border-radius:4px;padding:4px 8px;font-size:9px;color:#000;font-weight:700;">Salvar</div>
+          </div>
+        </div>
+        <!-- Grid editável (com handles) -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">
+          <div style="background:#1e293b;border:1px dashed #3b82f6;border-radius:4px;padding:8px;position:relative;">
+            <div style="position:absolute;top:3px;right:3px;font-size:8px;color:#64748b;cursor:pointer;">✕</div>
+            <div style="position:absolute;top:3px;left:3px;font-size:8px;color:#334155;cursor:grab;">⠿⠿</div>
+            <div style="font-size:8px;color:#64748b;margin-top:8px;">NCs abertas</div>
+            <div style="font-size:18px;font-weight:700;color:#ef4444;">12</div>
+          </div>
+          <div style="background:#1e293b;border:1px dashed #3b82f6;border-radius:4px;padding:8px;position:relative;">
+            <div style="position:absolute;top:3px;right:3px;font-size:8px;color:#64748b;cursor:pointer;">✕</div>
+            <div style="position:absolute;top:3px;left:3px;font-size:8px;color:#334155;cursor:grab;">⠿⠿</div>
+            <div style="font-size:8px;color:#64748b;margin-top:8px;">Aprovações</div>
+            <div style="font-size:18px;font-weight:700;color:#f59e0b;">4</div>
+          </div>
+          <!-- Slot vazio -->
+          <div style="background:#0f172a;border:1px dashed #334155;border-radius:4px;padding:8px;display:flex;align-items:center;justify-content:center;min-height:60px;">
+            <div style="font-size:9px;color:#334155;">+ slot livre</div>
+          </div>
+          <div style="background:#0f172a;border:1px dashed #334155;border-radius:4px;padding:8px;display:flex;align-items:center;justify-content:center;min-height:60px;">
+            <div style="font-size:9px;color:#334155;">+ slot livre</div>
+          </div>
+        </div>
+        <!-- Drawer de catálogo -->
+        <div style="margin-top:8px;background:#1e293b;border-radius:4px;padding:8px;">
+          <div style="font-size:9px;color:#64748b;margin-bottom:6px;">Catálogo de widgets disponíveis</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <div style="background:#334155;border-radius:3px;padding:3px 7px;font-size:9px;color:#94a3b8;">📊 FVS Conformidade</div>
+            <div style="background:#334155;border-radius:3px;padding:3px 7px;font-size:9px;color:#94a3b8;">🏗️ Concretagem CPs</div>
+            <div style="background:#334155;border-radius:3px;padding:3px 7px;font-size:9px;color:#94a3b8;">🧪 Laudos pend.</div>
+            <div style="background:#334155;border-radius:3px;padding:3px 7px;font-size:9px;color:#94a3b8;">👷 Efetivo hoje</div>
+            <div style="background:#3b82f6;border-radius:3px;padding:3px 7px;font-size:9px;color:#fff;">+ 50 outros</div>
+          </div>
+        </div>
+      </div>
+      <p style="margin-top:8px;">Drag & drop habilitado, handles de arraste visíveis, botão ✕ em cada widget, slots vazios visíveis, drawer com catálogo completo.</p>
+    </div>
+  </div>
+
+</div>
