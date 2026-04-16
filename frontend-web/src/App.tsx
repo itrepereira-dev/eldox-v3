@@ -187,7 +187,7 @@ export default function App() {
               <Route path="/configuracoes/efetivo/cadastros" element={<CadastrosEfetivoPage />} />
             </Route>
 
-            {/* Módulos em construção (Betonadas, Efetivo, Frota, Aprovações, IA) */}
+            {/* Módulos em construção (Efetivo, Frota, Aprovações, IA) */}
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
 
           {/* Portal público do fornecedor — fora do guard de autenticação */}

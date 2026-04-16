@@ -23,7 +23,7 @@ export function LaudosSection({ concrtagemId }: Props) {
 
   const { data: laudos = [], isLoading } = useQuery({
     queryKey: ['laudos', concrtagemId],
-    queryFn: () => concretagemService.listarLaudosPorBetonada(concrtagemId),
+    queryFn: () => concretagemService.listarLaudosPorConcretagem(concrtagemId),
   });
 
   const criarMutation = useMutation({
