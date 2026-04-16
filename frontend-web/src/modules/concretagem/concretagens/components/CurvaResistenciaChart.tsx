@@ -133,10 +133,11 @@ export function CurvaResistenciaChart({ cps, caminhoes, fck }: CurvaResistenciaC
           <Tooltip
             contentStyle={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-dim)', borderRadius: 8 }}
             labelFormatter={(l) => `${l} dias`}
-            formatter={(value: number | null, name: string) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            formatter={((value: any, name: any) => {
               const cam = caminhoes.find((c) => `cam_${c.id}` === name);
               return [value != null ? `${value} MPa` : '—', cam?.numero ?? name];
-            }}
+            }) as any}
           />
           <ReferenceLine
             y={fck}
@@ -153,14 +154,17 @@ export function CurvaResistenciaChart({ cps, caminhoes, fck }: CurvaResistenciaC
               strokeWidth={isVisible(cam.id) ? 2 : 1}
               opacity={isVisible(cam.id) ? 1 : 0.15}
               dot={{ r: 4, fill: PALETTE[i % PALETTE.length], cursor: 'pointer' }}
-              activeDot={(props: Record<string, unknown>) => (
-                <circle
-                  {...(props as React.SVGProps<SVGCircleElement>)}
-                  r={6}
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => setDrawerCaminhao(cam)}
-                />
-              )}
+              activeDot={
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                ((props: any) => (
+                  <circle
+                    {...props}
+                    r={6}
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => setDrawerCaminhao(cam)}
+                  />
+                )) as any
+              }
               connectNulls={false}
             />
           ))}

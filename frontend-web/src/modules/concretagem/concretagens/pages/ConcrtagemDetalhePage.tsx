@@ -2,9 +2,9 @@
 // Detalhe de Concretagem com caminhões e CPs — Sprint 8 (renomeado de Betonada)
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Truck, FlaskConical, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { ArrowLeft, Truck, FlaskConical, CheckCircle, XCircle } from 'lucide-react';
 import { cn } from '@/lib/cn';
-import type { StatusConcretagem, StatusCaminhao, StatusCp } from '@/services/concretagem.service';
+import type { StatusConcretagem, StatusCaminhao } from '@/services/concretagem.service';
 import { useBuscarConcretagem, useConcluirCaminhao, useToggleLiberado, useSetLacre } from '../hooks/useConcretagens';
 import { useListarCroquis, useBuscarCroqui } from '../../croqui/hooks/useCroqui';
 import { LaudosSection } from '../../laudos/pages/LaudosPage';
@@ -43,16 +43,6 @@ const CAM_COLORS: Record<StatusCaminhao, string> = {
   EM_LANCAMENTO: 'bg-[var(--warn-dim)] text-[var(--warn-text)]',
   CONCLUIDO: 'bg-[var(--ok-dim)] text-[var(--ok-text)]',
   REJEITADO: 'bg-[var(--nc-dim)] text-[var(--nc-text)]',
-};
-
-const CP_LABELS: Record<StatusCp, string> = {
-  AGUARDANDO_RUPTURA: 'Aguardando', ROMPIDO_APROVADO: 'Aprovado', ROMPIDO_REPROVADO: 'Reprovado', CANCELADO: 'Cancelado',
-};
-const CP_COLORS: Record<StatusCp, string> = {
-  AGUARDANDO_RUPTURA: 'bg-[var(--accent-dim)] text-[var(--accent)]',
-  ROMPIDO_APROVADO: 'bg-[var(--ok-dim)] text-[var(--ok-text)]',
-  ROMPIDO_REPROVADO: 'bg-[var(--nc-dim)] text-[var(--nc-text)]',
-  CANCELADO: 'bg-[var(--bg-raised)] text-[var(--text-faint)]',
 };
 
 // ── Skeleton ──────────────────────────────────────────────────────────────────
@@ -126,7 +116,6 @@ export default function ConcrtagemDetalhePage() {
       caminhao_numero: cam ? `NF ${cam.numero_nf}` : undefined,
       caminhao_nf: cam?.numero_nf ?? undefined,
       data_ruptura_real: cp.data_ruptura_real ?? null,
-      fck: data.fck_especificado,
     };
   });
 
@@ -401,7 +390,7 @@ export default function ConcrtagemDetalhePage() {
         </div>
 
         {cpView === 'timeline' ? (
-          <CpTimeline cps={cpItems} fck={data.fck_especificado} />
+          <CpTimeline cps={cpItems} />
         ) : (
           <CpTabela cps={cpItems} fck={data.fck_especificado} />
         )}

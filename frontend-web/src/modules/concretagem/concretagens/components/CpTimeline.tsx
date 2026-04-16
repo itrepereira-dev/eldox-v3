@@ -12,7 +12,6 @@ interface CpItem {
   data_ruptura_real: string | null;
   resistencia: number | null;
   status: 'AGUARDANDO_RUPTURA' | 'ROMPIDO_APROVADO' | 'ROMPIDO_REPROVADO' | 'CANCELADO';
-  fck: number;
 }
 
 interface CaminhaoGroup {
@@ -24,7 +23,6 @@ interface CaminhaoGroup {
 
 interface CpTimelineProps {
   cps: CpItem[];
-  fck: number;
 }
 
 function DotStatus({ cp }: { cp: CpItem | undefined }) {
@@ -76,7 +74,7 @@ function DotStatus({ cp }: { cp: CpItem | undefined }) {
   );
 }
 
-export function CpTimeline({ cps, fck }: CpTimelineProps) {
+export function CpTimeline({ cps }: CpTimelineProps) {
   // Agrupar por caminhão
   const groups: CaminhaoGroup[] = [];
   const seen = new Map<number, CaminhaoGroup>();

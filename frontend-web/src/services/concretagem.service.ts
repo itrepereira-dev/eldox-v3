@@ -179,7 +179,7 @@ export interface ListConcrtagensParams {
 export type ListBetonadasParams = ListConcrtagensParams;
 
 export interface ListConcrtagensResult {
-  items: ConcrtagemResumo[];
+  items: Concretagem[];
   total: number;
   page: number;
   limit: number;
