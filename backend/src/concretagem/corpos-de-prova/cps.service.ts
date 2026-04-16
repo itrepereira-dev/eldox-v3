@@ -101,6 +101,29 @@ export class CpsService {
       dto.observacoes ?? null,
     );
 
+    // Verificar se todos os CPs de 28d têm resultado
+    if ((concretagem.status as string) === 'EM_RASTREABILIDADE') {
+      const aguardando28d = await this.prisma.$queryRawUnsafe<{ total: number }[]>(
+        `SELECT COUNT(*)::int AS total
+         FROM corpos_de_prova
+         WHERE tenant_id = $1 AND concretagem_id = $2
+           AND idade_dias = 28
+           AND status = 'AGUARDANDO_RUPTURA'`,
+        tenantId,
+        concretagem.id,
+      );
+      if (Number(aguardando28d[0]?.total ?? 1) === 0) {
+        await this.prisma.$queryRawUnsafe(
+          `UPDATE concretagens
+           SET status = 'CONCLUIDA'::"StatusConcretagem", updated_at = NOW()
+           WHERE tenant_id = $1 AND id = $2`,
+          tenantId,
+          concretagem.id,
+        );
+        this.logger.log(`Concretagem ${concretagem.id as number} → CONCLUIDA (todos CPs 28d rompidos)`);
+      }
+    }
+
     // NC automática se reprovado
     if (!aprovado) {
       void this.abrirNcAutomatica(
@@ -165,7 +188,7 @@ export class CpsService {
 
   private async buscarConcretagem(tenantId: number, concrtagemId: number): Promise<Record<string, unknown>> {
     const rows = await this.prisma.$queryRawUnsafe<Record<string, unknown>[]>(
-      `SELECT id, obra_id, fck_especificado FROM concretagens WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
+      `SELECT id, obra_id, status, fck_especificado FROM concretagens WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
       tenantId,
       concrtagemId,
     );

@@ -175,12 +175,37 @@ export class CaminhoesService {
   async concluirLancamento(tenantId: number, caminhaoId: number, userId: number) {
     await this.buscarCaminhao(tenantId, caminhaoId);
 
+    const caminhao = await this.buscarCaminhao(tenantId, caminhaoId);
+
     await this.prisma.$executeRawUnsafe(
       `UPDATE caminhoes_concreto SET status = 'CONCLUIDO'::"StatusCaminhao", updated_at = NOW()
        WHERE tenant_id = $1 AND id = $2`,
       tenantId,
       caminhaoId,
     );
+
+    // Verificar se todos os caminhões estão concluídos/rejeitados
+    const concretagem = await this.buscarConcretagem(tenantId, caminhao.concretagem_id as number);
+    if ((concretagem.status as string) === 'EM_LANCAMENTO') {
+      const pendentes = await this.prisma.$queryRawUnsafe<{ total: number }[]>(
+        `SELECT COUNT(*)::int AS total
+         FROM caminhoes_concreto
+         WHERE tenant_id = $1 AND concretagem_id = $2
+           AND status NOT IN ('CONCLUIDO', 'REJEITADO')`,
+        tenantId,
+        concretagem.id,
+      );
+      if (Number(pendentes[0]?.total ?? 1) === 0) {
+        await this.prisma.$queryRawUnsafe(
+          `UPDATE concretagens
+           SET status = 'EM_RASTREABILIDADE'::"StatusConcretagem", updated_at = NOW()
+           WHERE tenant_id = $1 AND id = $2`,
+          tenantId,
+          concretagem.id,
+        );
+        this.logger.log(`Concretagem ${concretagem.id as number} → EM_RASTREABILIDADE (todos caminhões concluídos)`);
+      }
+    }
 
     this.auditLog(tenantId, userId, 'CONCLUIR', caminhaoId, null, null).catch(
       (e: unknown) => this.logger.error(`auditLog concluir falhou: ${e}`),
