@@ -95,12 +95,18 @@ services:
       - coolify
     labels:
       - "traefik.enable=true"
+      # HTTPS router
       - "traefik.http.routers.eldox-v3-web.rule=Host(`${DOMAIN}`)"
       - "traefik.http.routers.eldox-v3-web.entrypoints=https"
       - "traefik.http.routers.eldox-v3-web.tls=true"
       - "traefik.http.routers.eldox-v3-web.tls.certresolver=letsencrypt"
       - "traefik.http.routers.eldox-v3-web.priority=1"
       - "traefik.http.services.eldox-v3-web.loadbalancer.server.port=80"
+      # HTTP router (required for ACME HTTP-01 challenge)
+      - "traefik.http.routers.eldox-v3-web-http.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.eldox-v3-web-http.entrypoints=http"
+      - "traefik.http.routers.eldox-v3-web-http.priority=1"
+      - "traefik.http.routers.eldox-v3-web-http.service=eldox-v3-web"
       - "traefik.docker.network=coolify"
 
 networks:
