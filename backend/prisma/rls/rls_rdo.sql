@@ -23,6 +23,7 @@
 -- 1. rdos
 -- -----------------------------------------------------------------------------
 
+DROP POLICY IF EXISTS tenant_isolation ON rdos;
 CREATE POLICY tenant_isolation ON rdos
   AS PERMISSIVE
   FOR ALL
@@ -35,6 +36,7 @@ CREATE POLICY tenant_isolation ON rdos
 -- 2. rdo_clima
 -- -----------------------------------------------------------------------------
 
+DROP POLICY IF EXISTS tenant_isolation ON rdo_clima;
 CREATE POLICY tenant_isolation ON rdo_clima
   AS PERMISSIVE
   FOR ALL
@@ -47,6 +49,7 @@ CREATE POLICY tenant_isolation ON rdo_clima
 -- 3. rdo_mao_de_obra
 -- -----------------------------------------------------------------------------
 
+DROP POLICY IF EXISTS tenant_isolation ON rdo_mao_de_obra;
 CREATE POLICY tenant_isolation ON rdo_mao_de_obra
   AS PERMISSIVE
   FOR ALL
@@ -59,6 +62,7 @@ CREATE POLICY tenant_isolation ON rdo_mao_de_obra
 -- 4. rdo_equipamentos
 -- -----------------------------------------------------------------------------
 
+DROP POLICY IF EXISTS tenant_isolation ON rdo_equipamentos;
 CREATE POLICY tenant_isolation ON rdo_equipamentos
   AS PERMISSIVE
   FOR ALL
@@ -71,6 +75,7 @@ CREATE POLICY tenant_isolation ON rdo_equipamentos
 -- 5. rdo_atividades
 -- -----------------------------------------------------------------------------
 
+DROP POLICY IF EXISTS tenant_isolation ON rdo_atividades;
 CREATE POLICY tenant_isolation ON rdo_atividades
   AS PERMISSIVE
   FOR ALL
@@ -83,6 +88,7 @@ CREATE POLICY tenant_isolation ON rdo_atividades
 -- 6. rdo_ocorrencias
 -- -----------------------------------------------------------------------------
 
+DROP POLICY IF EXISTS tenant_isolation ON rdo_ocorrencias;
 CREATE POLICY tenant_isolation ON rdo_ocorrencias
   AS PERMISSIVE
   FOR ALL
@@ -95,6 +101,7 @@ CREATE POLICY tenant_isolation ON rdo_ocorrencias
 -- 7. rdo_checklist_itens
 -- -----------------------------------------------------------------------------
 
+DROP POLICY IF EXISTS tenant_isolation ON rdo_checklist_itens;
 CREATE POLICY tenant_isolation ON rdo_checklist_itens
   AS PERMISSIVE
   FOR ALL
@@ -107,6 +114,7 @@ CREATE POLICY tenant_isolation ON rdo_checklist_itens
 -- 8. rdo_fotos
 -- -----------------------------------------------------------------------------
 
+DROP POLICY IF EXISTS tenant_isolation ON rdo_fotos;
 CREATE POLICY tenant_isolation ON rdo_fotos
   AS PERMISSIVE
   FOR ALL
@@ -119,6 +127,7 @@ CREATE POLICY tenant_isolation ON rdo_fotos
 -- 9. rdo_assinaturas
 -- -----------------------------------------------------------------------------
 
+DROP POLICY IF EXISTS tenant_isolation ON rdo_assinaturas;
 CREATE POLICY tenant_isolation ON rdo_assinaturas
   AS PERMISSIVE
   FOR ALL
@@ -131,6 +140,7 @@ CREATE POLICY tenant_isolation ON rdo_assinaturas
 -- 10. rdo_sugestoes_ia
 -- -----------------------------------------------------------------------------
 
+DROP POLICY IF EXISTS tenant_isolation ON rdo_sugestoes_ia;
 CREATE POLICY tenant_isolation ON rdo_sugestoes_ia
   AS PERMISSIVE
   FOR ALL
@@ -144,6 +154,7 @@ CREATE POLICY tenant_isolation ON rdo_sugestoes_ia
 -- -----------------------------------------------------------------------------
 
 -- Leitura: cada tenant enxerga apenas seus próprios registros
+DROP POLICY IF EXISTS rdo_log_select ON rdo_log_edicoes;
 CREATE POLICY rdo_log_select ON rdo_log_edicoes
   AS PERMISSIVE
   FOR SELECT
@@ -151,6 +162,7 @@ CREATE POLICY rdo_log_select ON rdo_log_edicoes
   USING (current_setting('app.tenant_id', true)::int = tenant_id);
 
 -- Escrita: cada tenant só pode inserir no próprio tenant
+DROP POLICY IF EXISTS rdo_log_insert ON rdo_log_edicoes;
 CREATE POLICY rdo_log_insert ON rdo_log_edicoes
   AS PERMISSIVE
   FOR INSERT

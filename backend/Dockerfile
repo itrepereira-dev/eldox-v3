@@ -15,6 +15,10 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
+# postgresql-client: necessário para aplicar os scripts RLS via psql no entrypoint.
+# wget: usado pelo healthcheck do docker-compose.prod.yml.
+RUN apk add --no-cache postgresql-client wget
+
 # Copia node_modules completo do builder (necessário para prisma.config.ts + TypeScript runtime)
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
@@ -22,6 +26,10 @@ COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 COPY --from=builder /app/package.json ./package.json
 
+# Entrypoint: migrations + RLS + start server
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 EXPOSE 3000
 
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/main"]
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

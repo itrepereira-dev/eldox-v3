@@ -47,6 +47,7 @@ END $$;
 -- -----------------------------------------------------------------------------
 
 -- Usuario: acessa apenas registros do próprio tenant
+DROP POLICY IF EXISTS tenant_isolation ON "Usuario";
 CREATE POLICY tenant_isolation ON "Usuario"
   AS PERMISSIVE
   FOR ALL
@@ -54,6 +55,7 @@ CREATE POLICY tenant_isolation ON "Usuario"
   USING (current_setting('app.tenant_id', true)::int = "tenantId");
 
 -- Obra: acessa apenas obras do próprio tenant
+DROP POLICY IF EXISTS tenant_isolation ON "Obra";
 CREATE POLICY tenant_isolation ON "Obra"
   AS PERMISSIVE
   FOR ALL
@@ -61,6 +63,7 @@ CREATE POLICY tenant_isolation ON "Obra"
   USING (current_setting('app.tenant_id', true)::int = "tenantId");
 
 -- ObraLocal: acessa apenas locais do próprio tenant
+DROP POLICY IF EXISTS tenant_isolation ON "ObraLocal";
 CREATE POLICY tenant_isolation ON "ObraLocal"
   AS PERMISSIVE
   FOR ALL
@@ -69,6 +72,7 @@ CREATE POLICY tenant_isolation ON "ObraLocal"
 
 -- ObraTipo: acessa tipos do sistema (tenantId = 0) OU do próprio tenant
 --   tenantId = 0 → registros globais compartilhados entre todos os tenants
+DROP POLICY IF EXISTS tenant_isolation ON "ObraTipo";
 CREATE POLICY tenant_isolation ON "ObraTipo"
   AS PERMISSIVE
   FOR ALL
@@ -104,30 +108,35 @@ CREATE POLICY tenant_isolation ON "ObraTipo"
 
 -- ged_pastas: isolamento por tenant
 ALTER TABLE ged_pastas ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON ged_pastas;
 CREATE POLICY tenant_isolation ON ged_pastas
   AS PERMISSIVE FOR ALL TO PUBLIC
   USING (current_setting('app.tenant_id', true)::int = tenant_id);
 
 -- ged_documentos: isolamento por tenant
 ALTER TABLE ged_documentos ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON ged_documentos;
 CREATE POLICY tenant_isolation ON ged_documentos
   AS PERMISSIVE FOR ALL TO PUBLIC
   USING (current_setting('app.tenant_id', true)::int = tenant_id);
 
 -- ged_documento_compartilhamentos: isolamento por tenant
 ALTER TABLE ged_documento_compartilhamentos ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON ged_documento_compartilhamentos;
 CREATE POLICY tenant_isolation ON ged_documento_compartilhamentos
   AS PERMISSIVE FOR ALL TO PUBLIC
   USING (current_setting('app.tenant_id', true)::int = tenant_id);
 
 -- ged_versoes: isolamento por tenant
 ALTER TABLE ged_versoes ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON ged_versoes;
 CREATE POLICY tenant_isolation ON ged_versoes
   AS PERMISSIVE FOR ALL TO PUBLIC
   USING (current_setting('app.tenant_id', true)::int = tenant_id);
 
 -- ged_workflow_templates: sistema (tenant_id=0) visível para todos + tenant próprio
 ALTER TABLE ged_workflow_templates ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON ged_workflow_templates;
 CREATE POLICY tenant_isolation ON ged_workflow_templates
   AS PERMISSIVE FOR ALL TO PUBLIC
   USING (
@@ -137,24 +146,28 @@ CREATE POLICY tenant_isolation ON ged_workflow_templates
 
 -- ged_workflow_execucoes: isolamento por tenant
 ALTER TABLE ged_workflow_execucoes ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON ged_workflow_execucoes;
 CREATE POLICY tenant_isolation ON ged_workflow_execucoes
   AS PERMISSIVE FOR ALL TO PUBLIC
   USING (current_setting('app.tenant_id', true)::int = tenant_id);
 
 -- ged_transmittals: isolamento por tenant
 ALTER TABLE ged_transmittals ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON ged_transmittals;
 CREATE POLICY tenant_isolation ON ged_transmittals
   AS PERMISSIVE FOR ALL TO PUBLIC
   USING (current_setting('app.tenant_id', true)::int = tenant_id);
 
 -- ged_audit_log: isolamento por tenant (append-only enforced por trigger)
 ALTER TABLE ged_audit_log ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON ged_audit_log;
 CREATE POLICY tenant_isolation ON ged_audit_log
   AS PERMISSIVE FOR ALL TO PUBLIC
   USING (current_setting('app.tenant_id', true)::int = tenant_id);
 
 -- ged_categorias: sistema (tenant_id=0) + tenant próprio
 ALTER TABLE ged_categorias ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON ged_categorias;
 CREATE POLICY tenant_isolation ON ged_categorias
   AS PERMISSIVE FOR ALL TO PUBLIC
   USING (
@@ -164,12 +177,14 @@ CREATE POLICY tenant_isolation ON ged_categorias
 
 -- ged_configuracoes: isolamento por tenant
 ALTER TABLE ged_configuracoes ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON ged_configuracoes;
 CREATE POLICY tenant_isolation ON ged_configuracoes
   AS PERMISSIVE FOR ALL TO PUBLIC
   USING (current_setting('app.tenant_id', true)::int = tenant_id);
 
 -- whatsapp_configuracoes: isolamento por tenant (credenciais sensíveis)
 ALTER TABLE whatsapp_configuracoes ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON whatsapp_configuracoes;
 CREATE POLICY tenant_isolation ON whatsapp_configuracoes
   AS PERMISSIVE FOR ALL TO PUBLIC
   USING (current_setting('app.tenant_id', true)::int = tenant_id);
@@ -185,30 +200,35 @@ CREATE POLICY tenant_isolation ON whatsapp_configuracoes
 
 -- ia_conversas: isolamento por tenant
 ALTER TABLE ia_conversas ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON ia_conversas;
 CREATE POLICY tenant_isolation ON ia_conversas
   AS PERMISSIVE FOR ALL TO PUBLIC
   USING (current_setting('app.tenant_id', true)::int = tenant_id);
 
 -- ia_mensagens: isolamento por tenant
 ALTER TABLE ia_mensagens ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON ia_mensagens;
 CREATE POLICY tenant_isolation ON ia_mensagens
   AS PERMISSIVE FOR ALL TO PUBLIC
   USING (current_setting('app.tenant_id', true)::int = tenant_id);
 
 -- ia_acoes_pendentes: isolamento por tenant
 ALTER TABLE ia_acoes_pendentes ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON ia_acoes_pendentes;
 CREATE POLICY tenant_isolation ON ia_acoes_pendentes
   AS PERMISSIVE FOR ALL TO PUBLIC
   USING (current_setting('app.tenant_id', true)::int = tenant_id);
 
 -- ia_uso_tokens: isolamento por tenant
 ALTER TABLE ia_uso_tokens ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON ia_uso_tokens;
 CREATE POLICY tenant_isolation ON ia_uso_tokens
   AS PERMISSIVE FOR ALL TO PUBLIC
   USING (current_setting('app.tenant_id', true)::int = tenant_id);
 
 -- ia_memoria: isolamento por tenant
 ALTER TABLE ia_memoria ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON ia_memoria;
 CREATE POLICY tenant_isolation ON ia_memoria
   AS PERMISSIVE FOR ALL TO PUBLIC
   USING (current_setting('app.tenant_id', true)::int = tenant_id);
