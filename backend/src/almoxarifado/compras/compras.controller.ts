@@ -16,18 +16,19 @@ import { ReceberOcDto } from './dto/receber-oc.dto';
 export class ComprasController {
   constructor(private readonly compras: ComprasService) {}
 
-  // ── Listar por obra ───────────────────────────────────────────────────────
+  // ── Listar OCs ───────────────────────────────────────────────────────────
 
-  @Get('obras/:obraId/ocs')
+  @Get('ocs')
   @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO', 'VISITANTE')
   listar(
     @TenantId() tenantId: number,
-    @Param('obraId', ParseIntPipe) obraId: number,
+    @Query('local_destino_id') localDestinoId?: string,
     @Query('status') status?: string,
     @Query('limit')  limit?: string,
     @Query('offset') offset?: string,
   ) {
-    return this.compras.listar(tenantId, obraId, {
+    return this.compras.listar(tenantId, {
+      localDestinoId: localDestinoId ? Number(localDestinoId) : undefined,
       status,
       limit:  limit  ? Number(limit)  : undefined,
       offset: offset ? Number(offset) : undefined,
@@ -36,17 +37,16 @@ export class ComprasController {
 
   // ── Criar ────────────────────────────────────────────────────────────────
 
-  @Post('obras/:obraId/ocs')
+  @Post('ocs')
   @Roles('ADMIN_TENANT', 'ENGENHEIRO')
   @HttpCode(HttpStatus.CREATED)
   criar(
     @TenantId() tenantId: number,
-    @Param('obraId', ParseIntPipe) obraId: number,
     @Body() dto: CreateOcDto,
     @Req() req: any,
   ) {
     const usuarioId: number = req.user?.sub ?? req.user?.id;
-    return this.compras.criar(tenantId, obraId, usuarioId, dto);
+    return this.compras.criar(tenantId, usuarioId, dto);
   }
 
   // ── Detalhe ───────────────────────────────────────────────────────────────
@@ -86,18 +86,17 @@ export class ComprasController {
 
   // ── Receber ───────────────────────────────────────────────────────────────
 
-  @Post('obras/:obraId/ocs/:id/receber')
+  @Post('ocs/:id/receber')
   @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO')
   @HttpCode(HttpStatus.NO_CONTENT)
   receberItens(
     @TenantId() tenantId: number,
-    @Param('obraId', ParseIntPipe) obraId: number,
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: ReceberOcDto,
     @Req() req: any,
   ) {
     const usuarioId: number = req.user?.sub ?? req.user?.id;
-    return this.compras.receberItens(tenantId, id, usuarioId, obraId, dto);
+    return this.compras.receberItens(tenantId, id, usuarioId, dto);
   }
 
   // ── Cancelar ──────────────────────────────────────────────────────────────

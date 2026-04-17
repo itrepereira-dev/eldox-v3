@@ -26,27 +26,42 @@ export class ComprasService {
 
   async listar(
     tenantId: number,
-    obraId: number,
-    filters: { status?: string; limit?: number; offset?: number } = {},
+    filters: { localDestinoId?: number; status?: string; limit?: number; offset?: number } = {},
   ): Promise<AlmOrdemCompra[]> {
     const limit  = filters.limit  ?? 50;
     const offset = filters.offset ?? 0;
-    const where  = filters.status ? `AND oc.status = '${filters.status}'` : '';
+    const conditions: string[] = [`oc.tenant_id = $1`];
+    const params: unknown[] = [tenantId];
+    let i = 2;
+
+    if (filters.localDestinoId) {
+      conditions.push(`oc.local_destino_id = $${i++}`);
+      params.push(filters.localDestinoId);
+    }
+    if (filters.status) {
+      conditions.push(`oc.status = $${i++}`);
+      params.push(filters.status);
+    }
+
+    const limitIdx = i++;
+    const offsetIdx = i++;
 
     return this.prisma.$queryRawUnsafe<AlmOrdemCompra[]>(
       `SELECT oc.*,
-              f.nome_fantasia          AS fornecedor_nome,
-              u.nome                   AS criado_por_nome,
-              COUNT(i.id)::int         AS total_itens
+              f.nome_fantasia         AS fornecedor_nome,
+              u.nome                  AS criado_por_nome,
+              l.nome                  AS local_destino_nome,
+              COUNT(it.id)::int       AS total_itens
        FROM alm_ordens_compra oc
        JOIN fvm_fornecedores f ON f.id = oc.fornecedor_id
        LEFT JOIN "Usuario" u ON u.id = oc.criado_por
-       LEFT JOIN alm_oc_itens i ON i.oc_id = oc.id
-       WHERE oc.tenant_id = $1 AND oc.obra_id = $2 ${where}
-       GROUP BY oc.id, f.nome_fantasia, u.nome
+       LEFT JOIN alm_locais l ON l.id = oc.local_destino_id
+       LEFT JOIN alm_oc_itens it ON it.oc_id = oc.id
+       WHERE ${conditions.join(' AND ')}
+       GROUP BY oc.id, f.nome_fantasia, u.nome, l.nome
        ORDER BY oc.created_at DESC
-       LIMIT $3 OFFSET $4`,
-      tenantId, obraId, limit, offset,
+       LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+      ...params, limit, offset,
     );
   }
 
@@ -81,7 +96,6 @@ export class ComprasService {
 
   async criar(
     tenantId: number,
-    obraId: number,
     usuarioId: number,
     dto: CreateOcDto,
   ): Promise<AlmOrdemCompra> {
@@ -97,12 +111,12 @@ export class ComprasService {
 
       const rows = await tx.$queryRawUnsafe<AlmOrdemCompra[]>(
         `INSERT INTO alm_ordens_compra
-           (tenant_id, obra_id, solicitacao_id, fornecedor_id,
+           (tenant_id, local_destino_id, solicitacao_id, fornecedor_id,
             status, valor_total, prazo_entrega, condicao_pgto,
             local_entrega, observacoes, criado_por)
          VALUES ($1, $2, $3, $4, 'rascunho', $5, $6, $7, $8, $9, $10)
          RETURNING *`,
-        tenantId, obraId,
+        tenantId, dto.local_destino_id,
         dto.solicitacao_id ?? null,
         dto.fornecedor_id,
         valorTotal || null,
@@ -124,7 +138,7 @@ export class ComprasService {
       }
 
       this.logger.log(JSON.stringify({
-        action: 'alm.oc.criar', tenantId, obraId, ocId: oc.id,
+        action: 'alm.oc.criar', tenantId, localDestinoId: dto.local_destino_id, ocId: oc.id,
       }));
 
       return oc;
@@ -149,7 +163,6 @@ export class ComprasService {
     tenantId: number,
     ocId: number,
     usuarioId: number,
-    obraId: number,
     dto: ReceberOcDto,
   ): Promise<void> {
     const oc = await this._checkOc(tenantId, ocId);
@@ -184,12 +197,12 @@ export class ComprasService {
       );
 
       // Registra entrada no estoque
-      await this.estoque.registrarMovimento(tenantId, obraId, usuarioId, {
+      await this.estoque.registrarMovimento(tenantId, oc.local_destino_id, usuarioId, {
         catalogo_id:    item.catalogo_id,
         tipo:           'entrada',
         quantidade:     qtd,
         unidade:        item.unidade,
-        local_id:       recebimento.local_id,
+        local_id:       recebimento.local_id ?? 0,
         referencia_tipo: 'oc',
         referencia_id:  ocId,
         observacao:     `Recebimento OC ${oc.numero}`,
@@ -235,11 +248,11 @@ export class ComprasService {
   private async _checkOc(
     tenantId: number,
     id: number,
-  ): Promise<{ status: string; numero: string; obra_id: number }> {
+  ): Promise<{ status: string; numero: string; local_destino_id: number }> {
     const rows = await this.prisma.$queryRawUnsafe<{
-      status: string; numero: string; obra_id: number;
+      status: string; numero: string; local_destino_id: number;
     }[]>(
-      `SELECT status, numero, obra_id FROM alm_ordens_compra WHERE id = $1 AND tenant_id = $2`,
+      `SELECT status, numero, local_destino_id FROM alm_ordens_compra WHERE id = $1 AND tenant_id = $2`,
       id, tenantId,
     );
     if (!rows.length) throw new NotFoundException(`OC ${id} não encontrada`);

@@ -8,6 +8,7 @@ export class CreateOcItemDto {
 }
 
 export class CreateOcDto {
+  local_destino_id!: number;    // replaced obra_id
   fornecedor_id!: number;
   solicitacao_id?: number;
   prazo_entrega?: string;   // ISO date string
