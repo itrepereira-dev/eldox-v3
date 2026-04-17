@@ -14,6 +14,11 @@ interface NavItemProps {
   pulse?: boolean
   end?: boolean
   onClick?: () => void
+  /** Quando true, renderiza muted e não navegável. Usado para itens contextuais
+   *  por obra quando nenhuma obra está selecionada. */
+  disabled?: boolean
+  /** Tooltip exibido quando `disabled` — ex.: "Selecione uma obra primeiro". */
+  disabledReason?: string
 }
 
 const badgeBg: Record<BadgeVariant, string> = {
@@ -24,8 +29,42 @@ const badgeBg: Record<BadgeVariant, string> = {
   off:  'bg-[var(--off)]',
 }
 
-export function NavItem({ to, icon, label, badge, accent, pulse, end, onClick }: NavItemProps) {
+export function NavItem({
+  to,
+  icon,
+  label,
+  badge,
+  accent,
+  pulse,
+  end,
+  onClick,
+  disabled,
+  disabledReason,
+}: NavItemProps) {
   const { collapsed } = useAppShell()
+
+  if (disabled) {
+    return (
+      <div
+        aria-disabled="true"
+        title={disabledReason ?? label}
+        className={cn(
+          'group flex items-center gap-2.5 px-4 py-[7px]',
+          'text-[13.5px] font-[450]',
+          'border-l-[3px] border-transparent',
+          'text-[var(--text-faint)] opacity-60 cursor-not-allowed select-none',
+          collapsed && 'justify-center px-0',
+        )}
+      >
+        <span className="flex-shrink-0 w-[18px] h-[18px] flex items-center justify-center">
+          {icon}
+        </span>
+        {!collapsed && (
+          <span className="flex-1 truncate italic">{label}</span>
+        )}
+      </div>
+    )
+  }
 
   return (
     <NavLink
@@ -36,12 +75,14 @@ export function NavItem({ to, icon, label, badge, accent, pulse, end, onClick }:
       className={({ isActive }) =>
         cn(
           'group flex items-center gap-2.5 px-4 py-[7px]',
-          'text-[13.5px] font-[450] transition-all duration-[150ms]',
+          'text-[13.5px] font-[450] transition-all duration-[160ms] ease-out-expo',
           'border-l-[3px] border-transparent',
           'text-[var(--text-low)] hover:bg-[var(--bg-raised)] hover:text-[var(--text-high)]',
           isActive && [
             'bg-[var(--accent-dim)] text-[var(--text-high)]',
             'border-l-[var(--accent)] font-semibold',
+            /* ui-upgrade: inner glow on active */
+            'shadow-[inset_0_1px_0_rgba(59,130,246,0.12),inset_0_-1px_0_rgba(59,130,246,0.06)]',
           ],
           accent && !isActive && 'text-[var(--accent)]',
           collapsed && 'justify-center px-0',
@@ -107,13 +148,61 @@ interface NavItemGroupProps {
   label: string
   items: NavSubItem[]
   onClick?: () => void
+  /** Quando true, o grupo todo fica muted e não-clicável (nenhuma obra ativa). */
+  disabled?: boolean
+  disabledReason?: string
 }
 
-export function NavItemGroup({ icon, label, items, onClick }: NavItemGroupProps) {
+export function NavItemGroup({
+  icon,
+  label,
+  items,
+  onClick,
+  disabled,
+  disabledReason,
+}: NavItemGroupProps) {
   const { collapsed } = useAppShell()
   const location = useLocation()
-  const isAnyActive = items.some(i => location.pathname.startsWith(i.to))
+  // Só considera "ativo" se algum subitem bater numa rota NÃO-fallback
+  // (quando `disabled`, os items estão vazios, evitando falso-positivo em /obras).
+  const isAnyActive = !disabled && items.some(i => location.pathname.startsWith(i.to))
   const [open, setOpen] = useState(isAnyActive)
+
+  if (disabled) {
+    if (collapsed) {
+      return (
+        <div
+          aria-disabled="true"
+          title={disabledReason ?? label}
+          className={cn(
+            'flex items-center justify-center w-full py-2 mx-1 rounded-sm',
+            'text-[var(--text-faint)] opacity-60 cursor-not-allowed select-none',
+          )}
+        >
+          <span className="w-[18px] h-[18px] flex items-center justify-center">
+            {icon}
+          </span>
+        </div>
+      )
+    }
+    return (
+      <div
+        aria-disabled="true"
+        title={disabledReason ?? label}
+        className={cn(
+          'group flex items-center gap-2.5 px-4 py-[7px] w-full',
+          'text-[13.5px] font-[450]',
+          'border-l-[3px] border-transparent',
+          'text-[var(--text-faint)] opacity-60 cursor-not-allowed select-none',
+        )}
+      >
+        <span className="flex-shrink-0 w-[18px] h-[18px] flex items-center justify-center">
+          {icon}
+        </span>
+        <span className="flex-1 truncate text-left italic">{label}</span>
+      </div>
+    )
+  }
 
   if (collapsed) {
     return (
@@ -163,34 +252,37 @@ export function NavItemGroup({ icon, label, items, onClick }: NavItemGroupProps)
         onClick={() => setOpen(v => !v)}
         className={cn(
           'group flex items-center gap-2.5 px-4 py-[7px] w-full',
-          'text-[13.5px] font-[450] transition-all duration-[150ms]',
+          'text-[13.5px] font-[450] transition-all duration-[160ms] ease-out-expo',
           'border-l-[3px] border-transparent',
           'text-[var(--text-low)] hover:bg-[var(--bg-raised)] hover:text-[var(--text-high)]',
           isAnyActive && 'text-[var(--accent)]',
         )}
       >
-        <span className="flex-shrink-0 w-[18px] h-[18px] flex items-center justify-center transition-transform duration-[150ms] group-hover:scale-110">
+        <span className="flex-shrink-0 w-[18px] h-[18px] flex items-center justify-center transition-transform duration-[160ms] ease-spring group-hover:scale-110">
           {icon}
         </span>
         <span className="flex-1 truncate text-left">{label}</span>
         <ChevronDown
           size={13}
-          className={cn('transition-transform duration-[150ms] text-[var(--text-faint)]', open && 'rotate-180')}
+          className={cn('transition-transform duration-[200ms] ease-out-expo text-[var(--text-faint)]', open && 'rotate-180')}
         />
       </button>
 
+      {/* ui-upgrade: stagger animation on submenu items */}
       {open && (
         <div className="flex flex-col gap-px pl-7 pr-2 pb-1">
-          {items.map(item => (
+          {items.map((item, idx) => (
             <NavLink
               key={item.to}
               to={item.to}
               end={item.end}
               onClick={onClick}
+              style={{ animationDelay: `${idx * 40}ms` }}
               className={({ isActive }) => cn(
                 'px-3 py-1.5 rounded-sm text-[12px] font-medium',
                 'text-[var(--text-low)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-high)]',
-                'transition-colors duration-[150ms] border-l-2 border-transparent',
+                'transition-colors duration-[150ms] ease-out-expo border-l-2 border-transparent',
+                'animate-sub-item-in',
                 isActive && 'text-[var(--accent)] border-l-[var(--accent)] bg-[var(--accent-dim)] font-semibold',
               )}
             >
@@ -199,6 +291,7 @@ export function NavItemGroup({ icon, label, items, onClick }: NavItemGroupProps)
           ))}
         </div>
       )}
+      {/* /ui-upgrade */}
     </div>
   )
 }

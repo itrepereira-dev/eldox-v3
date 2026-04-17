@@ -196,16 +196,26 @@ function FvmControleLink({ onClick }: { onClick?: () => void }) {
 /* ── Concretagem Nav helper ──────────────────────────── */
 function ConcretagemNavGroup({ onClick }: { onClick?: () => void }) {
   const obraAtivaId = useResolvedObraId()
-  const base = obraAtivaId ? `/obras/${obraAtivaId}/concretagem` : null
-
+  if (!obraAtivaId) {
+    return (
+      <NavItemGroup
+        icon={<FlaskConical size={18} />}
+        label="Concretagem"
+        items={[]}
+        disabled
+        disabledReason="Selecione uma obra primeiro"
+      />
+    )
+  }
+  const base = `/obras/${obraAtivaId}/concretagem`
   return (
     <NavItemGroup
       icon={<FlaskConical size={18} />}
       label="Concretagem"
       items={[
-        { to: base ?? '/obras',                              label: 'Dashboard', end: true },
-        { to: base ? `${base}/concretagens` : '/obras',     label: 'Concretagens' },
-        { to: base ? `${base}/croqui` : '/obras',           label: 'Croqui' },
+        { to: base,                   label: 'Dashboard', end: true },
+        { to: `${base}/concretagens`, label: 'Concretagens' },
+        { to: `${base}/croqui`,       label: 'Croqui' },
       ]}
       onClick={onClick}
     />
@@ -215,16 +225,26 @@ function ConcretagemNavGroup({ onClick }: { onClick?: () => void }) {
 /* ── Ensaios Nav helper ──────────────────────────────── */
 function EnsaiosNavGroup({ onClick }: { onClick?: () => void }) {
   const obraAtivaId = useResolvedObraId()
-  const base = obraAtivaId ? `/obras/${obraAtivaId}/ensaios` : null
-
+  if (!obraAtivaId) {
+    return (
+      <NavItemGroup
+        icon={<TestTubes size={18} />}
+        label="Ensaios"
+        items={[]}
+        disabled
+        disabledReason="Selecione uma obra primeiro"
+      />
+    )
+  }
+  const base = `/obras/${obraAtivaId}/ensaios`
   return (
     <NavItemGroup
       icon={<TestTubes size={18} />}
       label="Ensaios"
       items={[
-        { to: base ?? '/obras',                                  label: 'Conformidade', end: true },
-        { to: base ? `${base}/laboratoriais` : '/obras',        label: 'Laboratoriais' },
-        { to: base ? `${base}/revisoes` : '/obras',             label: 'Revisões' },
+        { to: base,                   label: 'Conformidade', end: true },
+        { to: `${base}/laboratoriais`, label: 'Laboratoriais' },
+        { to: `${base}/revisoes`,     label: 'Revisões' },
       ]}
       onClick={onClick}
     />
@@ -234,11 +254,20 @@ function EnsaiosNavGroup({ onClick }: { onClick?: () => void }) {
 /* ── Planos de Ação Nav helper ───────────────────────────── */
 function PlanosAcaoLink({ onClick }: { onClick?: () => void }) {
   const obraAtivaId = useResolvedObraId()
-  const to = obraAtivaId ? `/obras/${obraAtivaId}/fvs/planos-acao` : '/obras'
-
+  if (!obraAtivaId) {
+    return (
+      <NavItem
+        to="#"
+        icon={<ListChecks size={18} />}
+        label="Planos de Ação"
+        disabled
+        disabledReason="Selecione uma obra primeiro"
+      />
+    )
+  }
   return (
     <NavItem
-      to={to}
+      to={`/obras/${obraAtivaId}/fvs/planos-acao`}
       icon={<ListChecks size={18} />}
       label="Planos de Ação"
       onClick={onClick}
@@ -249,20 +278,30 @@ function PlanosAcaoLink({ onClick }: { onClick?: () => void }) {
 /* ── Almoxarifado Nav helper ─────────────────────────── */
 function AlmoxarifadoNavGroup({ onClick }: { onClick?: () => void }) {
   const obraAtivaId = useResolvedObraId()
-  const base = obraAtivaId ? `/obras/${obraAtivaId}/almoxarifado` : null
-
+  if (!obraAtivaId) {
+    return (
+      <NavItemGroup
+        icon={<Warehouse size={18} />}
+        label="Almoxarifado"
+        items={[]}
+        disabled
+        disabledReason="Selecione uma obra primeiro"
+      />
+    )
+  }
+  const base = `/obras/${obraAtivaId}/almoxarifado`
   return (
     <NavItemGroup
       icon={<Warehouse size={18} />}
       label="Almoxarifado"
       items={[
-        { to: base ?? '/obras',                                  label: 'Dashboard', end: true },
-        { to: base ? `${base}/estoque` : '/obras',              label: 'Estoque' },
-        { to: base ? `${base}/solicitacoes` : '/obras',         label: 'Solicitações' },
-        { to: base ? `${base}/ocs` : '/obras',                  label: 'Compras (OC)' },
-        { to: base ? `${base}/nfes` : '/obras',                 label: 'NF-e' },
-        { to: base ? `${base}/planejamento` : '/obras',         label: 'Planejamento' },
-        { to: base ? `${base}/insights` : '/obras',             label: 'Insights IA' },
+        { to: base,                   label: 'Dashboard', end: true },
+        { to: `${base}/estoque`,      label: 'Estoque' },
+        { to: `${base}/solicitacoes`, label: 'Solicitações' },
+        { to: `${base}/ocs`,          label: 'Compras (OC)' },
+        { to: `${base}/nfes`,         label: 'NF-e' },
+        { to: `${base}/planejamento`, label: 'Planejamento' },
+        { to: `${base}/insights`,     label: 'Insights IA' },
       ]}
       onClick={onClick}
     />
@@ -272,11 +311,20 @@ function AlmoxarifadoNavGroup({ onClick }: { onClick?: () => void }) {
 /* ── Efetivo Nav helper ──────────────────────────────── */
 function EfetivoNavLink({ onClick }: { onClick?: () => void }) {
   const obraAtivaId = useResolvedObraId()
-  const to = obraAtivaId ? `/obras/${obraAtivaId}/efetivo` : '/obras'
-
+  if (!obraAtivaId) {
+    return (
+      <NavItem
+        to="#"
+        icon={<Users size={18} />}
+        label="Efetivo"
+        disabled
+        disabledReason="Selecione uma obra primeiro"
+      />
+    )
+  }
   return (
     <NavItem
-      to={to}
+      to={`/obras/${obraAtivaId}/efetivo`}
       icon={<Users size={18} />}
       label="Efetivo"
       onClick={onClick}
