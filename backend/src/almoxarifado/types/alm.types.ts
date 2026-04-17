@@ -392,3 +392,23 @@ export interface AlmAprovacao {
   created_at: Date;
   aprovador_nome?: string | null;
 }
+
+// ── IA Sugestões ──────────────────────────────────────────────────────────────
+
+export type AlmSugestaoStatus = 'pendente' | 'aplicado' | 'ignorado';
+export type AlmSugestaoTipo   = 'reorder' | 'anomalia';
+
+export interface AlmSugestaoIa {
+  id:            number;
+  tenant_id:     number;
+  tipo:          AlmSugestaoTipo;
+  catalogo_id:   number;
+  catalogo_nome: string;
+  local_id:      number;
+  unidade:       string;
+  dados_json:    AlmReorderPrediction | AlmAnomaliaDetectada;
+  status:        AlmSugestaoStatus;
+  solicitacao_id?: number;
+  criado_em:     Date;
+  atualizado_em: Date;
+}
