@@ -149,6 +149,49 @@ export class RdoFotosService {
     );
   }
 
+  // ─── Atualizar legenda da foto ────────────────────────────────────────────
+
+  async atualizarLegenda(
+    tenantId: number,
+    rdoId: number,
+    fotoId: number,
+    legenda: string,
+  ): Promise<FotoRow> {
+    // Valida que a foto existe e pertence ao tenant/RDO
+    const rows = await this.prisma.$queryRawUnsafe<FotoRow[]>(
+      `SELECT * FROM rdo_fotos WHERE id = $1 AND rdo_id = $2 AND tenant_id = $3`,
+      fotoId,
+      rdoId,
+      tenantId,
+    );
+    if (!rows.length) {
+      throw new NotFoundException(`Foto ${fotoId} não encontrada`);
+    }
+
+    // RDO aprovado não permite editar legenda (imutabilidade)
+    const rdoRows = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT status FROM rdos WHERE id = $1 AND tenant_id = $2`,
+      rdoId,
+      tenantId,
+    );
+    if (rdoRows[0]?.status === 'aprovado') {
+      throw new ForbiddenException(
+        'Não é possível editar legendas de um RDO aprovado',
+      );
+    }
+
+    // Limite VARCHAR(300) no schema
+    const legendaNormalizada = (legenda ?? '').slice(0, 300);
+
+    const updated = await this.prisma.$queryRawUnsafe<FotoRow[]>(
+      `UPDATE rdo_fotos SET legenda = $1 WHERE id = $2 AND tenant_id = $3 RETURNING *`,
+      legendaNormalizada,
+      fotoId,
+      tenantId,
+    );
+    return updated[0];
+  }
+
   // ─── Excluir foto ─────────────────────────────────────────────────────────
 
   async excluir(tenantId: number, rdoId: number, fotoId: number, usuarioId: number): Promise<void> {

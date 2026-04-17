@@ -383,6 +383,26 @@ export class RdoController {
     return this.rdoFotosService.excluir(tenantId, id, fotoId, user.id);
   }
 
+  /**
+   * PATCH /api/v1/diario/rdos/:id/fotos/:fotoId
+   * Atualiza a legenda da foto (QW6 — caption editável).
+   */
+  @Patch('rdos/:id/fotos/:fotoId')
+  @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO')
+  async atualizarLegendaFoto(
+    @TenantId() tenantId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Param('fotoId', ParseIntPipe) fotoId: number,
+    @Body() body: { legenda: string },
+  ) {
+    return this.rdoFotosService.atualizarLegenda(
+      tenantId,
+      id,
+      fotoId,
+      body.legenda ?? '',
+    );
+  }
+
   // ─── Grupo 7: Sprint B1 — Exportação XLS ─────────────────────────────────
 
   /**
