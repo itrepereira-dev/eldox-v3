@@ -413,26 +413,50 @@ export function RdosListPage() {
         </button>
       </div>
 
-      {/* ── Status chips ── */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
+      {/* ── QW7: KPI cards ── */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+        gap: 12, marginBottom: 20,
+      }}>
+        {/* Total */}
+        <div style={{
+          padding: '14px 16px',
+          background: 'var(--bg-surface)',
+          border: '1px solid var(--border-dim)',
+          borderTop: `3px solid var(--accent)`,
+          borderRadius: 'var(--r-md)',
+          display: 'flex', flexDirection: 'column', gap: 4,
+        }}>
+          <span style={{ fontSize: 10, color: 'var(--text-faint)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.8px' }}>
+            Total
+          </span>
+          <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-high)', fontFamily: 'var(--font-mono)' }}>
+            {total}
+          </span>
+          <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>RDOs registrados</span>
+        </div>
+        {/* Por status */}
         {(Object.keys(STATUS_META) as RdoStatus[]).map(s => {
           const meta = STATUS_META[s];
           const count = statusCounts[s] ?? 0;
           return (
             <div key={s} style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: '6px 14px', borderRadius: 99,
-              background: meta.bg, border: `1px solid ${meta.border}`,
+              padding: '14px 16px',
+              background: 'var(--bg-surface)',
+              border: '1px solid var(--border-dim)',
+              borderTop: `3px solid ${meta.color}`,
+              borderRadius: 'var(--r-md)',
+              display: 'flex', flexDirection: 'column', gap: 4,
             }}>
-              <span style={{ fontSize: 12, color: meta.color, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.4px' }}>
+              <span style={{ fontSize: 10, color: 'var(--text-faint)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.8px' }}>
                 {meta.label}
               </span>
-              <span style={{
-                fontSize: 12, fontWeight: 700, color: '#fff',
-                background: meta.color, borderRadius: 99,
-                padding: '1px 7px', minWidth: 22, textAlign: 'center',
-              }}>
+              <span style={{ fontSize: 22, fontWeight: 700, color: meta.color, fontFamily: 'var(--font-mono)' }}>
                 {count}
+              </span>
+              <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>
+                {total > 0 ? `${Math.round((count / total) * 100)}% do total` : '—'}
               </span>
             </div>
           );
