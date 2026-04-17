@@ -1,8 +1,11 @@
 // backend/src/almoxarifado/estoque/estoque.controller.ts
 import {
   Controller, Get, Post, Patch, Body, Param, Query,
-  ParseIntPipe, UseGuards, HttpCode, HttpStatus, Req,
+  ParseIntPipe, UseGuards, HttpCode, HttpStatus, Req, Res,
+  UseInterceptors, UploadedFile, BadRequestException,
 } from '@nestjs/common';
+import type { Response } from 'express';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../../common/guards/jwt.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -120,5 +123,39 @@ export class EstoqueController {
     @Query('local_id') localId?: string,
   ) {
     return this.estoque.getDashboardKpis(tenantId, localId ? Number(localId) : undefined);
+  }
+
+  // ── Importação via planilha ───────────────────────────────────────────────
+
+  @Get('estoque/importar/template')
+  @Roles('ADMIN_TENANT', 'ENGENHEIRO')
+  baixarTemplate(@Res() res: Response) {
+    const buffer = this.estoque.gerarTemplate();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="modelo-importacao-estoque.xlsx"');
+    res.send(buffer);
+  }
+
+  @Post('estoque/importar')
+  @Roles('ADMIN_TENANT', 'ENGENHEIRO')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FileInterceptor('file', {
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+  }))
+  async importarPlanilha(
+    @TenantId() tenantId: number,
+    @Req() req: any,
+    @UploadedFile() file: Express.Multer.File,
+    @Body('local_id') localIdStr: string,
+  ) {
+    if (!file) throw new BadRequestException('Arquivo não enviado');
+    const ext = file.originalname.split('.').pop()?.toLowerCase();
+    if (ext !== 'xlsx') throw new BadRequestException('Apenas arquivos .xlsx são aceitos');
+
+    const localId = Number(localIdStr);
+    if (!localId || isNaN(localId)) throw new BadRequestException('local_id inválido');
+
+    const usuarioId: number = req.user?.sub ?? req.user?.id;
+    return this.estoque.importarPlanilha(tenantId, localId, usuarioId, file.buffer);
   }
 }

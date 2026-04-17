@@ -5,8 +5,17 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import * as XLSX from 'xlsx';
 import type { AlmEstoqueSaldo, AlmMovimento, AlmAlertaEstoque } from '../types/alm.types';
 import type { CreateMovimentoDto } from './dto/create-movimento.dto';
+
+export interface ImportacaoResultado {
+  processadas: number;
+  erros: Array<{ linha: number; motivo: string }>;
+  avisos: Array<{ linha: number; motivo: string }>;
+}
+
+const UNIDADES_VALIDAS = ['un', 'kg', 'm', 'm²', 'm³', 'L', 'cx', 'sc', 'gl', 'pc'];
 
 @Injectable()
 export class EstoqueService {
@@ -297,6 +306,233 @@ export class EstoqueService {
       valor_oc_aberto:              ocAberto[0]?.total     ?? 0,
       conformidade_recebimento_pct: conformidade[0]?.pct   ?? 100,
     };
+  }
+
+  // ── Importação via planilha ───────────────────────────────────────────────
+
+  gerarTemplate(): Buffer {
+    const wb = XLSX.utils.book_new();
+
+    // ── Aba Importação ────────────────────────────────────────────────────
+    const headers = [
+      'Código', 'Nome do Material', 'Categoria',
+      'Unidade', 'Quantidade', 'Estoque Mínimo', 'Observação',
+    ];
+    const exemplo = [
+      'PAR-001', 'Parafuso 1/2" x 3/4"', 'Fixação',
+      'un', 100, 20, 'Estoque inicial',
+    ];
+    const wsImport = XLSX.utils.aoa_to_sheet([headers, exemplo]);
+
+    // Larguras de coluna
+    wsImport['!cols'] = [
+      { wch: 12 }, { wch: 35 }, { wch: 20 },
+      { wch: 10 }, { wch: 14 }, { wch: 16 }, { wch: 30 },
+    ];
+
+    // ── Aba Instruções ────────────────────────────────────────────────────
+    const instrucoes = [
+      ['Campo', 'Obrigatório', 'Descrição'],
+      ['Código', 'Não', 'Código interno do material. Se preenchido, usado para localizar item existente no catálogo; se vazio, busca por Nome.'],
+      ['Nome do Material', 'SIM', 'Nome completo do material. Obrigatório.'],
+      ['Categoria', 'Não', 'Nome da categoria. Se não existir, será criada automaticamente.'],
+      ['Unidade', 'SIM', 'Unidade de medida. Valores aceitos: un, kg, m, m², m³, L, cx, sc, gl, pc'],
+      ['Quantidade', 'SIM', 'Quantidade a adicionar ao saldo. Número ≥ 0.'],
+      ['Estoque Mínimo', 'Não', 'Ponto de reposição. Número ≥ 0. Se vazio, mantém valor atual (ou 0 para item novo).'],
+      ['Observação', 'Não', 'Texto livre registrado no movimento gerado.'],
+      [],
+      ['Regras de conflito:'],
+      ['• Se o material já existir no catálogo (por código ou nome): atualiza nome e unidade, SOMA a quantidade ao saldo existente.'],
+      ['• Linhas com erro são puladas — as demais são processadas normalmente.'],
+      ['• O local de destino é escolhido na tela antes do upload — não é um campo da planilha.'],
+    ];
+    const wsInstr = XLSX.utils.aoa_to_sheet(instrucoes);
+    wsInstr['!cols'] = [{ wch: 20 }, { wch: 14 }, { wch: 80 }];
+
+    XLSX.utils.book_append_sheet(wb, wsImport, 'Importação');
+    XLSX.utils.book_append_sheet(wb, wsInstr, 'Instruções');
+
+    return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+  }
+
+  async importarPlanilha(
+    tenantId: number,
+    localId: number,
+    usuarioId: number,
+    fileBuffer: Buffer,
+  ): Promise<ImportacaoResultado> {
+    // 1. Validar que o local pertence ao tenant
+    const locais = await this.prisma.$queryRawUnsafe<{ id: number }[]>(
+      `SELECT id FROM alm_locais WHERE id = $1 AND tenant_id = $2 AND ativo = true`,
+      localId, tenantId,
+    );
+    if (locais.length === 0) {
+      throw new BadRequestException('Local não encontrado ou inativo');
+    }
+
+    // 2. Parsear planilha
+    const wb = XLSX.read(fileBuffer, { type: 'buffer' });
+    const ws = wb.Sheets['Importação'];
+    if (!ws) throw new BadRequestException('Aba "Importação" não encontrada no arquivo');
+
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' });
+
+    const resultado: ImportacaoResultado = { processadas: 0, erros: [], avisos: [] };
+
+    for (let i = 0; i < rows.length; i++) {
+      const linha = i + 2; // linha 1 = header, dados começam na 2
+      const row = rows[i];
+
+      const codigo     = String(row['Código'] ?? '').trim() || null;
+      const nome       = String(row['Nome do Material'] ?? '').trim();
+      const categoria  = String(row['Categoria'] ?? '').trim() || null;
+      const unidade    = String(row['Unidade'] ?? '').trim();
+      const qtdRaw     = row['Quantidade'];
+      const minRaw     = row['Estoque Mínimo'];
+      const obs        = String(row['Observação'] ?? '').trim() || null;
+
+      // Validações obrigatórias
+      if (!nome) {
+        resultado.erros.push({ linha, motivo: 'Nome do Material é obrigatório' });
+        continue;
+      }
+      if (!unidade || !UNIDADES_VALIDAS.includes(unidade)) {
+        resultado.erros.push({ linha, motivo: `Unidade inválida: "${unidade}". Use: ${UNIDADES_VALIDAS.join(', ')}` });
+        continue;
+      }
+      const quantidade = Number(qtdRaw);
+      if (isNaN(quantidade) || quantidade < 0) {
+        resultado.erros.push({ linha, motivo: `Quantidade inválida: "${qtdRaw}"` });
+        continue;
+      }
+      const estoqueMin = minRaw !== '' && minRaw !== null ? Number(minRaw) : null;
+      if (estoqueMin !== null && (isNaN(estoqueMin) || estoqueMin < 0)) {
+        resultado.erros.push({ linha, motivo: `Estoque Mínimo inválido: "${minRaw}"` });
+        continue;
+      }
+
+      try {
+        // 3. Resolver categoria (se informada)
+        let categoriaId: number | null = null;
+        if (categoria) {
+          const catRows = await this.prisma.$queryRawUnsafe<{ id: number }[]>(
+            `SELECT id FROM fvm_categorias_materiais WHERE tenant_id = $1 AND LOWER(nome) = LOWER($2)`,
+            tenantId, categoria,
+          );
+          if (catRows.length > 0) {
+            categoriaId = catRows[0].id;
+          } else {
+            const newCat = await this.prisma.$queryRawUnsafe<{ id: number }[]>(
+              `INSERT INTO fvm_categorias_materiais (tenant_id, nome, ativo, created_at, updated_at)
+               VALUES ($1, $2, true, NOW(), NOW()) RETURNING id`,
+              tenantId, categoria,
+            );
+            categoriaId = newCat[0].id;
+            resultado.avisos.push({ linha, motivo: `Categoria "${categoria}" criada automaticamente` });
+          }
+        }
+
+        // 4. Localizar ou criar item no catálogo
+        let catalogoId: number;
+        let saldoAtual = 0;
+
+        const byCodigo = codigo
+          ? await this.prisma.$queryRawUnsafe<{ id: number }[]>(
+              `SELECT id FROM fvm_catalogo_materiais WHERE tenant_id = $1 AND codigo = $2 AND deleted_at IS NULL`,
+              tenantId, codigo,
+            )
+          : [];
+
+        const byNome = byCodigo.length === 0
+          ? await this.prisma.$queryRawUnsafe<{ id: number }[]>(
+              `SELECT id FROM fvm_catalogo_materiais WHERE tenant_id = $1 AND LOWER(nome) = LOWER($2) AND deleted_at IS NULL`,
+              tenantId, nome,
+            )
+          : [];
+
+        const existing = byCodigo[0] ?? byNome[0] ?? null;
+
+        if (existing) {
+          catalogoId = existing.id;
+          // Atualizar campos do catálogo
+          await this.prisma.$executeRawUnsafe(
+            `UPDATE fvm_catalogo_materiais
+             SET nome = $1, unidade = $2,
+                 codigo = COALESCE($3, codigo),
+                 categoria_id = COALESCE($4::int, categoria_id),
+                 updated_at = NOW()
+             WHERE id = $5`,
+            nome, unidade, codigo, categoriaId, catalogoId,
+          );
+        } else {
+          // Criar novo item no catálogo
+          const newItem = await this.prisma.$queryRawUnsafe<{ id: number }[]>(
+            `INSERT INTO fvm_catalogo_materiais
+               (tenant_id, nome, codigo, unidade, categoria_id,
+                foto_modo, exige_certificado, exige_nota_fiscal, exige_laudo_ensaio,
+                prazo_quarentena_dias, ordem, ativo, created_at, updated_at)
+             VALUES ($1,$2,$3,$4,$5,'nenhuma',false,true,false,0,0,true,NOW(),NOW())
+             RETURNING id`,
+            tenantId, nome, codigo, unidade, categoriaId,
+          );
+          catalogoId = newItem[0].id;
+        }
+
+        // 5. Buscar saldo atual para calcular saldo_anterior
+        const saldoRows = await this.prisma.$queryRawUnsafe<{ quantidade: number }[]>(
+          `SELECT quantidade FROM alm_estoque_saldo WHERE tenant_id=$1 AND local_id=$2 AND catalogo_id=$3`,
+          tenantId, localId, catalogoId,
+        );
+        saldoAtual = saldoRows.length > 0 ? Number(saldoRows[0].quantidade) : 0;
+
+        const saldoPosterior = saldoAtual + quantidade;
+        const novoMin = estoqueMin !== null ? estoqueMin : (saldoRows.length > 0 ? undefined : 0);
+
+        // 6. Upsert saldo
+        if (novoMin !== undefined) {
+          await this.prisma.$executeRawUnsafe(
+            `INSERT INTO alm_estoque_saldo (tenant_id, local_id, catalogo_id, quantidade, estoque_min, unidade, updated_at)
+             VALUES ($1,$2,$3,$4,$5,$6,NOW())
+             ON CONFLICT (tenant_id, local_id, catalogo_id)
+             DO UPDATE SET quantidade = $4, estoque_min = $5, unidade = $6, updated_at = NOW()`,
+            tenantId, localId, catalogoId, saldoPosterior, novoMin, unidade,
+          );
+        } else {
+          await this.prisma.$executeRawUnsafe(
+            `INSERT INTO alm_estoque_saldo (tenant_id, local_id, catalogo_id, quantidade, estoque_min, unidade, updated_at)
+             VALUES ($1,$2,$3,$4,0,$5,NOW())
+             ON CONFLICT (tenant_id, local_id, catalogo_id)
+             DO UPDATE SET quantidade = alm_estoque_saldo.quantidade + $4, unidade = $5, updated_at = NOW()`,
+            tenantId, localId, catalogoId, quantidade, unidade,
+          );
+        }
+
+        // 7. Registrar movimento
+        await this.prisma.$executeRawUnsafe(
+          `INSERT INTO alm_movimentos
+             (tenant_id, catalogo_id, local_id, tipo, quantidade, unidade,
+              saldo_anterior, saldo_posterior, referencia_tipo, observacao, criado_por, created_at)
+           VALUES ($1,$2,$3,'entrada',$4,$5,$6,$7,'manual',$8,$9,NOW())`,
+          tenantId, catalogoId, localId, quantidade, unidade,
+          saldoAtual, saldoPosterior,
+          obs ?? 'Importação via planilha',
+          usuarioId,
+        );
+
+        resultado.processadas++;
+      } catch (err: any) {
+        resultado.erros.push({ linha, motivo: err?.message ?? 'Erro interno' });
+      }
+    }
+
+    this.logger.log(JSON.stringify({
+      action: 'alm.estoque.importar',
+      tenantId, localId, usuarioId,
+      processadas: resultado.processadas,
+      erros: resultado.erros.length,
+    }));
+
+    return resultado;
   }
 
   // ── Helpers privados ──────────────────────────────────────────────────────

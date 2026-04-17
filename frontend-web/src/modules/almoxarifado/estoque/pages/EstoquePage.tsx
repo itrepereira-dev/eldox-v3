@@ -1,12 +1,13 @@
 // frontend-web/src/modules/almoxarifado/estoque/pages/EstoquePage.tsx
 import { useState, useRef } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { AlertOctagon, AlertTriangle, CheckCircle, Plus, X, Search } from 'lucide-react'
+import { AlertOctagon, AlertTriangle, CheckCircle, Plus, Upload, X, Search } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { api } from '@/services/api'
 import { useToast } from '@/components/ui'
 import { useSaldoEstoque, useLocaisEstoque, useRegistrarMovimento } from '../hooks/useEstoque'
 import type { AlmEstoqueSaldo, AlmMovimentoTipo } from '../../_service/almoxarifado.service'
+import { ImportarPlanilhaModal } from '../components/ImportarPlanilhaModal'
 
 // ── Movimento Manual Modal ────────────────────────────────────────────────────
 
@@ -326,6 +327,7 @@ export function EstoquePage() {
   const [busca, setBusca]               = useState('')
   const [movimentoOpen, setMovimentoOpen] = useState(false)
   const [saldoParaMovimentar, setSaldoParaMovimentar] = useState<AlmEstoqueSaldo | undefined>(undefined)
+  const [importarOpen, setImportarOpen] = useState(false)
 
   const { data: saldos = [], isLoading } = useSaldoEstoque(id, {
     nivel: nivelFiltro || undefined,
@@ -368,6 +370,16 @@ export function EstoquePage() {
             )}
           >
             Transferência
+          </button>
+          <button
+            onClick={() => setImportarOpen(true)}
+            className={cn(
+              'flex items-center gap-1.5 px-3 h-9 rounded-sm text-[13px] font-medium',
+              'border border-[var(--border-dim)] text-[var(--text-low)] bg-[var(--bg-raised)]',
+              'hover:text-[var(--text-high)] hover:border-[var(--border)] transition-colors',
+            )}
+          >
+            <Upload size={13} /> Importar Planilha
           </button>
           <button
             onClick={() => { setSaldoParaMovimentar(undefined); setMovimentoOpen(true); }}
@@ -497,6 +509,13 @@ export function EstoquePage() {
         <MovimentoManualModal
           saldoPreselecionado={saldoParaMovimentar}
           onClose={() => { setMovimentoOpen(false); setSaldoParaMovimentar(undefined); }}
+        />
+      )}
+
+      {importarOpen && (
+        <ImportarPlanilhaModal
+          onClose={() => setImportarOpen(false)}
+          onSuccess={() => setImportarOpen(false)}
         />
       )}
     </div>

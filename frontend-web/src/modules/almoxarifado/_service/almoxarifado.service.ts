@@ -368,6 +368,12 @@ export interface AlmSugestaoIa {
   atualizado_em: string;
 }
 
+export interface ImportacaoResultado {
+  processadas: number;
+  erros: Array<{ linha: number; motivo: string }>;
+  avisos: Array<{ linha: number; motivo: string }>;
+}
+
 // ─── Payloads ─────────────────────────────────────────────────────────────────
 
 export interface CreateOcItemPayload {
@@ -649,6 +655,30 @@ export const almoxarifadoService = {
 
   reanalisarInsights: (): Promise<{ enqueued: boolean }> =>
     api.post(`${BASE}/insights/reanalisar`).then((r: any) => r.data?.data ?? r.data),
+
+  // Importação de estoque via planilha
+  downloadTemplateEstoque: async (): Promise<void> => {
+    const response = await (api as any).get(
+      `${BASE}/estoque/importar/template`,
+      { responseType: 'blob' },
+    );
+    const blob = new Blob([response.data]);
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'modelo-importacao-estoque.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  },
+
+  importarEstoque: (localId: number, file: File): Promise<ImportacaoResultado> => {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('local_id', String(localId));
+    return api.postForm(`${BASE}/estoque/importar`, form).then((r: any) => r.data?.data ?? r.data);
+  },
 
   // ── Cotações (Sprint A) ────────────────────────────────────────────────────
 
