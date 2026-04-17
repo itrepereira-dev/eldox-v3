@@ -159,7 +159,7 @@ Retorne JSON no formato:
       );
       return anomalias.map((a) => ({
         ...a,
-        obra_id: obraId,
+        local_id: obraId,
         nivel:
           a.fator_desvio >= FATOR_ANOMALIA_CRITICO
             ? ('critico' as const)
@@ -209,7 +209,7 @@ Retorne JSON no formato:
         consumo_recente_7d: a.consumo_recente_7d,
         consumo_medio_30d: a.consumo_medio_30d,
         fator_desvio: a.fator_desvio,
-        obra_id: obraId,
+        local_id: obraId,
         nivel: (ia?.nivel ??
           (a.fator_desvio >= FATOR_ANOMALIA_CRITICO
             ? 'critico'

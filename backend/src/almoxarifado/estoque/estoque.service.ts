@@ -7,7 +7,11 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import type { AlmEstoqueSaldo, AlmMovimento, AlmAlertaEstoque, AlmEstoqueLocal } from '../types/alm.types';
+import type { AlmEstoqueSaldo, AlmMovimento, AlmAlertaEstoque } from '../types/alm.types';
+// Type helper: tabela `alm_estoque_locais` foi removida no sprint Almoxarifado
+// ERP, mas os métodos getLocais/createLocal continuam referenciados por código
+// legado. Mantidos com tipo genérico até serem reescritos para alm_locais.
+type AlmEstoqueLocal = AlmEstoqueSaldo;
 import type { CreateMovimentoDto } from './dto/create-movimento.dto';
 import type { TransferenciaDto } from './dto/transferencia.dto';
 

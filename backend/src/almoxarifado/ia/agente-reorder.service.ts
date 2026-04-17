@@ -168,7 +168,7 @@ Retorne JSON no formato:
       // Fallback sem IA: usa regras simples
       return candidatos.map((c) => ({
         ...c,
-        obra_id: obraId,
+        local_id: obraId,
         nivel:
           c.dias_restantes < DIAS_ALERTA_CRITICO
             ? ('critico' as const)
@@ -217,7 +217,7 @@ Retorne JSON no formato:
         quantidade_atual: c.quantidade_atual,
         consumo_medio_diario: c.consumo_medio_diario,
         dias_restantes: c.dias_restantes,
-        obra_id: obraId,
+        local_id: obraId,
         nivel: (ia?.nivel ??
           (c.dias_restantes < DIAS_ALERTA_CRITICO ? 'critico' : 'atencao')) as
           | 'critico'
