@@ -402,6 +402,28 @@ export default function FvsDashboardPage() {
           </div>
         </div>
       )}
+
+      {/* ── Shortcut: Relatório de Uso por Serviço (R6) ──────────────────────── */}
+      {numObraId && (
+        <div className="p-4 rounded-xl border border-[var(--border-dim)] bg-[var(--bg-raised)] flex flex-col gap-2">
+          <p className="text-sm font-medium text-[var(--text-main)]">Relatório de Uso</p>
+          <p className="text-xs text-[var(--text-faint)]">
+            Fichas por serviço e por inspetor — exportável em Excel
+          </p>
+          <div>
+            <RelatorioBotao
+              tipo="R6_USO"
+              filtros={{
+                obraId: numObraId,
+                dataInicio: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                dataFim: new Date().toISOString().split('T')[0],
+              }}
+              formatos={['excel']}
+              label="Gerar Relatório de Uso"
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
