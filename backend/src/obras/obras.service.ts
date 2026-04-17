@@ -284,6 +284,16 @@ export class ObrasService {
       },
     });
 
+    // Auto-create stock location for this obra
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO alm_locais (tenant_id, tipo, nome, obra_id, ativo, created_at, updated_at)
+       VALUES ($1, 'OBRA', $2, $3, true, NOW(), NOW())
+       ON CONFLICT (tenant_id, nome) DO NOTHING`,
+      obra.tenantId,
+      `Depósito — ${obra.nome}`,
+      obra.id,
+    );
+
     return { obra, proximaEtapa: 'hierarquia' };
   }
 
