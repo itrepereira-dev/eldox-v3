@@ -541,6 +541,20 @@ interface MaoObraLocal {
 let maoObraKey = 0;
 function mkMaoObraKey() { return ++maoObraKey; }
 
+// QW2 — calcula horas trabalhadas como entrada − saída (string "HH:mm")
+// Retorna string "HH:mm" ou null se faltar algum valor.
+function calcHoras(entrada: string, saida: string): string | null {
+  if (!entrada || !saida) return null;
+  const [eh, em] = entrada.split(':').map(Number);
+  const [sh, sm] = saida.split(':').map(Number);
+  if (Number.isNaN(eh) || Number.isNaN(em) || Number.isNaN(sh) || Number.isNaN(sm)) return null;
+  const diffMin = (sh * 60 + sm) - (eh * 60 + em);
+  if (diffMin <= 0) return null;
+  const h = Math.floor(diffMin / 60);
+  const m = diffMin % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
 function maoObraFromApi(data: RdoMaoObra[]): MaoObraLocal[] {
   return data.map(item => ({
     _key: mkMaoObraKey(),
@@ -614,13 +628,14 @@ function MaoObraSection({
               <th style={{ ...thStyle, width: 140 }}>Tipo</th>
               <th style={{ ...thStyle, width: 100 }}>Entrada</th>
               <th style={{ ...thStyle, width: 100 }}>Saída</th>
+              <th style={{ ...thStyle, width: 80 }}>Horas</th>
               <th style={{ ...thStyle, width: 44 }}></th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td colSpan={6} style={{ ...tdStyle, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13, padding: '20px 10px' }}>
+                <td colSpan={7} style={{ ...tdStyle, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13, padding: '20px 10px' }}>
                   Nenhum registro. Adicione abaixo.
                 </td>
               </tr>
@@ -675,6 +690,15 @@ function MaoObraSection({
                     onChange={e => update(row._key, { hora_saida: e.target.value })}
                     style={inputStyle}
                   />
+                </td>
+                {/* QW2: auto-cálculo de horas trabalhadas (entrada − saída) */}
+                <td style={{ ...tdStyle, fontVariantNumeric: 'tabular-nums' }}>
+                  <span style={{
+                    fontSize: 13, fontFamily: 'var(--font-mono)',
+                    color: calcHoras(row.hora_entrada, row.hora_saida) ? 'var(--text-high)' : 'var(--text-faint)',
+                  }}>
+                    {calcHoras(row.hora_entrada, row.hora_saida) ?? '—'}
+                  </span>
                 </td>
                 <td style={tdStyle}>
                   {!readonly && (
@@ -789,14 +813,43 @@ function EquipamentosSection({
                   />
                 </td>
                 <td style={tdStyle}>
-                  <input
-                    type="number"
-                    min={1}
-                    value={row.quantidade}
-                    disabled={readonly}
-                    onChange={e => update(row._key, { quantidade: e.target.value })}
-                    style={inputStyle}
-                  />
+                  {/* QW5: stepper +/- ao lado do input de quantidade */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <button
+                      type="button"
+                      disabled={readonly || (Number(row.quantidade) || 0) <= 1}
+                      onClick={() => update(row._key, { quantidade: String(Math.max(1, (Number(row.quantidade) || 1) - 1)) })}
+                      title="Diminuir"
+                      style={{
+                        width: 26, height: 26, borderRadius: 'var(--r-sm)',
+                        border: '1px solid var(--border-dim)', background: 'var(--bg-raised)',
+                        color: 'var(--text-high)', cursor: readonly ? 'not-allowed' : 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        opacity: readonly ? .5 : 1, fontSize: 14, lineHeight: 1,
+                      }}
+                    >−</button>
+                    <input
+                      type="number"
+                      min={1}
+                      value={row.quantidade}
+                      disabled={readonly}
+                      onChange={e => update(row._key, { quantidade: e.target.value })}
+                      style={{ ...inputStyle, textAlign: 'center', padding: '6px 4px' }}
+                    />
+                    <button
+                      type="button"
+                      disabled={readonly}
+                      onClick={() => update(row._key, { quantidade: String((Number(row.quantidade) || 0) + 1) })}
+                      title="Aumentar"
+                      style={{
+                        width: 26, height: 26, borderRadius: 'var(--r-sm)',
+                        border: '1px solid var(--border-dim)', background: 'var(--bg-raised)',
+                        color: 'var(--text-high)', cursor: readonly ? 'not-allowed' : 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        opacity: readonly ? .5 : 1, fontSize: 14, lineHeight: 1,
+                      }}
+                    >+</button>
+                  </div>
                 </td>
                 <td style={tdStyle}>
                   {!readonly && (
@@ -1712,6 +1765,17 @@ function FotosSection({
     onError: () => onMsg('Erro ao remover foto', 'err'),
   })
 
+  // QW6 — editar legenda inline por foto
+  const mutLegenda = useMutation({
+    mutationFn: ({ fotoId, legenda }: { fotoId: number; legenda: string }) =>
+      api.patch(`/diario/rdos/${rdoId}/fotos/${fotoId}`, { legenda }).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['rdo-fotos', rdoId] })
+      onMsg('Legenda atualizada', 'ok')
+    },
+    onError: () => onMsg('Erro ao atualizar legenda', 'err'),
+  })
+
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -1821,10 +1885,48 @@ function FotosSection({
                 />
               </div>
               <div style={{ padding: '8px 10px' }}>
-                {foto.legenda && (
-                  <p style={{ margin: '0 0 2px', fontSize: 12, fontWeight: 500, color: 'var(--text-high)' }}>
-                    {foto.legenda}
-                  </p>
+                {/* QW6 — legenda editável inline (blur salva) */}
+                {readonly ? (
+                  foto.legenda ? (
+                    <p style={{ margin: '0 0 2px', fontSize: 12, fontWeight: 500, color: 'var(--text-high)' }}>
+                      {foto.legenda}
+                    </p>
+                  ) : (
+                    <p style={{ margin: '0 0 2px', fontSize: 12, color: 'var(--text-faint)', fontStyle: 'italic' }}>
+                      sem legenda
+                    </p>
+                  )
+                ) : (
+                  <input
+                    defaultValue={foto.legenda ?? ''}
+                    placeholder="+ Adicionar legenda"
+                    maxLength={300}
+                    onBlur={(e) => {
+                      const v = e.currentTarget.value.trim()
+                      if (v !== (foto.legenda ?? '')) {
+                        mutLegenda.mutate({ fotoId: foto.id, legenda: v })
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur()
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '3px 6px',
+                      marginBottom: 2,
+                      fontSize: 12,
+                      fontWeight: 500,
+                      color: 'var(--text-high)',
+                      background: 'transparent',
+                      border: '1px solid transparent',
+                      borderRadius: 4,
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                    }}
+                    onFocus={(e) => { (e.currentTarget as HTMLInputElement).style.borderColor = 'var(--border-dim)'; (e.currentTarget as HTMLInputElement).style.background = 'var(--bg-surface)'; }}
+                    onMouseEnter={(e) => { if (document.activeElement !== e.currentTarget) (e.currentTarget as HTMLInputElement).style.background = 'var(--bg-hover)'; }}
+                    onMouseLeave={(e) => { if (document.activeElement !== e.currentTarget) (e.currentTarget as HTMLInputElement).style.background = 'transparent'; }}
+                  />
                 )}
                 <p style={{ margin: 0, fontSize: 11, color: 'var(--text-low)' }}>
                   {formatBytes(foto.tamanho_bytes)}
@@ -2158,7 +2260,7 @@ export function RdoFormPage() {
               />
             </AccordionSection>
 
-            {/* Seção 5 — Ocorrências */}
+            {/* Seção 5 — Ocorrências (eventos relevantes do dia) */}
             <AccordionSection
               title="Ocorrências"
               badge={rdo.ocorrencias.length}
@@ -2173,9 +2275,9 @@ export function RdoFormPage() {
               />
             </AccordionSection>
 
-            {/* Seção 6 — Checklist */}
+            {/* Seção 6 — Comentários / Checklist (observações livres + itens recorrentes) */}
             <AccordionSection
-              title="Checklist"
+              title="Comentários & Checklist"
               badge={rdo.checklist.length}
               open={open.checklist}
               onToggle={() => toggleSection('checklist')}
