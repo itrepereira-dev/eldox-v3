@@ -14,22 +14,45 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Refresh automático em 401
+// ── Refresh automático em 401 ────────────────────────────────────────────────
+type QueueEntry = { resolve: (token: string) => void; reject: (err: unknown) => void };
 let isRefreshing = false;
-let queue: Array<(token: string) => void> = [];
+let queue: QueueEntry[] = [];
+
+function flushQueue(err: unknown | null, token: string | null) {
+  queue.forEach(({ resolve, reject }) => {
+    if (err) reject(err);
+    else if (token) resolve(token);
+  });
+  queue = [];
+}
+
+function isAuthEndpoint(url: string | undefined): boolean {
+  if (!url) return false;
+  return /\/auth\/(login|refresh|logout|register)/.test(url);
+}
 
 api.interceptors.response.use(
   (res) => res,
   async (err) => {
     const original = err.config;
 
+    // Requests de auth não passam pelo ciclo de refresh (evita loop infinito)
+    if (isAuthEndpoint(original?.url) || !original) {
+      return Promise.reject(err);
+    }
+
     if (err.response?.status === 401 && !original._retry) {
+      // Se refresh já está em andamento, enfileira
       if (isRefreshing) {
-        // Enfileira requests que chegaram durante o refresh
-        return new Promise((resolve) => {
-          queue.push((token) => {
-            original.headers.Authorization = `Bearer ${token}`;
-            resolve(api(original));
+        return new Promise((resolve, reject) => {
+          queue.push({
+            resolve: (token) => {
+              original.headers = original.headers ?? {};
+              original.headers.Authorization = `Bearer ${token}`;
+              resolve(api(original));
+            },
+            reject,
           });
         });
       }
@@ -38,32 +61,36 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const { data } = await axios.post(
+        const { data } = await axios.post<{ token?: string; data?: { token?: string } }>(
           `${API_BASE}/auth/refresh`,
           {},
           { withCredentials: true },
         );
+        // Aceita ambos os formatos: { token } e { data: { token } }
+        const newToken = data?.token ?? data?.data?.token;
+        if (!newToken) throw new Error('Refresh não retornou token válido');
 
-        const newToken = data.token;
         localStorage.setItem('eldox_token', newToken);
 
-        // Atualiza store sem importar diretamente (evita circular)
         const { useAuthStore } = await import('../store/auth.store');
         useAuthStore.getState().setToken(newToken);
 
-        // Esvazia a fila com o novo token
-        queue.forEach((cb) => cb(newToken));
-        queue = [];
-
+        flushQueue(null, newToken);
+        original.headers = original.headers ?? {};
         original.headers.Authorization = `Bearer ${newToken}`;
         return api(original);
-      } catch {
-        // Refresh falhou — logout e redireciona
-        queue = [];
+      } catch (refreshErr) {
+        // Rejeita todos os requests enfileirados
+        flushQueue(refreshErr, null);
         localStorage.removeItem('eldox_token');
+
         const { useAuthStore } = await import('../store/auth.store');
         useAuthStore.getState().logout();
-        window.location.href = '/login';
+
+        // Redireciona só se não estiver já em /login
+        if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
         return Promise.reject(err);
       } finally {
         isRefreshing = false;

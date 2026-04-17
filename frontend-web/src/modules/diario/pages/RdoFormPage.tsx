@@ -1863,10 +1863,17 @@ function FotosSection({
 
       {/* Ações de exportação */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', borderTop: '1px solid var(--border)', paddingTop: 12 }}>
-        <a
-          href={`/api/v1/diario/rdos/${rdoId}/exportar-xls`}
-          target="_blank"
-          rel="noreferrer"
+        <button
+          type="button"
+          onClick={async () => {
+            const resp = await api.get(`/diario/rdos/${rdoId}/exportar-xls`, { responseType: 'blob' });
+            const url = URL.createObjectURL(resp.data as Blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `rdo-${rdoId}.xlsx`;
+            a.click();
+            URL.revokeObjectURL(url);
+          }}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -1877,15 +1884,22 @@ function FotosSection({
             background: 'var(--bg-raised)',
             color: 'var(--text-high)',
             fontSize: 12,
-            textDecoration: 'none',
+            cursor: 'pointer',
           }}
         >
           ↓ Exportar XLS
-        </a>
-        <a
-          href={`/api/v1/diario/rdos/${rdoId}/pdf?fotos=true`}
-          target="_blank"
-          rel="noreferrer"
+        </button>
+        <button
+          type="button"
+          onClick={async () => {
+            const resp = await api.get(`/diario/rdos/${rdoId}/pdf?fotos=true`, { responseType: 'blob' });
+            const url = URL.createObjectURL(resp.data as Blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `rdo-${rdoId}.pdf`;
+            a.click();
+            URL.revokeObjectURL(url);
+          }}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -1896,11 +1910,11 @@ function FotosSection({
             background: 'var(--bg-raised)',
             color: 'var(--text-high)',
             fontSize: 12,
-            textDecoration: 'none',
+            cursor: 'pointer',
           }}
         >
           ↓ PDF com fotos
-        </a>
+        </button>
       </div>
     </div>
   )

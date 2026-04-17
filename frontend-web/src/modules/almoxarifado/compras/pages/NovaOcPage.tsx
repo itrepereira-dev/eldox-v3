@@ -51,7 +51,7 @@ export function NovaOcPage() {
       setFornBuscando(true)
       try {
         const data = await api.get<FornecedorItem[]>(
-          `api/v1/fvm/fornecedores?busca=${encodeURIComponent(v)}&limit=8`,
+          `/fvm/fornecedores?busca=${encodeURIComponent(v)}&limit=8`,
         )
         setFornResults(Array.isArray(data) ? data : [])
       } catch { setFornResults([]) }
@@ -75,7 +75,7 @@ export function NovaOcPage() {
       setMatBusca(true)
       try {
         const data = await api.get<CatalogoItem[]>(
-          `api/v1/fvm/catalogo?busca=${encodeURIComponent(v)}&limit=10`,
+          `/fvm/catalogo?busca=${encodeURIComponent(v)}&limit=10`,
         )
         setMatResults(Array.isArray(data) ? data : [])
       } catch { setMatResults([]) }

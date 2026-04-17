@@ -50,7 +50,7 @@ export function NovaSolicitacaoPage() {
       setBuscando(true)
       try {
         const data = await api.get<CatalogoItem[]>(
-          `api/v1/fvm/catalogo?busca=${encodeURIComponent(v)}&limit=10`,
+          `/fvm/catalogo?busca=${encodeURIComponent(v)}&limit=10`,
         )
         setResultados(Array.isArray(data) ? data : [])
       } catch {
