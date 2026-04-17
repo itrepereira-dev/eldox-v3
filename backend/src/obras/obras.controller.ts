@@ -217,6 +217,16 @@ export class ObrasController {
     return this.obrasService.removeLocal(tenantId, obraId, localId);
   }
 
+  @Post('obras/:id/locais/:localId/duplicar')
+  @Roles('ADMIN_TENANT' as any, 'ENGENHEIRO' as any)
+  duplicarLocal(
+    @TenantId() tenantId: number,
+    @Param('id', ParseIntPipe) obraId: number,
+    @Param('localId', ParseIntPipe) localId: number,
+  ) {
+    return this.obrasService.duplicarLocal(tenantId, obraId, localId);
+  }
+
   // ─────────────────────────────────────────
   // OBRA QUALITY CONFIG
   // ─────────────────────────────────────────

@@ -538,6 +538,76 @@ export class ObrasService {
     return updated;
   }
 
+  async duplicarLocal(tenantId: number, obraId: number, localId: number) {
+    const original = await this.prisma.obraLocal.findFirst({
+      where: { id: localId, obraId, tenantId, deletadoEm: null },
+    });
+    if (!original) throw new NotFoundException('Local não encontrado');
+
+    // Find max ordem among siblings
+    const irmao = await this.prisma.obraLocal.findFirst({
+      where: {
+        obraId,
+        tenantId,
+        parentId: original.parentId ?? null,
+        deletadoEm: null,
+      },
+      orderBy: { ordem: 'desc' },
+    });
+    const novaOrdem = (irmao?.ordem ?? 0) + 1;
+
+    // Generate new codigo — take first 24 chars of original and append timestamp suffix
+    const novoCodigo = `${original.codigo.slice(0, 24)}-cp${Date.now().toString().slice(-4)}`;
+
+    const copia = await this.prisma.obraLocal.create({
+      data: {
+        tenantId,
+        obraId,
+        parentId: original.parentId ?? null,
+        nivel: original.nivel,
+        nome: `${original.nome} (cópia)`,
+        codigo: novoCodigo,
+        nomeCompleto: `${original.nomeCompleto} (cópia)`,
+        status: 'PENDENTE',
+        ordem: novaOrdem,
+      },
+    });
+
+    // Recursively duplicate children
+    await this.duplicarFilhos(tenantId, obraId, localId, copia.id);
+
+    return copia;
+  }
+
+  private async duplicarFilhos(
+    tenantId: number,
+    obraId: number,
+    parentOriginalId: number,
+    parentNovoId: number,
+  ) {
+    const filhos = await this.prisma.obraLocal.findMany({
+      where: { parentId: parentOriginalId, obraId, tenantId, deletadoEm: null },
+      orderBy: { ordem: 'asc' },
+    });
+    for (const filho of filhos) {
+      const codigoFilho = `${filho.codigo.slice(0, 24)}-cp${Date.now().toString().slice(-4)}`;
+      const copiaFilho = await this.prisma.obraLocal.create({
+        data: {
+          tenantId,
+          obraId,
+          parentId: parentNovoId,
+          nivel: filho.nivel,
+          nome: filho.nome,
+          codigo: codigoFilho,
+          nomeCompleto: filho.nomeCompleto,
+          status: 'PENDENTE',
+          ordem: filho.ordem,
+        },
+      });
+      await this.duplicarFilhos(tenantId, obraId, filho.id, copiaFilho.id);
+    }
+  }
+
   async gerarMassa(tenantId: number, obraId: number, dto: GerarMassaDto) {
     const obra = await this.findOne(tenantId, obraId);
 
