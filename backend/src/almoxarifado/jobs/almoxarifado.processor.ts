@@ -1,24 +1,53 @@
 // backend/src/almoxarifado/jobs/almoxarifado.processor.ts
 import { Processor, Process } from '@nestjs/bull';
-import { Logger } from '@nestjs/common';
-import type { Job } from 'bull';
+import { Logger, OnModuleInit } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bull';
+import type { Job, Queue } from 'bull';
 import { NfeService } from '../nfe/nfe.service';
 import { NfeMatchService } from '../nfe/nfe-match.service';
 import { AgenteReorderService } from '../ia/agente-reorder.service';
 import { AgenteAnomaliaService } from '../ia/agente-anomalia.service';
 import { EstoqueService } from '../estoque/estoque.service';
+import { InsightsService } from '../ia/insights.service';
 
 @Processor('almoxarifado')
-export class AlmoxarifadoProcessor {
+export class AlmoxarifadoProcessor implements OnModuleInit {
   private readonly logger = new Logger(AlmoxarifadoProcessor.name);
 
   constructor(
-    private readonly nfeService:     NfeService,
+    private readonly nfeService:      NfeService,
     private readonly nfeMatchService: NfeMatchService,
     private readonly reorderService:  AgenteReorderService,
     private readonly anomaliaService: AgenteAnomaliaService,
     private readonly estoqueService:  EstoqueService,
+    private readonly insightsService: InsightsService,
+    @InjectQueue('almoxarifado') private readonly queue: Queue,
   ) {}
+
+  async onModuleInit(): Promise<void> {
+    // Remove jobs repetíveis antigos para evitar duplicatas
+    const repeatableJobs = await this.queue.getRepeatableJobs();
+    for (const job of repeatableJobs) {
+      if (job.name === 'gerar-insights') {
+        await this.queue.removeRepeatableByKey(job.key);
+      }
+    }
+
+    // Registra cron: a cada 6 horas (0 */6 * * *)
+    await this.queue.add(
+      'gerar-insights',
+      {},
+      {
+        repeat: { cron: '0 */6 * * *' },
+        timeout: 300_000,  // 5 min max
+        attempts: 2,
+        removeOnComplete: true,
+        removeOnFail: false,
+      },
+    );
+
+    this.logger.log('Job cron "gerar-insights" registrado (0 */6 * * *)');
+  }
 
   @Process()
   async process(job: Job<any>): Promise<any> {
@@ -52,6 +81,10 @@ export class AlmoxarifadoProcessor {
 
         case 'detectar-anomalias':
           result = await this.handleDetectarAnomalias(job.data);
+          break;
+
+        case 'gerar-insights':
+          result = await this.handleGerarInsights(job.data);
           break;
 
         case 'gerar-pdf-oc':
@@ -109,22 +142,22 @@ export class AlmoxarifadoProcessor {
     }));
   }
 
-  private async handlePrevisaoReposicao(data: { tenantId: number; obraId: number }) {
-    const predictions = await this.reorderService.executar(data.tenantId, data.obraId);
+  private async handlePrevisaoReposicao(data: { tenantId: number; localId: number }) {
+    const predictions = await this.reorderService.executar(data.tenantId, data.localId);
     this.logger.log(JSON.stringify({
       action:   'alm.reorder.done',
       tenantId: data.tenantId,
-      obraId:   data.obraId,
+      localId:  data.localId,
       itens:    predictions.length,
     }));
   }
 
-  private async handleDetectarAnomalias(data: { tenantId: number; obraId: number }) {
-    const anomalias = await this.anomaliaService.executar(data.tenantId, data.obraId);
+  private async handleDetectarAnomalias(data: { tenantId: number; localId: number }) {
+    const anomalias = await this.anomaliaService.executar(data.tenantId, data.localId);
     this.logger.log(JSON.stringify({
       action:   'alm.anomalia.done',
       tenantId: data.tenantId,
-      obraId:   data.obraId,
+      localId:  data.localId,
       itens:    anomalias.length,
     }));
   }
@@ -137,5 +170,15 @@ export class AlmoxarifadoProcessor {
   private async handleNotificarFornecedor(data: any) {
     // TODO — EmailService.notificarFornecedor(data.ocId)
     this.logger.log(`[notificar-fornecedor] ocId=${data.ocId} — pendente`);
+  }
+
+  private async handleGerarInsights(data: { tenantId?: number }) {
+    if (data.tenantId) {
+      // Acionado via reanalisar (tenant específico)
+      await this.insightsService.executarParaTenant(data.tenantId);
+    } else {
+      // Acionado via cron (todos os tenants)
+      await this.insightsService.executarParaTodos();
+    }
   }
 }
