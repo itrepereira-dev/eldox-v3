@@ -63,7 +63,12 @@ export class WhatsappController {
     @Query('hub.challenge') challenge: string,
   ): string {
     if (mode === 'subscribe' && verifyToken === this.VERIFY_TOKEN) {
-      this.logger.log(JSON.stringify({ level: 'info', action: 'whatsapp.webhook.verificado' }));
+      this.logger.log(
+        JSON.stringify({
+          level: 'info',
+          action: 'whatsapp.webhook.verificado',
+        }),
+      );
       return challenge;
     }
     throw new UnauthorizedException('Token de verificação inválido');
@@ -81,14 +86,30 @@ export class WhatsappController {
     @Req() req: RawBodyRequest<Request>,
     @Body() body: WhatsappWebhookBodyDto,
   ) {
-    if (this.APP_SECRET) {
+    if (!this.APP_SECRET) {
+      if (process.env.NODE_ENV === 'production') {
+        this.logger.error(
+          JSON.stringify({
+            level: 'error',
+            action: 'whatsapp.hmac.missing_secret_in_prod',
+          }),
+        );
+        throw new UnauthorizedException('Webhook HMAC secret não configurado');
+      }
+      this.logger.warn(
+        JSON.stringify({
+          level: 'warn',
+          action: 'whatsapp.hmac.skip_dev_mode',
+        }),
+      );
+    } else {
       const rawBody: Buffer = req.rawBody ?? Buffer.from(JSON.stringify(body));
-      const hmac = 'sha256=' + createHmac('sha256', this.APP_SECRET).update(rawBody).digest('hex');
+      const hmac =
+        'sha256=' +
+        createHmac('sha256', this.APP_SECRET).update(rawBody).digest('hex');
       if (signature !== hmac) {
         throw new UnauthorizedException('Assinatura HMAC inválida');
       }
-    } else {
-      this.logger.warn(JSON.stringify({ level: 'warn', action: 'whatsapp.hmac.skip_dev_mode' }));
     }
 
     return this.whatsappService.processarWebhook(body);

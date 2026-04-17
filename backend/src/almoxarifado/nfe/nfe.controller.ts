@@ -1,7 +1,18 @@
 // backend/src/almoxarifado/nfe/nfe.controller.ts
 import {
-  Controller, Get, Post, Patch, Body, Param, Query, Headers,
-  ParseIntPipe, UseGuards, HttpCode, HttpStatus, Req,
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Body,
+  Param,
+  Query,
+  Headers,
+  ParseIntPipe,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+  Req,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -36,7 +47,12 @@ export class NfeController {
     // TODO: Quando o Qive fornecer documentação, ajustar para o método de auth deles
     //       (ex: HMAC-SHA256 no header X-Qive-Signature, ou outro mecanismo)
     const secret = this.config.get<string>('WEBHOOK_NFE_SECRET');
-    if (secret) {
+    if (!secret) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new UnauthorizedException('Webhook secret não configurado');
+      }
+      // dev/staging: permite, mas loga
+    } else {
       const token = authHeader?.replace('Bearer ', '').trim();
       if (token !== secret) {
         throw new UnauthorizedException('Webhook secret inválido');
@@ -55,13 +71,13 @@ export class NfeController {
     @TenantId() tenantId: number,
     @Param('obraId', ParseIntPipe) obraId: number,
     @Query('status') status?: string,
-    @Query('limit')  limit?: string,
+    @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ) {
     return this.nfe.listar(tenantId, {
       obraId,
       status,
-      limit:  limit  ? Number(limit)  : undefined,
+      limit: limit ? Number(limit) : undefined,
       offset: offset ? Number(offset) : undefined,
     });
   }
@@ -72,12 +88,12 @@ export class NfeController {
   listarGlobal(
     @TenantId() tenantId: number,
     @Query('status') status?: string,
-    @Query('limit')  limit?: string,
+    @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ) {
     return this.nfe.listar(tenantId, {
       status,
-      limit:  limit  ? Number(limit)  : undefined,
+      limit: limit ? Number(limit) : undefined,
       offset: offset ? Number(offset) : undefined,
     });
   }
@@ -87,10 +103,7 @@ export class NfeController {
   @Get('nfes/:id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO', 'VISITANTE')
-  buscar(
-    @TenantId() tenantId: number,
-    @Param('id', ParseIntPipe) id: number,
-  ) {
+  buscar(@TenantId() tenantId: number, @Param('id', ParseIntPipe) id: number) {
     return this.nfe.buscarOuFalhar(tenantId, id);
   }
 

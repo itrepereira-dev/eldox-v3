@@ -1,4 +1,15 @@
-import { Controller, Post, Body, Get, UseGuards, HttpCode, Req, Res, UnauthorizedException } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  UseGuards,
+  HttpCode,
+  Req,
+  Res,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { RegisterTenantDto } from './dto/register.dto';
@@ -19,7 +30,14 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
-  async register(@Body() dto: RegisterTenantDto, @Res({ passthrough: true }) res: Response) {
+  @Throttle({
+    short: { limit: 3, ttl: 60_000 },
+    long: { limit: 20, ttl: 3_600_000 },
+  })
+  async register(
+    @Body() dto: RegisterTenantDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const result = await this.authService.register(dto);
     res.cookie('refresh_token', result.refreshToken, COOKIE_OPTS);
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -29,7 +47,14 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(200)
-  async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
+  @Throttle({
+    short: { limit: 5, ttl: 60_000 },
+    long: { limit: 30, ttl: 900_000 },
+  })
+  async login(
+    @Body() dto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const result = await this.authService.login(dto);
     res.cookie('refresh_token', result.refreshToken, COOKIE_OPTS);
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -39,7 +64,14 @@ export class AuthController {
 
   @Post('refresh')
   @HttpCode(200)
-  async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+  @Throttle({
+    short: { limit: 10, ttl: 60_000 },
+    long: { limit: 60, ttl: 900_000 },
+  })
+  async refresh(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const token = req.cookies?.refresh_token;
     if (!token) throw new UnauthorizedException('Refresh token ausente');
     const result = await this.authService.refresh(token);
