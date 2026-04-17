@@ -32,8 +32,9 @@ import { NfeController } from './nfe/nfe.controller';
 import { AgenteReorderService } from './ia/agente-reorder.service';
 import { AgenteAnomaliaService } from './ia/agente-anomalia.service';
 import { AgenteCatalogoService } from './ia/agente-catalogo.service';
-import { IaController } from './ia/ia.controller';
 import { VariantesController } from './ia/variantes.controller';
+import { InsightsService } from './ia/insights.service';
+import { InsightsController } from './ia/insights.controller';
 
 // SINAPI
 import { SinapiService } from './sinapi/sinapi.service';
@@ -98,7 +99,7 @@ import { AlmoxarifadoProcessor } from './jobs/almoxarifado.processor';
     SolicitacaoController,
     ComprasController,
     NfeController,
-    IaController,
+    InsightsController,
     PlanejamentoController,
     VariantesController,
     SinapiController,
@@ -119,6 +120,7 @@ import { AlmoxarifadoProcessor } from './jobs/almoxarifado.processor';
     AgenteReorderService,
     AgenteAnomaliaService,
     AgenteCatalogoService,
+    InsightsService,
     SinapiService,
     CotacoesService,
     PlanejamentoService,
