@@ -16,9 +16,8 @@ export class CreateMovimentoDto {
   @IsString()
   unidade: string;
 
-  @IsInt()
-  @IsOptional()
-  local_id?: number;
+  @IsNumber()
+  local_id!: number;
 
   @IsString()
   @IsOptional()
