@@ -875,6 +875,8 @@ function LocalRow({
   podeDescer,
   onSubir,
   onDescer,
+  podeDuplicar,
+  onDuplicar,
 }: {
   local: ObraLocal;
   isLast: boolean;
@@ -888,6 +890,8 @@ function LocalRow({
   podeDescer: boolean;
   onSubir: () => void;
   onDescer: () => void;
+  podeDuplicar?: boolean;
+  onDuplicar?: () => void;
 }) {
   const [editando, setEditando] = useState(false);
   const [nomeEdit, setNomeEdit] = useState(local.nome);
@@ -1002,6 +1006,29 @@ function LocalRow({
           onMouseLeave={(e) => (e.currentTarget.style.opacity = temDatas ? '1' : '0.5')}
         >
           📅
+        </button>
+
+        {/* Bloquear/desbloquear */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onAlterarStatus(local.status === 'bloqueado' ? 'PENDENTE' : 'bloqueado');
+          }}
+          title={local.status === 'bloqueado' ? 'Desbloquear' : 'Bloquear inspeções neste local'}
+          style={{
+            background: local.status === 'bloqueado' ? 'var(--nc-bg)' : 'transparent',
+            border: local.status === 'bloqueado' ? '1px solid var(--nc-border)' : 'none',
+            color: local.status === 'bloqueado' ? 'var(--nc-text)' : 'var(--text-40)',
+            cursor: 'pointer', fontSize: '13px', padding: '2px 5px',
+            borderRadius: 'var(--radius-sm)',
+            opacity: local.status === 'bloqueado' ? 1 : 0.5,
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.opacity = local.status === 'bloqueado' ? '1' : '0.5';
+          }}
+        >
+          {local.status === 'bloqueado' ? '🔒' : '🔓'}
         </button>
 
         {local.totalFilhos > 0 && (
