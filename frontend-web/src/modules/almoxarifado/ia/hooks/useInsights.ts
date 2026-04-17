@@ -1,13 +1,39 @@
 // frontend-web/src/modules/almoxarifado/ia/hooks/useInsights.ts
-import { useQuery } from '@tanstack/react-query'
-import { almoxarifadoService } from '../../_service/almoxarifado.service'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { almoxarifadoService } from '../../_service/almoxarifado.service';
 
-export function useInsights(obraId: number) {
+export function useInsights() {
   return useQuery({
-    queryKey:    ['alm-insights', obraId],
-    queryFn:     () => almoxarifadoService.getInsights(obraId),
-    enabled:     obraId > 0,
-    staleTime:   5 * 60 * 1000,  // 5 min — análise IA é cara, não re-fetch a cada render
-    gcTime:      10 * 60 * 1000,
-  })
+    queryKey:  ['alm-insights'],
+    queryFn:   () => almoxarifadoService.getInsights(),
+    staleTime: 5 * 60_000,
+    gcTime:    10 * 60_000,
+  });
+}
+
+export function useAplicarSugestao() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => almoxarifadoService.aplicarSugestao(id),
+    onSuccess:  () => {
+      qc.invalidateQueries({ queryKey: ['alm-insights'] });
+      qc.invalidateQueries({ queryKey: ['alm-solicitacoes'] });
+    },
+  });
+}
+
+export function useIgnorarSugestao() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => almoxarifadoService.ignorarSugestao(id),
+    onSuccess:  () => qc.invalidateQueries({ queryKey: ['alm-insights'] }),
+  });
+}
+
+export function useReanalisarInsights() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => almoxarifadoService.reanalisarInsights(),
+    onSuccess:  () => qc.invalidateQueries({ queryKey: ['alm-insights'] }),
+  });
 }
