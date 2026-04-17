@@ -1,7 +1,9 @@
 // frontend-web/src/modules/fvs/inspecao/pages/FichasListPage.tsx
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useFichas, useDeleteFicha } from '../hooks/useFichas';
+import { fvsService } from '../../../../services/fvs.service';
 import type { FichaFvs } from '../../../../services/fvs.service';
 import { cn } from '@/lib/cn';
 import { Plus } from 'lucide-react';
@@ -27,6 +29,20 @@ export function FichasListPage() {
   const { data, isLoading } = useFichas(undefined, page);
   const deleteFicha = useDeleteFicha();
 
+  // KPI: fetch all fichas (high limit) to compute status counts across all pages
+  // TODO: replace with a dedicated /fvs/fichas/kpis count endpoint to avoid large payload
+  const { data: kpiData, isLoading: kpiLoading } = useQuery({
+    queryKey: ['fvs-fichas-kpi'],
+    queryFn: () => fvsService.getFichas({ limit: 9999 }),
+    staleTime: 60_000,
+  });
+
+  const todasFichas: FichaFvs[] = kpiData?.data ?? [];
+  const kpiReady = !kpiLoading && kpiData !== undefined;
+  const kpiPendentes  = kpiReady ? todasFichas.filter(f => f.status === 'rascunho' || f.status === 'em_inspecao' || f.status === 'aguardando_parecer').length : null;
+  const kpiAprovadas  = kpiReady ? todasFichas.filter(f => f.status === 'aprovada').length : null;
+  const kpiConcluidas = kpiReady ? todasFichas.filter(f => f.status === 'concluida').length : null;
+
   const fichas: FichaFvs[] = data?.data ?? [];
   const total = data?.total ?? 0;
   const totalPages = Math.ceil(total / 20);
@@ -45,6 +61,26 @@ export function FichasListPage() {
 
   return (
     <div className="p-6">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+        <div className="rounded-md bg-[var(--bg-surface)] border border-[var(--border)] p-3">
+          <p className="text-[11px] text-[var(--text-faint)] mb-1">Pendentes</p>
+          <p className="text-xl font-semibold text-[var(--warn)]">{kpiPendentes ?? '—'}</p>
+        </div>
+        <div className="rounded-md bg-[var(--bg-surface)] border border-[var(--border)] p-3">
+          <p className="text-[11px] text-[var(--text-faint)] mb-1">Aprovadas</p>
+          <p className="text-xl font-semibold text-[var(--ok)]">{kpiAprovadas ?? '—'}</p>
+        </div>
+        <div className="rounded-md bg-[var(--bg-surface)] border border-[var(--border)] p-3">
+          <p className="text-[11px] text-[var(--text-faint)] mb-1">Concluídas</p>
+          <p className="text-xl font-semibold text-[var(--text-high)]">{kpiConcluidas ?? '—'}</p>
+        </div>
+        <div className="rounded-md bg-[var(--bg-surface)] border border-[var(--border)] p-3">
+          <p className="text-[11px] text-[var(--text-faint)] mb-1">NCs Abertas</p>
+          <p className="text-xl font-semibold text-[var(--nc)]">—</p>
+        </div>
+      </div>
+
       {/* Cabeçalho */}
       <div className="flex items-center justify-between mb-5">
         <h1 className="text-xl font-semibold text-[var(--text-high)] m-0">Inspeções</h1>
