@@ -52,7 +52,7 @@ export function KpiCard({
       )}
     >
       <div className="flex items-start justify-between mb-2">
-        <p className="text-xs text-text-faint uppercase tracking-[0.5px] font-mono">
+        <p className="text-xs text-text-faint uppercase tracking-[0.5px]">
           {label}
         </p>
         {icon && (
@@ -60,7 +60,7 @@ export function KpiCard({
         )}
       </div>
 
-      <p className={cn('text-2xl font-bold font-mono', valueColor[variant])}>
+      <p className={cn('text-2xl font-bold', valueColor[variant])}>
         {value}
       </p>
 
@@ -72,7 +72,7 @@ export function KpiCard({
           {trend && (
             <span
               className={cn(
-                'text-xs font-semibold font-mono',
+                'text-xs font-semibold',
                 isPositive ? 'text-ok' : 'text-nc',
               )}
             >

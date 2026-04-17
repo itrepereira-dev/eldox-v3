@@ -1,48 +1,13 @@
 // frontend-web/src/modules/almoxarifado/dashboard/pages/AlmoxarifadoDashboard.tsx
-import { useParams, Link } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import {
   AlertOctagon, Clock, FileText, ShoppingCart, CheckCircle,
   BarChart2, AlertTriangle, TrendingUp,
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
+import { KpiCard, KpiGrid } from '@/components/ui/KpiCard'
 import { useAlmDashboardKpis, useAlertas } from '../../estoque/hooks/useEstoque'
 import type { AlmAlertaEstoque } from '../../_service/almoxarifado.service'
-
-// ── KPI Card ──────────────────────────────────────────────────────────────────
-
-type KpiVariant = 'ok' | 'warn' | 'nc' | 'run' | 'off'
-
-interface KpiCardProps {
-  label: string
-  value: string | number
-  sub?: string
-  variant?: KpiVariant
-  icon?: React.ReactNode
-}
-
-function KpiCard({ label, value, sub, variant = 'off', icon: _icon }: KpiCardProps) {
-  const top: Record<KpiVariant, string> = {
-    ok:   'bg-[var(--ok)]',
-    warn: 'bg-[var(--warn)]',
-    nc:   'bg-[var(--nc)]',
-    run:  'bg-[var(--run)]',
-    off:  'bg-[var(--off)]',
-  }
-  return (
-    <div className="relative bg-[var(--bg-surface)] border border-[var(--border-dim)] rounded-md overflow-hidden">
-      <div className={cn('absolute top-0 left-0 right-0 h-[2px]', top[variant])} />
-      <div className="p-4 pt-5">
-        <p className="text-[10px] font-semibold uppercase tracking-[.06em] text-[var(--text-faint)] font-mono mb-2">
-          {label}
-        </p>
-        <p className="text-[28px] font-bold text-[var(--text-high)] font-mono leading-none">
-          {value}
-        </p>
-        {sub && <p className="text-[11px] text-[var(--text-low)] mt-1">{sub}</p>}
-      </div>
-    </div>
-  )
-}
 
 // ── Alerta Row ────────────────────────────────────────────────────────────────
 
@@ -77,11 +42,8 @@ function AlertaRow({ alerta }: { alerta: AlmAlertaEstoque }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export function AlmoxarifadoDashboard() {
-  const { obraId } = useParams<{ obraId: string }>()
-  const id = Number(obraId)
-
-  const { data: kpis, isLoading: kpisLoading } = useAlmDashboardKpis(id)
-  const { data: alertas = [] } = useAlertas(id)
+  const { data: kpis, isLoading: kpisLoading } = useAlmDashboardKpis()
+  const { data: alertas = [] } = useAlertas()
 
   const alertasCriticos = alertas.filter((a) => a.nivel === 'critico')
   const alertasAtencao  = alertas.filter((a) => a.nivel === 'atencao')
@@ -101,7 +63,7 @@ export function AlmoxarifadoDashboard() {
           <p className="text-[13px] text-[var(--text-low)] mt-0.5">Visão geral · materiais e estoque</p>
         </div>
         <Link
-          to={`/obras/${obraId}/almoxarifado/solicitacoes/nova`}
+          to="/almoxarifado/solicitacoes/nova"
           className={cn(
             'flex items-center gap-1.5 px-3 h-9 rounded-sm',
             'bg-[var(--accent)] text-white text-[13px] font-semibold',
@@ -113,46 +75,40 @@ export function AlmoxarifadoDashboard() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-5 gap-3 mb-6">
-        {kpisLoading ? (
-          Array.from({ length: 5 }).map((_, i) => (
+      {kpisLoading ? (
+        <KpiGrid cols={4} className="mb-6">
+          {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="h-[88px] rounded-md skeleton" />
-          ))
-        ) : (
-          <>
-            <KpiCard
-              label="Estoque Mínimo"
-              value={kpis?.itens_estoque_minimo ?? 0}
-              sub="itens críticos"
-              variant={(kpis?.itens_estoque_minimo ?? 0) > 0 ? 'nc' : 'ok'}
-            />
-            <KpiCard
-              label="Solicitações Pendentes"
-              value={kpis?.solicitacoes_pendentes ?? 0}
-              sub="aguardando aprovação"
-              variant={(kpis?.solicitacoes_pendentes ?? 0) > 0 ? 'warn' : 'ok'}
-            />
-            <KpiCard
-              label="NF-e p/ Match"
-              value={kpis?.nfe_aguardando_match ?? 0}
-              sub="revisão manual IA"
-              variant={(kpis?.nfe_aguardando_match ?? 0) > 0 ? 'nc' : 'ok'}
-            />
-            <KpiCard
-              label="OCs em Aberto"
-              value={fmtCurrency(kpis?.valor_oc_aberto ?? 0)}
-              sub="valor total emitido"
-              variant="run"
-            />
-            <KpiCard
-              label="Conformidade NF-e"
-              value={`${kpis?.conformidade_recebimento_pct ?? 100}%`}
-              sub="últimos 30 dias"
-              variant={(kpis?.conformidade_recebimento_pct ?? 100) >= 90 ? 'ok' : 'warn'}
-            />
-          </>
-        )}
-      </div>
+          ))}
+        </KpiGrid>
+      ) : (
+        <KpiGrid cols={4} className="mb-6">
+          <KpiCard
+            label="Estoque Mínimo"
+            value={kpis?.itens_estoque_minimo ?? 0}
+            sub="itens críticos"
+            variant={(kpis?.itens_estoque_minimo ?? 0) > 0 ? 'nc' : 'ok'}
+          />
+          <KpiCard
+            label="Solicitações Pendentes"
+            value={kpis?.solicitacoes_pendentes ?? 0}
+            sub="aguardando aprovação"
+            variant={(kpis?.solicitacoes_pendentes ?? 0) > 0 ? 'warn' : 'ok'}
+          />
+          <KpiCard
+            label="NF-e p/ Aceite"
+            value={kpis?.nfe_aguardando_match ?? 0}
+            sub="revisão necessária"
+            variant={(kpis?.nfe_aguardando_match ?? 0) > 0 ? 'nc' : 'ok'}
+          />
+          <KpiCard
+            label="OCs em Aberto"
+            value={fmtCurrency(kpis?.valor_oc_aberto ?? 0)}
+            sub="valor total emitido"
+            variant="run"
+          />
+        </KpiGrid>
+      )}
 
       <div className="grid grid-cols-3 gap-4">
         {/* Alertas Críticos */}
@@ -163,7 +119,7 @@ export function AlmoxarifadoDashboard() {
               Alertas Ativos
             </span>
             <Link
-              to={`/obras/${obraId}/almoxarifado/estoque/alertas`}
+              to="/almoxarifado/estoque/alertas"
               className="text-[12px] text-[var(--accent)] hover:underline"
             >
               Ver todos
@@ -186,32 +142,28 @@ export function AlmoxarifadoDashboard() {
         <div className="col-span-2 grid grid-cols-2 gap-3 content-start">
           {[
             {
-              to: `/obras/${obraId}/almoxarifado/estoque`,
+              to: '/almoxarifado/estoque',
               icon: <BarChart2 size={20} />,
               label: 'Estoque',
               sub: 'Saldo e movimentos',
-              variant: 'run',
             },
             {
-              to: `/obras/${obraId}/almoxarifado/solicitacoes`,
+              to: '/almoxarifado/solicitacoes',
               icon: <FileText size={20} />,
               label: 'Solicitações',
               sub: `${kpis?.solicitacoes_pendentes ?? 0} pendentes`,
-              variant: 'warn',
             },
             {
-              to: `/obras/${obraId}/almoxarifado/compras/ocs`,
+              to: '/almoxarifado/ocs',
               icon: <ShoppingCart size={20} />,
               label: 'Ordens de Compra',
               sub: fmtCurrency(kpis?.valor_oc_aberto ?? 0) + ' em aberto',
-              variant: 'ok',
             },
             {
-              to: `/obras/${obraId}/almoxarifado/notas-fiscais`,
+              to: '/almoxarifado/nfes',
               icon: <CheckCircle size={20} />,
               label: 'Notas Fiscais',
-              sub: `${kpis?.nfe_aguardando_match ?? 0} aguardando match`,
-              variant: (kpis?.nfe_aguardando_match ?? 0) > 0 ? 'nc' : 'ok',
+              sub: `${kpis?.nfe_aguardando_match ?? 0} aguardando aceite`,
             },
           ].map((item) => (
             <Link
