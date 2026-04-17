@@ -57,6 +57,8 @@ export async function renderToPdf(
       DocumentComponent = PlanoAcaoPdf as React.ComponentType<{ dados: RelatorioDadosResult }>;
       break;
     }
+    default:
+      throw new Error(`PDF não suportado para tipo ${tipo}`);
   }
 
   const { createElement } = await import('react');

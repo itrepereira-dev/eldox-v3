@@ -769,7 +769,7 @@ export function ObraDetalhePage() {
 
 const STATUS_LOCAL_LABEL: Record<string, string> = {
   PENDENTE: 'Pendente', EM_EXECUCAO: 'Em Execução', CONCLUIDO: 'Concluído',
-  ENTREGUE: 'Entregue', SUSPENSO: 'Suspenso',
+  ENTREGUE: 'Entregue', SUSPENSO: 'Suspenso', bloqueado: 'Bloqueado',
 };
 const STATUS_LOCAL_COLOR: Record<string, string> = {
   PENDENTE:    'var(--text-40)',
@@ -777,6 +777,7 @@ const STATUS_LOCAL_COLOR: Record<string, string> = {
   CONCLUIDO:   'var(--accent)',
   ENTREGUE:    'var(--run)',
   SUSPENSO:    'var(--warn)',
+  bloqueado:   'var(--nc)',
 };
 
 
