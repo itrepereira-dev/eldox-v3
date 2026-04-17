@@ -147,10 +147,12 @@ jobs:
             # Reinicia com zero downtime
             docker compose -f infra/docker-compose.prod.yml up -d --remove-orphans
 
-            # Aguarda backend ficar saudável (healthcheck HTTP)
+            # Aguarda backend ficar saudável (healthcheck HTTP) — falha se não ficar em 60s
+            healthy=0
             for i in 1 2 3 4 5 6 7 8 9 10; do
               if curl -fsS http://127.0.0.1/api/v1/health > /dev/null 2>&1; then
                 echo "backend healthy após ${i} tentativa(s)"
+                healthy=1
                 break
               fi
               echo "aguardando backend ficar healthy (tentativa ${i}/10)"
@@ -158,5 +160,11 @@ jobs:
             done
 
             docker compose -f infra/docker-compose.prod.yml ps
+
+            if [ "$healthy" -ne 1 ]; then
+              echo "::error::Backend não ficou healthy em 60s. Dumping logs:"
+              docker logs --tail 200 eldox_v3_backend || true
+              exit 1
+            fi
 
             echo "Deploy concluído ✓ (sha-${{ steps.sha.outputs.sha }})"

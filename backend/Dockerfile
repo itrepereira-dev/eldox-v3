@@ -15,9 +15,9 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-# postgresql-client: necessário para aplicar os scripts RLS via psql no entrypoint.
 # wget: usado pelo healthcheck do docker-compose.prod.yml.
-RUN apk add --no-cache postgresql-client wget
+# psql não é necessário — o entrypoint usa `prisma db execute` para aplicar RLS.
+RUN apk add --no-cache wget
 
 # Copia node_modules completo do builder (necessário para prisma.config.ts + TypeScript runtime)
 COPY --from=builder /app/node_modules ./node_modules
