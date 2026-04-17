@@ -66,10 +66,10 @@ export class RelatorioService {
       servico_nome = sRows[0]?.nome ?? null;
     }
 
-    // Base filter clause
-    const servicoClause = servicoId
-      ? `AND fs.servico_id = ${servicoId}`
-      : '';
+    // Parameterized servico filter — avoids string interpolation into raw SQL
+    const servicoFilter = servicoId ? 'AND fs.servico_id = $5' : '';
+    const params: unknown[] = [obraId, tenantId, dataInicio, dataFim];
+    if (servicoId) params.push(servicoId);
 
     // Fichas summary per local
     const fichasRows = await this.prisma.$queryRawUnsafe<{
@@ -101,11 +101,11 @@ export class RelatorioService {
         AND f.deleted_at IS NULL
         AND f.created_at >= $3
         AND f.created_at <= $4
-        ${servicoClause}
+        ${servicoFilter}
       GROUP BY f.id, f.nome, f.created_at, u.nome, ol.nome
       ORDER BY f.created_at DESC
       `,
-      obraId, tenantId, dataInicio, dataFim,
+      ...params,
     );
 
     const fichas = fichasRows.map((row) => {
@@ -141,11 +141,11 @@ export class RelatorioService {
         AND f.deleted_at IS NULL
         AND r.created_at >= $3
         AND r.created_at <= $4
-        ${servicoClause}
+        ${servicoFilter}
       GROUP BY semana
       ORDER BY semana
       `,
-      obraId, tenantId, dataInicio, dataFim,
+      ...params,
     );
 
     const por_semana: SemanaConformidade[] = semanaRows.map((row) => ({
@@ -184,11 +184,11 @@ export class RelatorioService {
         AND f.deleted_at IS NULL
         AND r.created_at >= $3
         AND r.created_at <= $4
-        ${servicoClause}
+        ${servicoFilter}
       GROUP BY ol.id, ol.nome
       ORDER BY local_nome
       `,
-      obraId, tenantId, dataInicio, dataFim,
+      ...params,
     );
 
     const por_local: LocalConformidade[] = localRows.map((row) => ({
@@ -219,10 +219,10 @@ export class RelatorioService {
         AND r.created_at >= $3
         AND r.created_at <= $4
         AND r.status IN ('nao_conforme','nc_apos_reinspecao','retrabalho')
-        ${servicoClause}
+        ${servicoFilter}
       GROUP BY i.criticidade
       `,
-      obraId, tenantId, dataInicio, dataFim,
+      ...params,
     );
 
     const ncs_por_criticidade = { critico: 0, maior: 0, menor: 0 };
@@ -303,12 +303,14 @@ export class RelatorioService {
 
     // Aggregate por inspetor
     const porInspetorRows = await this.prisma.$queryRawUnsafe<{
+      inspetor_id: number | null;
       inspetor_nome: string;
       total_fichas: number;
       fichas_concluidas: number;
     }[]>(
       `
       SELECT
+        u.id AS inspetor_id,
         COALESCE(u.nome, 'Desconhecido') AS inspetor_nome,
         COUNT(*) AS total_fichas,
         COUNT(*) FILTER (WHERE f.status IN ('concluida','aprovada')) AS fichas_concluidas
@@ -319,7 +321,7 @@ export class RelatorioService {
         AND f.deleted_at IS NULL
         AND f.created_at >= $3
         AND f.created_at <= $4
-      GROUP BY u.nome
+      GROUP BY u.id, u.nome
       ORDER BY total_fichas DESC
       `,
       obraId, tenantId, dataInicio, dataFim,

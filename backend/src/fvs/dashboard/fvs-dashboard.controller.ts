@@ -13,6 +13,7 @@ import { FvsGraficosService } from './fvs-graficos.service';
 import { DashboardGraficosQueryDto } from './dto/dashboard-graficos-query.dto';
 import { RelatorioService } from './relatorio.service';
 import { RelatorioConformidadeQueryDto } from './relatorio-conformidade.dto';
+import { RelatorioUsoQueryDto } from './relatorio-uso-query.dto';
 
 interface JwtUser { id: number; tenantId: number; role: string }
 
@@ -137,11 +138,10 @@ export class FvsDashboardController {
   getRelatorioUso(
     @TenantId() tenantId: number,
     @Param('obraId', ParseIntPipe) obraId: number,
-    @Query('data_inicio') dataInicio?: string,
-    @Query('data_fim') dataFim?: string,
+    @Query() query: RelatorioUsoQueryDto,
   ) {
-    const fim = dataFim ?? new Date().toISOString();
-    const inicio = dataInicio ?? new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const fim = query.data_fim ?? new Date().toISOString();
+    const inicio = query.data_inicio ?? new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
     return this.relatorioService.getRelatorioUso(tenantId, obraId, inicio, fim);
   }
 }
