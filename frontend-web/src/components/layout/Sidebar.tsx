@@ -239,31 +239,21 @@ function EnsaiosNavGroup({ onClick }: { onClick?: () => void }) {
 
 /* ── Almoxarifado Nav helper ─────────────────────────── */
 function AlmoxarifadoNavGroup({ onClick }: { onClick?: () => void }) {
-  const obraAtivaId = useResolvedObraId()
-  if (!obraAtivaId) {
-    return (
-      <NavItemGroup
-        icon={<Warehouse size={18} />}
-        label="Almoxarifado"
-        items={[]}
-        disabled
-        disabledReason="Selecione uma obra primeiro"
-      />
-    )
-  }
-  const base = `/obras/${obraAtivaId}/almoxarifado`
+  const base = '/almoxarifado'
   return (
     <NavItemGroup
       icon={<Warehouse size={18} />}
       label="Almoxarifado"
       items={[
-        { to: base,                   label: 'Dashboard', end: true },
-        { to: `${base}/estoque`,      label: 'Estoque' },
-        { to: `${base}/solicitacoes`, label: 'Solicitações' },
-        { to: `${base}/ocs`,          label: 'Compras (OC)' },
-        { to: `${base}/nfes`,         label: 'NF-e' },
-        { to: `${base}/planejamento`, label: 'Planejamento' },
-        { to: `${base}/insights`,     label: 'Insights IA' },
+        { to: base,                        label: 'Dashboard', end: true },
+        { to: `${base}/estoque`,           label: 'Estoque' },
+        { to: `${base}/transferencias`,    label: 'Transferências' },
+        { to: `${base}/solicitacoes`,      label: 'Solicitações' },
+        { to: `${base}/ocs`,               label: 'Compras (OC)' },
+        { to: `${base}/nfes`,              label: 'NF-e' },
+        { to: `${base}/locais`,            label: 'Locais' },
+        { to: `${base}/planejamento`,      label: 'Planejamento' },
+        { to: `${base}/insights`,          label: 'Insights IA' },
       ]}
       onClick={onClick}
     />

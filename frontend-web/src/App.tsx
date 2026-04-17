@@ -57,6 +57,9 @@ const NfeListPage              = lazy(() => import('./modules/almoxarifado/nfe/p
 const NfeDetalhePage           = lazy(() => import('./modules/almoxarifado/nfe/pages/NfeDetalhePage').then(m => ({ default: m.NfeDetalhePage })));
 const PlanejamentoPage         = lazy(() => import('./modules/almoxarifado/planejamento/pages/PlanejamentoPage').then(m => ({ default: m.PlanejamentoPage })));
 const InsightsPage             = lazy(() => import('./modules/almoxarifado/ia/pages/InsightsPage').then(m => ({ default: m.InsightsPage })));
+const TransferenciasPage       = lazy(() => import('./modules/almoxarifado/transferencias/pages/TransferenciasPage').then(m => ({ default: m.TransferenciasPage })));
+const TransferenciaDetalhePage = lazy(() => import('./modules/almoxarifado/transferencias/pages/TransferenciaDetalhePage').then(m => ({ default: m.TransferenciaDetalhePage })));
+const LocaisPage               = lazy(() => import('./modules/almoxarifado/locais/pages/LocaisPage').then(m => ({ default: m.LocaisPage })));
 const NcsListPage              = lazy(() => import('./modules/ncs/pages/NcsListPage').then(m => ({ default: m.NcsListPage })));
 const NcDetalhePage            = lazy(() => import('./modules/ncs/pages/NcDetalhePage').then(m => ({ default: m.NcDetalhePage })));
 const NcsGlobalPage            = lazy(() => import('./modules/ncs/pages/NcsGlobalPage').then(m => ({ default: m.NcsGlobalPage })));
@@ -173,21 +176,24 @@ export default function App() {
                 <Route path="/obras/:obraId/concretagem/croqui" element={<CroquiRastreabilidadePage />} />
                 <Route path="/obras/:obraId/concretagem/croqui/:croquiId" element={<CroquiDetalhePage />} />
 
-                {/* Almoxarifado */}
-                <Route path="/obras/:obraId/almoxarifado" element={<AlmoxarifadoDashboard />} />
-                <Route path="/obras/:obraId/almoxarifado/estoque" element={<EstoquePage />} />
-                <Route path="/obras/:obraId/almoxarifado/estoque/movimentos" element={<MovimentosPage />} />
-                <Route path="/obras/:obraId/almoxarifado/estoque/alertas" element={<AlertasPage />} />
-                <Route path="/obras/:obraId/almoxarifado/solicitacoes" element={<SolicitacoesListPage />} />
-                <Route path="/obras/:obraId/almoxarifado/solicitacoes/nova" element={<NovaSolicitacaoPage />} />
-                <Route path="/obras/:obraId/almoxarifado/solicitacoes/:solicitacaoId" element={<SolicitacaoDetalhePage />} />
-                <Route path="/obras/:obraId/almoxarifado/ocs" element={<OcListPage />} />
-                <Route path="/obras/:obraId/almoxarifado/ocs/nova" element={<NovaOcPage />} />
-                <Route path="/obras/:obraId/almoxarifado/ocs/:ocId" element={<OcDetalhePage />} />
-                <Route path="/obras/:obraId/almoxarifado/nfes" element={<NfeListPage />} />
-                <Route path="/obras/:obraId/almoxarifado/nfes/:nfeId" element={<NfeDetalhePage />} />
-                <Route path="/obras/:obraId/almoxarifado/planejamento" element={<PlanejamentoPage />} />
-                <Route path="/obras/:obraId/almoxarifado/insights" element={<InsightsPage />} />
+                {/* Almoxarifado — tenant-level (no obra scope) */}
+                <Route path="/almoxarifado" element={<AlmoxarifadoDashboard />} />
+                <Route path="/almoxarifado/estoque" element={<EstoquePage />} />
+                <Route path="/almoxarifado/estoque/movimentos" element={<MovimentosPage />} />
+                <Route path="/almoxarifado/estoque/alertas" element={<AlertasPage />} />
+                <Route path="/almoxarifado/transferencias" element={<TransferenciasPage />} />
+                <Route path="/almoxarifado/transferencias/:id" element={<TransferenciaDetalhePage />} />
+                <Route path="/almoxarifado/locais" element={<LocaisPage />} />
+                <Route path="/almoxarifado/solicitacoes" element={<SolicitacoesListPage />} />
+                <Route path="/almoxarifado/solicitacoes/nova" element={<NovaSolicitacaoPage />} />
+                <Route path="/almoxarifado/solicitacoes/:solicitacaoId" element={<SolicitacaoDetalhePage />} />
+                <Route path="/almoxarifado/ocs" element={<OcListPage />} />
+                <Route path="/almoxarifado/ocs/nova" element={<NovaOcPage />} />
+                <Route path="/almoxarifado/ocs/:ocId" element={<OcDetalhePage />} />
+                <Route path="/almoxarifado/nfes" element={<NfeListPage />} />
+                <Route path="/almoxarifado/nfes/:nfeId" element={<NfeDetalhePage />} />
+                <Route path="/almoxarifado/planejamento" element={<PlanejamentoPage />} />
+                <Route path="/almoxarifado/insights" element={<InsightsPage />} />
                 <Route path="/almoxarifado/solicitacoes/:solId/cotacoes" element={<CotacoesPage />} />
                 <Route path="/almoxarifado/solicitacoes/:solId/comparativo" element={<ComparativoPage />} />
 
