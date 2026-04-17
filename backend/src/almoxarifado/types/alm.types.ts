@@ -23,24 +23,84 @@ export type AlmNivelAlerta = 'critico' | 'atencao';
 
 export type AlmTipoAlerta = 'estoque_minimo' | 'reposicao_prevista' | 'anomalia';
 
-// ── Estoque ────────────────────────────────────────────────────────────────────
+// ── NEW: Location types ────────────────────────────────────────────────────────
 
-export interface AlmEstoqueLocal {
+export type AlmLocalTipo = 'CENTRAL' | 'CD' | 'DEPOSITO' | 'OBRA';
+
+export interface AlmLocal {
   id: number;
   tenant_id: number;
-  obra_id: number;
+  tipo: AlmLocalTipo;
   nome: string;
   descricao: string | null;
+  obra_id: number | null;
+  endereco: string | null;
+  responsavel_nome: string | null;
   ativo: boolean;
   created_at: Date;
+  updated_at: Date;
+  // optional join
+  obra_nome?: string | null;
 }
+
+// ── NEW: Transfer types ────────────────────────────────────────────────────────
+
+export type AlmTransferenciaStatus =
+  | 'rascunho'
+  | 'aguardando_aprovacao'
+  | 'aprovada'
+  | 'executada'
+  | 'cancelada';
+
+export interface AlmTransferenciaItem {
+  id: number;
+  transferencia_id: number;
+  catalogo_id: number;
+  quantidade: number;
+  unidade: string;
+  qtd_executada: number;
+  // optional join
+  catalogo_nome?: string | null;
+}
+
+export interface AlmTransferencia {
+  id: number;
+  tenant_id: number;
+  local_origem_id: number;
+  local_destino_id: number;
+  status: AlmTransferenciaStatus;
+  valor_total: number | null;
+  solicitante_id: number;
+  aprovador_id: number | null;
+  aprovado_at: Date | null;
+  observacao: string | null;
+  executada_parcial: boolean;
+  created_at: Date;
+  updated_at: Date;
+  // optional joins
+  local_origem_nome?: string;
+  local_destino_nome?: string;
+  itens?: AlmTransferenciaItem[];
+}
+
+// ── NEW: Config de Transferência ───────────────────────────────────────────────
+
+export interface AlmConfigTransferencia {
+  id: number | null;
+  tenant_id: number;
+  valor_limite_direto: number;
+  roles_aprovadores: string[];
+  created_at: Date | null;
+  updated_at: Date | null;
+}
+
+// ── UPDATED: Estoque (obra_id removed, local_id is now NOT NULL) ───────────────
 
 export interface AlmEstoqueSaldo {
   id: number;
   tenant_id: number;
-  obra_id: number;
   catalogo_id: number;
-  local_id: number | null;
+  local_id: number;           // NOT NULL — was nullable + obra_id previously
   quantidade: number;
   estoque_min: number;
   unidade: string;
@@ -49,15 +109,15 @@ export interface AlmEstoqueSaldo {
   catalogo_nome?: string;
   catalogo_codigo?: string;
   local_nome?: string | null;
+  local_tipo?: AlmLocalTipo | null;
   nivel?: 'critico' | 'atencao' | 'normal';
 }
 
 export interface AlmMovimento {
   id: number;
   tenant_id: number;
-  obra_id: number;
   catalogo_id: number;
-  local_id: number | null;
+  local_id: number;           // NOT NULL — was nullable + obra_id previously
   tipo: AlmMovimentoTipo;
   quantidade: number;
   unidade: string;
@@ -71,7 +131,27 @@ export interface AlmMovimento {
   // joins
   catalogo_nome?: string;
   local_nome?: string | null;
+  local_tipo?: AlmLocalTipo | null;
   usuario_nome?: string | null;
+}
+
+// ── UPDATED: Alertas (obra_id removed, local_id is now NOT NULL) ──────────────
+
+export interface AlmAlertaEstoque {
+  id: number;
+  tenant_id: number;
+  catalogo_id: number;
+  local_id: number;           // NOT NULL — replaced obra_id
+  tipo: AlmTipoAlerta;
+  nivel: AlmNivelAlerta;
+  mensagem: string;
+  lido: boolean;
+  lido_por: number | null;
+  lido_at: Date | null;
+  criado_at: Date;
+  // joins
+  catalogo_nome?: string;
+  local_nome?: string | null;
 }
 
 // ── Orçamento ─────────────────────────────────────────────────────────────────
@@ -103,25 +183,6 @@ export interface AlmOrcamentoItem {
   catalogo_nome?: string | null;
 }
 
-// ── Alertas ───────────────────────────────────────────────────────────────────
-
-export interface AlmAlertaEstoque {
-  id: number;
-  tenant_id: number;
-  obra_id: number;
-  catalogo_id: number;
-  local_id: number | null;
-  tipo: AlmTipoAlerta;
-  nivel: AlmNivelAlerta;
-  mensagem: string;
-  lido: boolean;
-  lido_por: number | null;
-  lido_at: Date | null;
-  criado_at: Date;
-  // joins
-  catalogo_nome?: string;
-}
-
 // ── Planejamento ──────────────────────────────────────────────────────────────
 
 export interface AlmPlanejamentoItem {
@@ -140,7 +201,7 @@ export interface AlmPlanejamentoItem {
   // joins
   catalogo_nome?: string;
   catalogo_codigo?: string | null;
-  consumo_realizado?: number;   // soma das saídas do mês
+  consumo_realizado?: number;
 }
 
 // ── IA Insights ───────────────────────────────────────────────────────────────
@@ -151,11 +212,11 @@ export interface AlmReorderPrediction {
   unidade: string;
   quantidade_atual: number;
   consumo_medio_diario: number;
-  dias_restantes: number;       // quantidade_atual / consumo_medio_diario
+  dias_restantes: number;
   nivel: 'critico' | 'atencao';
   recomendacao_qty: number;
   analise_ia: string;
-  obra_id: number;
+  local_id: number;           // replaced obra_id
 }
 
 export interface AlmAnomaliaDetectada {
@@ -164,10 +225,10 @@ export interface AlmAnomaliaDetectada {
   unidade: string;
   consumo_recente_7d: number;
   consumo_medio_30d: number;
-  fator_desvio: number;         // consumo_recente / consumo_medio
+  fator_desvio: number;
   nivel: 'critico' | 'atencao';
   explicacao_ia: string;
-  obra_id: number;
+  local_id: number;           // replaced obra_id
 }
 
 export interface AlmInsightsResult {
@@ -194,7 +255,7 @@ export interface AlmNfeWebhook {
 export interface AlmNotaFiscal {
   id: number;
   tenant_id: number;
-  obra_id: number | null;
+  local_id: number | null;    // nullable until aceita; replaced obra_id
   oc_id: number | null;
   webhook_id: number | null;
   chave_nfe: string;
@@ -213,6 +274,7 @@ export interface AlmNotaFiscal {
   // joins
   oc_numero?: string | null;
   aceito_por_nome?: string | null;
+  local_nome?: string | null;
   total_itens?: number;
   itens?: AlmNfeItem[];
 }
@@ -241,19 +303,19 @@ export interface AlmNfeItem {
 export interface AiSugestaoMatch {
   catalogo_id: number;
   nome: string;
-  score: number;    // 0-1
+  score: number;
   motivo: string;
 }
 
-// ── Ordens de Compra ──────────────────────────────────────────────────────────
+// ── UPDATED: Ordens de Compra (local_destino_id replaces obra_id) ─────────────
 
 export interface AlmOrdemCompra {
   id: number;
   tenant_id: number;
-  obra_id: number;
+  local_destino_id: number;   // replaced obra_id
   solicitacao_id: number | null;
   fornecedor_id: number;
-  numero: string; // generated: 'OC-001'
+  numero: string;
   status: AlmOcStatus;
   valor_total: number | null;
   prazo_entrega: Date | null;
@@ -268,6 +330,7 @@ export interface AlmOrdemCompra {
   // joins
   fornecedor_nome?: string;
   criado_por_nome?: string | null;
+  local_destino_nome?: string | null;
   total_itens?: number;
   itens?: AlmOcItem[];
 }
@@ -280,18 +343,16 @@ export interface AlmOcItem {
   unidade: string;
   preco_unitario: number | null;
   qtd_recebida: number;
-  created_at: Date;
-  // joins
   catalogo_nome?: string;
   catalogo_codigo?: string | null;
 }
 
-// ── Solicitações ──────────────────────────────────────────────────────────────
+// ── UPDATED: Solicitações (local_destino_id replaces obra_id) ─────────────────
 
 export interface AlmSolicitacao {
   id: number;
   tenant_id: number;
-  obra_id: number;
+  local_destino_id: number;   // replaced obra_id
   numero: number;
   descricao: string;
   status: AlmSolicitacaoStatus;
@@ -304,6 +365,7 @@ export interface AlmSolicitacao {
   updated_at: Date;
   // joins
   solicitante_nome?: string | null;
+  local_destino_nome?: string | null;
   total_itens?: number;
   itens?: AlmSolicitacaoItem[];
   aprovacoes?: AlmAprovacao[];
@@ -316,31 +378,17 @@ export interface AlmSolicitacaoItem {
   quantidade: number;
   unidade: string;
   observacao: string | null;
-  created_at: Date;
-  // joins
   catalogo_nome?: string;
   catalogo_codigo?: string | null;
 }
 
 export interface AlmAprovacao {
   id: number;
-  tenant_id: number;
   solicitacao_id: number;
   etapa: number;
   acao: 'aprovado' | 'reprovado' | 'cancelado';
   aprovador_id: number | null;
   observacao: string | null;
   created_at: Date;
-  // joins
   aprovador_nome?: string | null;
-}
-
-// ── Dashboard KPIs ────────────────────────────────────────────────────────────
-
-export interface AlmDashboardKpis {
-  itens_estoque_minimo: number;
-  solicitacoes_pendentes: number;
-  nfe_aguardando_match: number;
-  valor_oc_aberto: number;
-  conformidade_recebimento_pct: number;
 }
