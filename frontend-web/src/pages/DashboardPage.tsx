@@ -75,16 +75,21 @@ export function DashboardPage() {
 
   const addWidgetToLayout = useCallback((def: WidgetDefinition, config: Record<string, unknown>) => {
     const instanceId = `${def.id}-${Date.now()}`
-    const newWidget: WidgetInstance = {
-      instanceId,
-      widgetId: def.id,
-      x: 0,
-      y: Infinity,
-      w: def.defaultW,
-      h: def.defaultH,
-      config,
-    }
-    setLocalLayout((prev) => [...(prev ?? activeLayout), newWidget])
+    setLocalLayout((prev) => {
+      const base = prev ?? activeLayout
+      // Calculate the actual bottom row so the widget lands visible, not at Infinity
+      const bottomY = base.reduce((max, w) => Math.max(max, w.y + w.h), 0)
+      const newWidget: WidgetInstance = {
+        instanceId,
+        widgetId: def.id,
+        x: 0,
+        y: bottomY,
+        w: def.defaultW,
+        h: def.defaultH,
+        config,
+      }
+      return [...base, newWidget]
+    })
     setPendingDef(null)
   }, [activeLayout])
 

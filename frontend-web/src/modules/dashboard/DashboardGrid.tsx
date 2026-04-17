@@ -1,7 +1,7 @@
 // src/modules/dashboard/DashboardGrid.tsx
 import { useCallback } from 'react'
 import { Responsive, WidthProvider } from 'react-grid-layout/legacy'
-import type { Layout } from 'react-grid-layout/legacy'
+import type { Layout, Layouts } from 'react-grid-layout/legacy'
 import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
 import { widgetRegistry } from './registry'
@@ -18,8 +18,10 @@ interface DashboardGridProps {
 
 export function DashboardGrid({ layout, editMode, onLayoutChange }: DashboardGridProps) {
   const handleLayoutChange = useCallback(
-    (newLayout: Layout) => {
-      const updated: WidgetInstance[] = [...newLayout].map((item) => {
+    (_currentLayout: Layout[], allLayouts: Layouts) => {
+      // Use the lg layout to preserve 12-column positions regardless of active breakpoint
+      const source = allLayouts.lg ?? _currentLayout
+      const updated: WidgetInstance[] = source.map((item) => {
         const existing = layout.find((w) => w.instanceId === item.i)
         return {
           instanceId: item.i,
@@ -66,7 +68,7 @@ export function DashboardGrid({ layout, editMode, onLayoutChange }: DashboardGri
 
   return (
     <ResponsiveGrid
-      layouts={{ lg: gridLayout, md: gridLayout, sm: gridLayout }}
+      layouts={{ lg: gridLayout }}
       breakpoints={{ lg: 1200, md: 768, sm: 0 }}
       cols={{ lg: 12, md: 6, sm: 1 }}
       rowHeight={100}

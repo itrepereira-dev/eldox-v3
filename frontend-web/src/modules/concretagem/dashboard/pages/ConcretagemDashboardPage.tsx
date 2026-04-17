@@ -41,9 +41,11 @@ interface AtalhoCardProps {
   desc: string;
   onClick: () => void;
   tone?: 'accent' | 'ok' | 'warn';
+  disabled?: boolean;
+  disabledHint?: string;
 }
 
-function AtalhoCard({ icon, label, desc, onClick, tone = 'accent' }: AtalhoCardProps) {
+function AtalhoCard({ icon, label, desc, onClick, tone = 'accent', disabled, disabledHint }: AtalhoCardProps) {
   const toneMap = {
     accent: 'from-[var(--accent-dim)] to-transparent border-[var(--accent)]/30 text-[var(--accent)]',
     ok:     'from-[var(--ok-dim)] to-transparent border-[var(--ok)]/30 text-[var(--ok-text)]',
@@ -52,32 +54,39 @@ function AtalhoCard({ icon, label, desc, onClick, tone = 'accent' }: AtalhoCardP
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      title={disabled ? disabledHint : undefined}
       className={cn(
         'group relative flex items-start gap-4 p-5 rounded-xl',
         'bg-gradient-to-br border',
-        'border-[var(--border-dim)] hover:border-[var(--accent)]',
         'transition-all duration-[220ms] ease-out-expo',
-        'hover:-translate-y-[2px] hover:shadow-md',
         'text-left overflow-hidden',
-        toneMap[tone],
+        disabled
+          ? 'border-[var(--border-dim)] opacity-50 cursor-not-allowed'
+          : 'border-[var(--border-dim)] hover:border-[var(--accent)] hover:-translate-y-[2px] hover:shadow-md',
+        !disabled && toneMap[tone],
       )}
     >
       <span className={cn(
         'flex-shrink-0 w-11 h-11 rounded-lg flex items-center justify-center',
         'bg-[var(--bg-surface)] border border-[var(--border-dim)]',
-        'group-hover:scale-110 transition-transform duration-[200ms]',
+        !disabled && 'group-hover:scale-110 transition-transform duration-[200ms]',
       )}>
         {icon}
       </span>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-[var(--text-high)] mb-0.5">{label}</p>
-        <p className="text-xs text-[var(--text-faint)] leading-relaxed">{desc}</p>
+        <p className="text-xs text-[var(--text-faint)] leading-relaxed">
+          {disabled && disabledHint ? disabledHint : desc}
+        </p>
       </div>
-      <ArrowRight
-        size={16}
-        className="flex-shrink-0 mt-1 text-[var(--text-faint)] group-hover:text-[var(--accent)] group-hover:translate-x-1 transition-all duration-[200ms]"
-      />
+      {!disabled && (
+        <ArrowRight
+          size={16}
+          className="flex-shrink-0 mt-1 text-[var(--text-faint)] group-hover:text-[var(--accent)] group-hover:translate-x-1 transition-all duration-[200ms]"
+        />
+      )}
     </button>
   );
 }
@@ -164,6 +173,8 @@ export default function ConcretagemDashboardPage() {
           desc="Mapa estrutural vinculando traço, caminhão e CP"
           onClick={() => navigate(`${basePath}/croqui`)}
           tone="ok"
+          disabled={!obraIdNum}
+          disabledHint="Selecione uma obra para acessar o croqui"
         />
         <AtalhoCard
           icon={<FlaskConical size={22} className="text-[var(--warn)]" />}
