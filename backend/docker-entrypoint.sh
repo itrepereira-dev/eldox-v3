@@ -20,6 +20,13 @@ log() {
 log "start"
 
 # ── 1. Prisma migrate ───────────────────────────────────────────────────────
+# Cleanup de migrations em estado "failed" (finished_at IS NULL). Idempotente:
+# se não há falhas, DELETE não afeta nada. Protege contra P3009 quando uma
+# migration quebra na primeira tentativa, é corrigida, e precisa re-aplicar.
+log "prisma.migrate_cleanup_failed"
+printf "DELETE FROM _prisma_migrations WHERE finished_at IS NULL;" \
+  | npx prisma db execute --stdin >/dev/null 2>&1 || true
+
 log "prisma.migrate_deploy.start"
 npx prisma migrate deploy
 log "prisma.migrate_deploy.done"

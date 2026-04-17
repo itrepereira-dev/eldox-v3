@@ -8,14 +8,14 @@
 DROP TABLE IF EXISTS alm_estoque_locais CASCADE;
 
 -- ── 2. New table: alm_locais ──────────────────────────────────
-CREATE TABLE alm_locais (
+CREATE TABLE IF NOT EXISTS alm_locais (
   id                SERIAL PRIMARY KEY,
   tenant_id         INT NOT NULL,
   tipo              VARCHAR(20) NOT NULL
                     CHECK (tipo IN ('CENTRAL', 'CD', 'DEPOSITO', 'OBRA')),
   nome              VARCHAR(255) NOT NULL,
   descricao         TEXT,
-  obra_id           INT REFERENCES obras(id),
+  obra_id           INT REFERENCES "Obra"(id),
   endereco          VARCHAR(500),
   responsavel_nome  VARCHAR(255),
   ativo             BOOLEAN NOT NULL DEFAULT true,
@@ -34,7 +34,7 @@ CREATE INDEX idx_alm_locais_tipo ON alm_locais(tenant_id, tipo);
 CREATE INDEX idx_alm_locais_ativo ON alm_locais(tenant_id, ativo);
 
 -- ── 3. New table: alm_transferencias ─────────────────────────
-CREATE TABLE alm_transferencias (
+CREATE TABLE IF NOT EXISTS alm_transferencias (
   id                  SERIAL PRIMARY KEY,
   tenant_id           INT NOT NULL,
   local_origem_id     INT NOT NULL REFERENCES alm_locais(id),
@@ -66,7 +66,7 @@ CREATE INDEX idx_alm_transferencias_destino ON alm_transferencias(local_destino_
 CREATE INDEX idx_alm_transferencias_solicitante ON alm_transferencias(solicitante_id);
 
 -- ── 4. New table: alm_transferencia_itens ────────────────────
-CREATE TABLE alm_transferencia_itens (
+CREATE TABLE IF NOT EXISTS alm_transferencia_itens (
   id                SERIAL PRIMARY KEY,
   transferencia_id  INT NOT NULL REFERENCES alm_transferencias(id) ON DELETE CASCADE,
   catalogo_id       INT NOT NULL,
@@ -82,7 +82,7 @@ CREATE INDEX idx_alm_trans_itens_transferencia ON alm_transferencia_itens(transf
 CREATE INDEX idx_alm_trans_itens_catalogo ON alm_transferencia_itens(catalogo_id);
 
 -- ── 5. New table: alm_config_transferencia ────────────────────
-CREATE TABLE alm_config_transferencia (
+CREATE TABLE IF NOT EXISTS alm_config_transferencia (
   id                    SERIAL PRIMARY KEY,
   tenant_id             INT NOT NULL UNIQUE,
   valor_limite_direto   NUMERIC(15,2) NOT NULL DEFAULT 0,
