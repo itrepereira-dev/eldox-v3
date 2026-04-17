@@ -5,7 +5,8 @@ export type ReportTipo =
   | 'R2_CONFORMIDADE'
   | 'R3_PENDENCIAS'
   | 'R4_NCS'
-  | 'R5_PA';
+  | 'R5_PA'
+  | 'R6_USO';
 
 export type ReportFormato = 'pdf' | 'excel';
 
@@ -173,4 +174,26 @@ export interface R5PlanoAcaoData {
     created_at: string;
   }>;
   resumo: { abertos: number; em_andamento: number; fechados_este_mes: number };
+}
+
+// ─── R6: Relatório de Uso por Serviço ────────────────────────────────────────
+
+export interface R6UsoData {
+  obra_nome: string;
+  data_inicio: string;
+  data_fim: string;
+  total_fichas: number;
+  por_servico: Array<{
+    servico_nome: string;
+    total_fichas: number;
+    total_registros: number;
+    registros_ok: number;
+    registros_nc: number;
+    taxa: number;
+  }>;
+  por_inspetor: Array<{
+    inspetor_nome: string;
+    total_fichas: number;
+    fichas_concluidas: number;
+  }>;
 }

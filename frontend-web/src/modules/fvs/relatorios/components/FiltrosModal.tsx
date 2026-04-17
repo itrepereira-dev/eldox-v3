@@ -17,6 +17,7 @@ const REQUIRED: Record<ReportTipo, (keyof ReportFiltros)[]> = {
   R3_PENDENCIAS: ['obraId', 'dataInicio'],
   R4_NCS: ['obraId'],
   R5_PA: ['obraId'],
+  R6_USO: ['obraId', 'dataInicio', 'dataFim'],
 };
 
 export function FiltrosModal({ tipo, filtrosIniciais, onConfirm, onCancel }: FiltrosModalProps) {

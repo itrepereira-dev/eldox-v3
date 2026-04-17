@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { api } from '../../../../services/api';
 import type {
   ReportTipo, ReportFiltros, ReportFormato,
-  R1FichaData, R2ConformidadeData, R3PendenciasData, R4NcsData, R5PlanoAcaoData,
+  R1FichaData, R2ConformidadeData, R3PendenciasData, R4NcsData, R5PlanoAcaoData, R6UsoData,
 } from '../types';
 
 export type RelatorioDadosResult =
@@ -11,7 +11,8 @@ export type RelatorioDadosResult =
   | R2ConformidadeData
   | R3PendenciasData
   | R4NcsData
-  | R5PlanoAcaoData;
+  | R5PlanoAcaoData
+  | R6UsoData;
 
 interface UseRelatorioFvsReturn {
   loading: boolean;
@@ -162,6 +163,17 @@ async function fetchDados(tipo: ReportTipo, filtros: ReportFiltros): Promise<Rel
         }),
         resumo: { abertos, em_andamento, fechados_este_mes },
       } as R5PlanoAcaoData;
+    }
+    case 'R6_USO': {
+      if (!filtros.obraId) throw new Error('obraId é obrigatório para R6');
+      const params: Record<string, string> = {};
+      if (filtros.dataInicio) params.data_inicio = filtros.dataInicio;
+      if (filtros.dataFim) params.data_fim = filtros.dataFim;
+      const { data } = await api.get(
+        `/fvs/dashboard/obras/${filtros.obraId}/relatorio-uso`,
+        { params },
+      );
+      return data as R6UsoData;
     }
   }
 }
