@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/cn'
@@ -165,8 +165,16 @@ export function NavItemGroup({
   const location = useLocation()
   // Só considera "ativo" se algum subitem bater numa rota NÃO-fallback
   // (quando `disabled`, os items estão vazios, evitando falso-positivo em /obras).
-  const isAnyActive = !disabled && items.some(i => location.pathname.startsWith(i.to))
+  const isAnyActive = !disabled && items.some(i =>
+    i.end ? location.pathname === i.to : location.pathname.startsWith(i.to),
+  )
   const [open, setOpen] = useState(isAnyActive)
+
+  // Auto-abre o grupo quando o usuário navega para uma rota filha
+  // (ex: link dentro de uma página leva para /almoxarifado/estoque)
+  useEffect(() => {
+    if (isAnyActive) setOpen(true)
+  }, [isAnyActive])
 
   if (disabled) {
     if (collapsed) {
