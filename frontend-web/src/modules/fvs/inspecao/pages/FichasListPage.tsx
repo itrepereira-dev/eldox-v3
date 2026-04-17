@@ -5,6 +5,7 @@ import { useFichas, useDeleteFicha } from '../hooks/useFichas';
 import type { FichaFvs } from '../../../../services/fvs.service';
 import { cn } from '@/lib/cn';
 import { Plus } from 'lucide-react';
+import { SkeletonList } from '@/components/ui';
 
 const REGIME_LABEL: Record<string, string> = {
   pbqph:         'PBQP-H',
@@ -32,8 +33,12 @@ export function FichasListPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-48 text-[var(--text-faint)] text-sm">
-        Carregando...
+      <div className="p-6">
+        <div className="flex items-center justify-between mb-5">
+          <div className="h-7 w-32 rounded-md bg-[var(--bg-hover)] animate-pulse" />
+          <div className="h-9 w-36 rounded-md bg-[var(--bg-hover)] animate-pulse" />
+        </div>
+        <SkeletonList rows={5} cols={5} />
       </div>
     );
   }
