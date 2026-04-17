@@ -9,7 +9,61 @@ env:
   REPO: ${{ github.repository }}
 
 jobs:
+  # ──────────────────────────────────────────────────────────────────────────
+  # GATE 1 — Backend: lint + type-check + test
+  # ──────────────────────────────────────────────────────────────────────────
+  backend-check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ./backend/package-lock.json
+      - run: npm ci
+      - name: Lint backend
+        run: npm run lint
+      - name: Type-check backend
+        run: npx tsc --noEmit
+      - name: Unit tests backend
+        run: npm test -- --ci --passWithNoTests
+      - name: Validate Prisma schema
+        run: npx prisma validate
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # GATE 2 — Frontend: lint + type-check + build
+  # ──────────────────────────────────────────────────────────────────────────
+  frontend-check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend-web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ./frontend-web/package-lock.json
+      - run: npm ci
+      - name: Lint frontend
+        run: npm run lint
+      - name: Type-check frontend
+        run: npx tsc -b --noEmit
+      - name: Build frontend
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+        run: npm run build
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Build + Deploy — só executa se os dois gates passarem
+  # ──────────────────────────────────────────────────────────────────────────
   build-and-deploy:
+    needs: [backend-check, frontend-check]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -18,6 +72,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Short SHA
+        id: sha
+        run: echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Login no GitHub Container Registry
         uses: docker/login-action@v3
@@ -31,7 +89,9 @@ jobs:
         with:
           context: ./backend
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.REPO }}/eldox-backend:latest
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.REPO }}/eldox-backend:latest
+            ${{ env.REGISTRY }}/${{ env.REPO }}/eldox-backend:sha-${{ steps.sha.outputs.sha }}
 
       - name: Build e push frontend
         uses: docker/build-push-action@v5
@@ -40,7 +100,9 @@ jobs:
           push: true
           build-args: |
             VITE_API_URL=${{ secrets.VITE_API_URL }}
-          tags: ${{ env.REGISTRY }}/${{ env.REPO }}/eldox-frontend:latest
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.REPO }}/eldox-frontend:latest
+            ${{ env.REGISTRY }}/${{ env.REPO }}/eldox-frontend:sha-${{ steps.sha.outputs.sha }}
 
       - name: Sync infra files to servidor
         uses: appleboy/scp-action@v0.1.7
@@ -48,7 +110,7 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: root
           key: ${{ secrets.VPS_SSH_KEY }}
-          source: "infra/docker-compose.prod.yml"
+          source: "infra/docker-compose.prod.yml,infra/backup/"
           target: /opt/eldox-v3/
 
       - name: Deploy no servidor
@@ -65,11 +127,22 @@ jobs:
             echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             docker compose -f infra/docker-compose.prod.yml pull
 
+            # Rebuild do serviço de backup (muda raramente mas é Dockerfile local)
+            docker compose -f infra/docker-compose.prod.yml build backup
+
             # Reinicia com zero downtime
             docker compose -f infra/docker-compose.prod.yml up -d --remove-orphans
 
-            # Aguarda backend ficar saudável
-            sleep 10
+            # Aguarda backend ficar saudável (healthcheck HTTP)
+            for i in 1 2 3 4 5 6 7 8 9 10; do
+              if curl -fsS http://127.0.0.1/api/v1/health > /dev/null 2>&1; then
+                echo "backend healthy após ${i} tentativa(s)"
+                break
+              fi
+              echo "aguardando backend ficar healthy (tentativa ${i}/10)"
+              sleep 6
+            done
+
             docker compose -f infra/docker-compose.prod.yml ps
 
-            echo "Deploy concluído ✓"
+            echo "Deploy concluído ✓ (sha-${{ steps.sha.outputs.sha }})"
