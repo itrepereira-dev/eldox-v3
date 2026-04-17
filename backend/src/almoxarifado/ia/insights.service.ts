@@ -50,6 +50,9 @@ export class InsightsService {
     if (sugestao.status !== 'pendente') {
       throw new BadRequestException('Sugestão já foi processada');
     }
+    if (sugestao.tipo !== 'reorder') {
+      throw new BadRequestException('Apenas sugestões de reposição podem gerar solicitação');
+    }
 
     const dados = sugestao.dados_json as any;
     const sol = await this.solicitacao.criar(tenantId, usuarioId, {
