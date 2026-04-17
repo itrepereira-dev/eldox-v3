@@ -31,7 +31,8 @@ services:
       - eldox_v3
 
   minio:
-    image: minio/minio:latest
+    # Pinado — revisar trimestralmente. Não usar :latest em produção.
+    image: minio/minio:RELEASE.2026-03-12T18-19-41Z
     container_name: eldox_v3_minio
     hostname: eldox-v3-minio
     restart: unless-stopped
@@ -56,6 +57,12 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:3000/api/v1/health > /dev/null || exit 1']
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -90,6 +97,12 @@ services:
     image: ghcr.io/${GITHUB_REPO}/eldox-frontend:latest
     container_name: eldox_v3_frontend
     restart: unless-stopped
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:80/ > /dev/null || exit 1']
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     networks:
       - eldox_v3
       - coolify
@@ -108,6 +121,33 @@ services:
       - "traefik.http.routers.eldox-v3-web-http.priority=1"
       - "traefik.http.routers.eldox-v3-web-http.service=eldox-v3-web"
       - "traefik.docker.network=coolify"
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Backup diário do PostgreSQL → MinIO (bucket `backups`), retenção 30 dias.
+  # Rodar restore: ver docs/runbooks/backup-restore.md.
+  # ──────────────────────────────────────────────────────────────────────────
+  backup:
+    build:
+      context: ./backup
+    container_name: eldox_v3_backup
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: eldox-v3-postgres
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      MINIO_ENDPOINT: eldox-v3-minio
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      BACKUP_BUCKET: ${BACKUP_BUCKET:-backups}
+      TZ: ${TZ:-UTC}
+    networks:
+      - eldox_v3
 
 networks:
   eldox_v3:
