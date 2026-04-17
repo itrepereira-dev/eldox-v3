@@ -16,18 +16,19 @@ import { AprovarSolicitacaoDto } from './dto/aprovar-solicitacao.dto';
 export class SolicitacaoController {
   constructor(private readonly solicitacao: SolicitacaoService) {}
 
-  // ── Listar por obra ───────────────────────────────────────────────────────
+  // ── Listar solicitações ───────────────────────────────────────────────────
 
-  @Get('obras/:obraId/solicitacoes')
+  @Get('solicitacoes')
   @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO', 'VISITANTE')
   listar(
     @TenantId() tenantId: number,
-    @Param('obraId', ParseIntPipe) obraId: number,
+    @Query('local_destino_id') localDestinoId?: string,
     @Query('status') status?: string,
     @Query('limit')  limit?: string,
     @Query('offset') offset?: string,
   ) {
-    return this.solicitacao.listar(tenantId, obraId, {
+    return this.solicitacao.listar(tenantId, {
+      localDestinoId: localDestinoId ? Number(localDestinoId) : undefined,
       status,
       limit:  limit  ? Number(limit)  : undefined,
       offset: offset ? Number(offset) : undefined,
@@ -36,17 +37,16 @@ export class SolicitacaoController {
 
   // ── Criar ────────────────────────────────────────────────────────────────
 
-  @Post('obras/:obraId/solicitacoes')
+  @Post('solicitacoes')
   @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO')
   @HttpCode(HttpStatus.CREATED)
   criar(
     @TenantId() tenantId: number,
-    @Param('obraId', ParseIntPipe) obraId: number,
     @Body() dto: CreateSolicitacaoDto,
     @Req() req: any,
   ) {
     const usuarioId: number = req.user?.sub ?? req.user?.id;
-    return this.solicitacao.criar(tenantId, obraId, usuarioId, dto);
+    return this.solicitacao.criar(tenantId, usuarioId, dto);
   }
 
   // ── Detalhe ───────────────────────────────────────────────────────────────

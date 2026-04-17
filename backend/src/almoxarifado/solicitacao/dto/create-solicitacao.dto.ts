@@ -8,9 +8,10 @@ export class CreateSolicitacaoItemDto {
 }
 
 export class CreateSolicitacaoDto {
+  local_destino_id!: number;    // replaced obra_id
   descricao!: string;
   urgente?: boolean;
-  data_necessidade?: string; // ISO date string
+  data_necessidade?: string;
   servico_ref?: string;
   itens!: CreateSolicitacaoItemDto[];
 }

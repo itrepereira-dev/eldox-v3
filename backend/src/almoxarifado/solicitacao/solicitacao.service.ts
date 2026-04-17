@@ -25,27 +25,42 @@ export class SolicitacaoService {
 
   async listar(
     tenantId: number,
-    obraId: number,
-    filters: { status?: string; limit?: number; offset?: number } = {},
+    filters: { localDestinoId?: number; status?: string; limit?: number; offset?: number } = {},
   ): Promise<AlmSolicitacao[]> {
+    const conditions: string[] = [`s.tenant_id = $1`];
+    const params: unknown[] = [tenantId];
+    let i = 2;
+
+    if (filters.localDestinoId) {
+      conditions.push(`s.local_destino_id = $${i++}`);
+      params.push(filters.localDestinoId);
+    }
+    if (filters.status) {
+      conditions.push(`s.status = $${i++}`);
+      params.push(filters.status);
+    }
+
     const limit  = filters.limit  ?? 50;
     const offset = filters.offset ?? 0;
-    const where  = filters.status ? `AND s.status = '${filters.status}'` : '';
+    const limitIdx  = i++;
+    const offsetIdx = i++;
 
     return this.prisma.$queryRawUnsafe<AlmSolicitacao[]>(
       `SELECT s.*,
-              u.nome                  AS solicitante_nome,
-              COUNT(i.id)::int        AS total_itens
+              u.nome                 AS solicitante_nome,
+              l.nome                 AS local_destino_nome,
+              COUNT(i.id)::int       AS total_itens
        FROM alm_solicitacoes s
        LEFT JOIN "Usuario" u ON u.id = s.solicitante_id
+       LEFT JOIN alm_locais l ON l.id = s.local_destino_id
        LEFT JOIN alm_solicitacao_itens i ON i.solicitacao_id = s.id
-       WHERE s.tenant_id = $1 AND s.obra_id = $2 ${where}
-       GROUP BY s.id, u.nome
+       WHERE ${conditions.join(' AND ')}
+       GROUP BY s.id, u.nome, l.nome
        ORDER BY
          CASE WHEN s.urgente THEN 0 ELSE 1 END,
          s.created_at DESC
-       LIMIT $3 OFFSET $4`,
-      tenantId, obraId, limit, offset,
+       LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+      ...params, limit, offset,
     );
   }
 
@@ -87,7 +102,6 @@ export class SolicitacaoService {
 
   async criar(
     tenantId: number,
-    obraId: number,
     usuarioId: number,
     dto: CreateSolicitacaoDto,
   ): Promise<AlmSolicitacao> {
@@ -98,11 +112,11 @@ export class SolicitacaoService {
     return this.prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRawUnsafe<AlmSolicitacao[]>(
         `INSERT INTO alm_solicitacoes
-           (tenant_id, obra_id, descricao, urgente, data_necessidade, servico_ref, solicitante_id)
+           (tenant_id, local_destino_id, descricao, urgente, data_necessidade, servico_ref, solicitante_id)
          VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING *`,
         tenantId,
-        obraId,
+        dto.local_destino_id,
         dto.descricao,
         dto.urgente ?? false,
         dto.data_necessidade ? new Date(dto.data_necessidade) : null,
@@ -122,7 +136,7 @@ export class SolicitacaoService {
 
       this.logger.log(JSON.stringify({
         action: 'alm.solicitacao.criar',
-        tenantId, obraId, solicitacaoId: sol.id,
+        tenantId, localDestinoId: dto.local_destino_id, solicitacaoId: sol.id,
       }));
 
       return sol;
