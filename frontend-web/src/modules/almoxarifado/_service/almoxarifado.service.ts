@@ -3,11 +3,79 @@ import { api } from '@/services/api';
 
 const BASE = 'almoxarifado';
 
+function buildQuery(params?: Record<string, unknown>): string {
+  if (!params) return '';
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null) q.set(k, String(v));
+  }
+  const s = q.toString();
+  return s ? `?${s}` : '';
+}
+
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
 export type AlmMovimentoTipo = 'entrada' | 'saida' | 'transferencia' | 'perda' | 'ajuste';
 export type AlmNivelAlerta   = 'critico' | 'atencao' | 'normal';
 export type AlmTipoAlerta    = 'estoque_minimo' | 'reposicao_prevista' | 'anomalia';
+
+export type AlmLocalTipo = 'CENTRAL' | 'CD' | 'DEPOSITO' | 'OBRA';
+
+export type AlmTransferenciaStatus =
+  | 'rascunho' | 'aguardando_aprovacao' | 'aprovada' | 'executada' | 'cancelada';
+
+export interface AlmLocal {
+  id: number;
+  tenant_id: number;
+  tipo: AlmLocalTipo;
+  nome: string;
+  descricao: string | null;
+  obra_id: number | null;
+  endereco: string | null;
+  responsavel_nome: string | null;
+  ativo: boolean;
+  created_at: string;
+  updated_at: string;
+  obra_nome?: string | null;
+}
+
+export interface AlmTransferenciaItem {
+  id: number;
+  transferencia_id: number;
+  catalogo_id: number;
+  quantidade: number;
+  unidade: string;
+  qtd_executada: number;
+  catalogo_nome?: string | null;
+}
+
+export interface AlmTransferencia {
+  id: number;
+  tenant_id: number;
+  local_origem_id: number;
+  local_destino_id: number;
+  local_origem_nome: string;
+  local_destino_nome: string;
+  status: AlmTransferenciaStatus;
+  valor_total: number | null;
+  solicitante_id: number;
+  aprovador_id: number | null;
+  aprovado_at: string | null;
+  observacao: string | null;
+  executada_parcial: boolean;
+  created_at: string;
+  updated_at: string;
+  itens?: AlmTransferenciaItem[];
+}
+
+export interface AlmConfigTransferencia {
+  id: number | null;
+  tenant_id: number;
+  valor_limite_direto: number;
+  roles_aprovadores: string[];
+  created_at: string | null;
+  updated_at: string | null;
+}
 
 export type AlmSolicitacaoStatus =
   | 'rascunho' | 'aguardando_aprovacao' | 'em_aprovacao'
@@ -20,34 +88,25 @@ export type AlmOcStatus =
 export type AlmNfeStatus =
   | 'pendente_match' | 'match_parcial' | 'match_ok' | 'aceita' | 'rejeitada' | 'sem_oc';
 
-export interface AlmEstoqueLocal {
-  id: number;
-  obra_id: number;
-  nome: string;
-  descricao: string | null;
-  ativo: boolean;
-}
-
 export interface AlmEstoqueSaldo {
   id: number;
-  obra_id: number;
   catalogo_id: number;
-  local_id: number | null;
+  local_id: number;
   quantidade: number;
   estoque_min: number;
   unidade: string;
   catalogo_nome: string;
   catalogo_codigo: string | null;
   local_nome: string | null;
+  local_tipo?: AlmLocalTipo;
   nivel: AlmNivelAlerta;
   updated_at: string;
 }
 
 export interface AlmMovimento {
   id: number;
-  obra_id: number;
   catalogo_id: number;
-  local_id: number | null;
+  local_id: number;
   tipo: AlmMovimentoTipo;
   quantidade: number;
   unidade: string;
@@ -60,14 +119,14 @@ export interface AlmMovimento {
   created_at: string;
   catalogo_nome: string;
   local_nome: string | null;
+  local_tipo?: AlmLocalTipo;
   usuario_nome: string | null;
 }
 
 export interface AlmAlertaEstoque {
   id: number;
-  obra_id: number;
   catalogo_id: number;
-  local_id: number | null;
+  local_id: number;
   tipo: AlmTipoAlerta;
   nivel: AlmNivelAlerta;
   mensagem: string;
@@ -130,7 +189,7 @@ export interface AlmNfeItem {
 
 export interface AlmNotaFiscal {
   id: number;
-  obra_id: number | null;
+  local_id: number | null;
   oc_id: number | null;
   chave_nfe: string;
   numero: string | null;
@@ -145,13 +204,14 @@ export interface AlmNotaFiscal {
   created_at: string;
   oc_numero: string | null;
   aceito_por_nome: string | null;
+  local_nome?: string | null;
   total_itens?: number;
   itens?: AlmNfeItem[];
 }
 
 export interface AlmOrdemCompra {
   id: number;
-  obra_id: number;
+  local_destino_id: number;
   solicitacao_id: number | null;
   fornecedor_id: number;
   numero: string;
@@ -167,6 +227,7 @@ export interface AlmOrdemCompra {
   updated_at: string;
   fornecedor_nome: string;
   criado_por_nome: string | null;
+  local_destino_nome?: string | null;
   total_itens?: number;
   itens?: AlmOcItem[];
 }
@@ -185,7 +246,7 @@ export interface AlmOcItem {
 
 export interface AlmSolicitacao {
   id: number;
-  obra_id: number;
+  local_destino_id: number;
   numero: number;
   descricao: string;
   status: AlmSolicitacaoStatus;
@@ -197,6 +258,7 @@ export interface AlmSolicitacao {
   created_at: string;
   updated_at: string;
   solicitante_nome?: string | null;
+  local_destino_nome?: string | null;
   total_itens?: number;
   itens?: AlmSolicitacaoItem[];
   aprovacoes?: AlmAprovacao[];
@@ -267,7 +329,7 @@ export interface AlmReorderPrediction {
   nivel: 'critico' | 'atencao';
   recomendacao_qty: number;
   analise_ia: string;
-  obra_id: number;
+  local_id: number;
 }
 
 export interface AlmAnomaliaDetectada {
@@ -279,7 +341,7 @@ export interface AlmAnomaliaDetectada {
   fator_desvio: number;
   nivel: 'critico' | 'atencao';
   explicacao_ia: string;
-  obra_id: number;
+  local_id: number;
 }
 
 export interface AlmInsightsResult {
@@ -299,6 +361,7 @@ export interface CreateOcItemPayload {
 }
 
 export interface CreateOcPayload {
+  local_destino_id: number;
   fornecedor_id: number;
   solicitacao_id?: number;
   prazo_entrega?: string;
@@ -311,7 +374,6 @@ export interface CreateOcPayload {
 export interface ReceberOcItemPayload {
   item_id: number;
   qtd_recebida: number;
-  local_id?: number;
 }
 
 export interface CreateSolicitacaoItemPayload {
@@ -322,6 +384,7 @@ export interface CreateSolicitacaoItemPayload {
 }
 
 export interface CreateSolicitacaoPayload {
+  local_destino_id: number;
   descricao: string;
   urgente?: boolean;
   data_necessidade?: string;
@@ -335,24 +398,45 @@ export interface AprovarSolicitacaoPayload {
 }
 
 export interface CreateMovimentoPayload {
+  local_id: number;
   catalogo_id: number;
   tipo: AlmMovimentoTipo;
   quantidade: number;
   unidade: string;
-  local_id?: number;
   referencia_tipo?: string;
   referencia_id?: number;
   observacao?: string;
 }
 
-export interface TransferenciaPayload {
+export interface CreateLocalPayload {
+  tipo: AlmLocalTipo;
+  nome: string;
+  descricao?: string | null;
+  obra_id?: number | null;
+  endereco?: string | null;
+  responsavel_nome?: string | null;
+}
+
+export interface CreateTransferenciaItemPayload {
   catalogo_id: number;
   quantidade: number;
   unidade: string;
-  local_origem_id?: number;
-  obra_destino_id: number;
-  local_destino_id?: number;
-  observacao?: string;
+}
+
+export interface CreateTransferenciaPayload {
+  local_origem_id: number;
+  local_destino_id: number;
+  observacao?: string | null;
+  itens: CreateTransferenciaItemPayload[];
+}
+
+export interface ExecutarTransferenciaItemPayload {
+  item_id: number;
+  qtd_executada: number;
+}
+
+export interface ExecutarTransferenciaPayload {
+  itens?: ExecutarTransferenciaItemPayload[];
 }
 
 // ─── Service ──────────────────────────────────────────────────────────────────
@@ -360,56 +444,46 @@ export interface TransferenciaPayload {
 export const almoxarifadoService = {
 
   // Dashboard
-  getDashboardKpis: (obraId: number): Promise<AlmDashboardKpis> =>
-    api.get(`${BASE}/obras/${obraId}/dashboard`).then((r: any) => r.data?.data ?? r.data),
-
-  // Locais
-  getLocais: (obraId: number): Promise<AlmEstoqueLocal[]> =>
-    api.get(`${BASE}/obras/${obraId}/estoque/locais`).then((r: any) => r.data?.data ?? r.data),
-
-  createLocal: (obraId: number, dto: { nome: string; descricao?: string }): Promise<AlmEstoqueLocal> =>
-    api.post(`${BASE}/obras/${obraId}/estoque/locais`, dto).then((r: any) => r.data?.data ?? r.data),
+  getDashboardKpis: (localId?: number): Promise<AlmDashboardKpis> =>
+    api.get(`${BASE}/dashboard${buildQuery({ local_id: localId })}`).then((r: any) => r.data?.data ?? r.data),
 
   // Estoque (saldo)
   getSaldo: (
-    obraId: number,
-    params?: { localId?: number; catalogoId?: number; nivel?: string },
+    params?: { localId?: number; tipoLocal?: string; catalogoId?: number; nivel?: string },
   ): Promise<AlmEstoqueSaldo[]> => {
     const q = new URLSearchParams();
-    if (params?.localId)    q.set('localId',    String(params.localId));
-    if (params?.catalogoId) q.set('catalogoId', String(params.catalogoId));
-    if (params?.nivel)      q.set('nivel',      params.nivel);
-    return api.get(`${BASE}/obras/${obraId}/estoque${q.toString() ? '?' + q : ''}`).then((r: any) => r.data?.data ?? r.data);
+    if (params?.localId)    q.set('local_id',    String(params.localId));
+    if (params?.tipoLocal)  q.set('tipo_local',  params.tipoLocal);
+    if (params?.catalogoId) q.set('catalogoId',  String(params.catalogoId));
+    if (params?.nivel)      q.set('nivel',       params.nivel);
+    return api.get(`${BASE}/estoque/saldo${q.toString() ? '?' + q : ''}`).then((r: any) => r.data?.data ?? r.data);
   },
 
   // Movimentos
   getMovimentos: (
-    obraId: number,
-    params?: { catalogoId?: number; tipo?: string; limit?: number; offset?: number },
+    params?: { localId?: number; catalogoId?: number; tipo?: string; limit?: number; offset?: number },
   ): Promise<AlmMovimento[]> => {
     const q = new URLSearchParams();
-    if (params?.catalogoId) q.set('catalogoId', String(params.catalogoId));
-    if (params?.tipo)       q.set('tipo',       params.tipo);
-    if (params?.limit)      q.set('limit',      String(params.limit));
-    if (params?.offset)     q.set('offset',     String(params.offset));
-    return api.get(`${BASE}/obras/${obraId}/estoque/movimentos${q.toString() ? '?' + q : ''}`).then((r: any) => r.data?.data ?? r.data);
+    if (params?.localId)    q.set('local_id',    String(params.localId));
+    if (params?.catalogoId) q.set('catalogoId',  String(params.catalogoId));
+    if (params?.tipo)       q.set('tipo',        params.tipo);
+    if (params?.limit)      q.set('limit',       String(params.limit));
+    if (params?.offset)     q.set('offset',      String(params.offset));
+    return api.get(`${BASE}/estoque/movimentos${q.toString() ? '?' + q : ''}`).then((r: any) => r.data?.data ?? r.data);
   },
 
-  registrarMovimento: (obraId: number, payload: CreateMovimentoPayload): Promise<AlmMovimento> =>
-    api.post(`${BASE}/obras/${obraId}/estoque/movimentos`, payload).then((r: any) => r.data?.data ?? r.data),
-
-  transferir: (obraId: number, payload: TransferenciaPayload): Promise<void> =>
-    api.post(`${BASE}/obras/${obraId}/estoque/transferencias`, payload).then((r: any) => r.data?.data ?? r.data),
+  registrarMovimento: (payload: CreateMovimentoPayload): Promise<AlmMovimento> =>
+    api.post(`${BASE}/estoque/movimentos`, payload).then((r: any) => r.data?.data ?? r.data),
 
   // Alertas
-  getAlertas: (obraId: number, todos = false): Promise<AlmAlertaEstoque[]> =>
-    api.get(`${BASE}/obras/${obraId}/estoque/alertas${todos ? '?todos=true' : ''}`).then((r: any) => r.data?.data ?? r.data),
+  getAlertas: (params?: { localId?: number; todos?: boolean }): Promise<AlmAlertaEstoque[]> =>
+    api.get(`${BASE}/estoque/alertas${buildQuery({ local_id: params?.localId, todos: params?.todos ? 'true' : undefined })}`).then((r: any) => r.data?.data ?? r.data),
 
   marcarAlertaLido: (alertaId: number): Promise<void> =>
     api.patch(`${BASE}/estoque/alertas/${alertaId}/ler`, {}).then((r: any) => r.data?.data ?? r.data),
 
-  marcarTodosLidos: (obraId: number): Promise<void> =>
-    api.patch(`${BASE}/obras/${obraId}/estoque/alertas/ler-todos`, {}).then((r: any) => r.data?.data ?? r.data),
+  marcarTodosLidos: (localId?: number): Promise<void> =>
+    api.patch(`${BASE}/estoque/alertas/ler-todos`, localId ? { local_id: localId } : {}).then((r: any) => r.data?.data ?? r.data),
 
   // Orçamento
   getOrcamentoVersoes: (obraId: number): Promise<AlmOrcamentoVersao[]> =>
@@ -438,21 +512,21 @@ export const almoxarifadoService = {
 
   // NF-e
   getNfes: (
-    obraId: number,
-    params?: { status?: string; limit?: number; offset?: number },
+    params?: { localId?: number; status?: string; limit?: number; offset?: number },
   ): Promise<AlmNotaFiscal[]> => {
     const q = new URLSearchParams();
-    if (params?.status) q.set('status', params.status);
-    if (params?.limit)  q.set('limit',  String(params.limit));
-    if (params?.offset) q.set('offset', String(params.offset));
-    return api.get(`${BASE}/obras/${obraId}/nfes${q.toString() ? '?' + q : ''}`).then((r: any) => r.data?.data ?? r.data);
+    if (params?.localId) q.set('local_id', String(params.localId));
+    if (params?.status)  q.set('status',   params.status);
+    if (params?.limit)   q.set('limit',    String(params.limit));
+    if (params?.offset)  q.set('offset',   String(params.offset));
+    return api.get(`${BASE}/notas-fiscais${q.toString() ? '?' + q : ''}`).then((r: any) => r.data?.data ?? r.data);
   },
 
   getNfe: (id: number): Promise<AlmNotaFiscal> =>
     api.get(`${BASE}/nfes/${id}`).then((r: any) => r.data?.data ?? r.data),
 
-  aceitarNfe: (id: number, payload?: { oc_id?: number; observacao?: string }): Promise<void> =>
-    api.post(`${BASE}/nfes/${id}/aceitar`, payload ?? {}).then((r: any) => r.data?.data ?? r.data),
+  aceitarNfe: (id: number, payload: { local_id: number; oc_id?: number; observacao?: string }): Promise<void> =>
+    api.post(`${BASE}/nfes/${id}/aceitar`, payload).then((r: any) => r.data?.data ?? r.data),
 
   rejeitarNfe: (id: number, motivo: string): Promise<void> =>
     api.post(`${BASE}/nfes/${id}/rejeitar`, { motivo }).then((r: any) => r.data?.data ?? r.data),
@@ -465,21 +539,21 @@ export const almoxarifadoService = {
 
   // Ordens de Compra
   getOcs: (
-    obraId: number,
-    params?: { status?: string; limit?: number; offset?: number },
+    params?: { localDestinoId?: number; status?: string; limit?: number; offset?: number },
   ): Promise<AlmOrdemCompra[]> => {
     const q = new URLSearchParams();
-    if (params?.status) q.set('status', params.status);
-    if (params?.limit)  q.set('limit',  String(params.limit));
-    if (params?.offset) q.set('offset', String(params.offset));
-    return api.get(`${BASE}/obras/${obraId}/ocs${q.toString() ? '?' + q : ''}`).then((r: any) => r.data?.data ?? r.data);
+    if (params?.localDestinoId) q.set('local_destino_id', String(params.localDestinoId));
+    if (params?.status)         q.set('status',            params.status);
+    if (params?.limit)          q.set('limit',             String(params.limit));
+    if (params?.offset)         q.set('offset',            String(params.offset));
+    return api.get(`${BASE}/ordens-compra${q.toString() ? '?' + q : ''}`).then((r: any) => r.data?.data ?? r.data);
   },
 
   getOc: (id: number): Promise<AlmOrdemCompra> =>
     api.get(`${BASE}/ocs/${id}`).then((r: any) => r.data?.data ?? r.data),
 
-  criarOc: (obraId: number, payload: CreateOcPayload): Promise<AlmOrdemCompra> =>
-    api.post(`${BASE}/obras/${obraId}/ocs`, payload).then((r: any) => r.data?.data ?? r.data),
+  criarOc: (payload: CreateOcPayload): Promise<AlmOrdemCompra> =>
+    api.post(`${BASE}/ordens-compra`, payload).then((r: any) => r.data?.data ?? r.data),
 
   confirmarOc: (id: number): Promise<void> =>
     api.patch(`${BASE}/ocs/${id}/confirmar`, {}).then((r: any) => r.data?.data ?? r.data),
@@ -487,29 +561,29 @@ export const almoxarifadoService = {
   emitirOc: (id: number): Promise<void> =>
     api.patch(`${BASE}/ocs/${id}/emitir`, {}).then((r: any) => r.data?.data ?? r.data),
 
-  receberOcItens: (obraId: number, ocId: number, itens: ReceberOcItemPayload[]): Promise<void> =>
-    api.post(`${BASE}/obras/${obraId}/ocs/${ocId}/receber`, { itens }).then((r: any) => r.data?.data ?? r.data),
+  receberOcItens: (ocId: number, itens: ReceberOcItemPayload[]): Promise<void> =>
+    api.post(`${BASE}/ocs/${ocId}/receber`, { itens }).then((r: any) => r.data?.data ?? r.data),
 
   cancelarOc: (id: number): Promise<void> =>
     api.patch(`${BASE}/ocs/${id}/cancelar`, {}).then((r: any) => r.data?.data ?? r.data),
 
   // Solicitações
   getSolicitacoes: (
-    obraId: number,
-    params?: { status?: string; limit?: number; offset?: number },
+    params?: { localDestinoId?: number; status?: string; limit?: number; offset?: number },
   ): Promise<AlmSolicitacao[]> => {
     const q = new URLSearchParams();
-    if (params?.status) q.set('status', params.status);
-    if (params?.limit)  q.set('limit',  String(params.limit));
-    if (params?.offset) q.set('offset', String(params.offset));
-    return api.get(`${BASE}/obras/${obraId}/solicitacoes${q.toString() ? '?' + q : ''}`).then((r: any) => r.data?.data ?? r.data);
+    if (params?.localDestinoId) q.set('local_destino_id', String(params.localDestinoId));
+    if (params?.status)         q.set('status',            params.status);
+    if (params?.limit)          q.set('limit',             String(params.limit));
+    if (params?.offset)         q.set('offset',            String(params.offset));
+    return api.get(`${BASE}/solicitacoes${q.toString() ? '?' + q : ''}`).then((r: any) => r.data?.data ?? r.data);
   },
 
   getSolicitacao: (id: number): Promise<AlmSolicitacao> =>
     api.get(`${BASE}/solicitacoes/${id}`).then((r: any) => r.data?.data ?? r.data),
 
-  criarSolicitacao: (obraId: number, payload: CreateSolicitacaoPayload): Promise<AlmSolicitacao> =>
-    api.post(`${BASE}/obras/${obraId}/solicitacoes`, payload).then((r: any) => r.data?.data ?? r.data),
+  criarSolicitacao: (payload: CreateSolicitacaoPayload): Promise<AlmSolicitacao> =>
+    api.post(`${BASE}/solicitacoes`, payload).then((r: any) => r.data?.data ?? r.data),
 
   submeterSolicitacao: (id: number): Promise<void> =>
     api.patch(`${BASE}/solicitacoes/${id}/submeter`, {}).then((r: any) => r.data?.data ?? r.data),
@@ -586,6 +660,54 @@ export const almoxarifadoService = {
     },
   ): Promise<{ ocs_criadas: number; ids: number[] }> =>
     api.post(`${BASE}/solicitacoes/${solicitacaoId}/cotacoes/gerar-oc`, body).then((r: any) => r.data?.data ?? r.data),
+
+  // Locais
+  listarLocais: (filters?: { tipo?: AlmLocalTipo; ativo?: boolean; obra_id?: number }): Promise<AlmLocal[]> =>
+    api.get(`${BASE}/locais${buildQuery(filters as Record<string, unknown>)}`).then((r: any) => r.data?.data ?? r.data),
+
+  buscarLocal: (id: number): Promise<AlmLocal> =>
+    api.get(`${BASE}/locais/${id}`).then((r: any) => r.data?.data ?? r.data),
+
+  criarLocal: (dto: CreateLocalPayload): Promise<AlmLocal> =>
+    api.post(`${BASE}/locais`, dto).then((r: any) => r.data?.data ?? r.data),
+
+  atualizarLocal: (id: number, dto: Partial<CreateLocalPayload>): Promise<AlmLocal> =>
+    api.put(`${BASE}/locais/${id}`, dto).then((r: any) => r.data?.data ?? r.data),
+
+  desativarLocal: (id: number): Promise<{ id: number; ativo: boolean }> =>
+    api.delete(`${BASE}/locais/${id}`).then((r: any) => r.data?.data ?? r.data),
+
+  // Transferências
+  listarTransferencias: (filters?: {
+    status?: AlmTransferenciaStatus;
+    local_origem_id?: number;
+    local_destino_id?: number;
+    page?: number;
+    per_page?: number;
+  }): Promise<{ data: AlmTransferencia[]; total: number; page: number; perPage: number }> =>
+    api.get(`${BASE}/transferencias${buildQuery(filters as Record<string, unknown>)}`).then((r: any) => r.data?.data ?? r.data),
+
+  buscarTransferencia: (id: number): Promise<AlmTransferencia> =>
+    api.get(`${BASE}/transferencias/${id}`).then((r: any) => r.data?.data ?? r.data),
+
+  criarTransferencia: (dto: CreateTransferenciaPayload): Promise<AlmTransferencia> =>
+    api.post(`${BASE}/transferencias`, dto).then((r: any) => r.data?.data ?? r.data),
+
+  aprovarTransferencia: (id: number): Promise<AlmTransferencia> =>
+    api.post(`${BASE}/transferencias/${id}/aprovar`, {}).then((r: any) => r.data?.data ?? r.data),
+
+  executarTransferencia: (id: number, dto?: ExecutarTransferenciaPayload): Promise<AlmTransferencia> =>
+    api.post(`${BASE}/transferencias/${id}/executar`, dto ?? {}).then((r: any) => r.data?.data ?? r.data),
+
+  cancelarTransferencia: (id: number, motivo?: string): Promise<AlmTransferencia> =>
+    api.post(`${BASE}/transferencias/${id}/cancelar`, { motivo }).then((r: any) => r.data?.data ?? r.data),
+
+  // Config de Transferência
+  getConfigTransferencia: (): Promise<AlmConfigTransferencia> =>
+    api.get(`${BASE}/config-transferencia`).then((r: any) => r.data?.data ?? r.data),
+
+  upsertConfigTransferencia: (dto: { valor_limite_direto: number; roles_aprovadores: string[] }): Promise<AlmConfigTransferencia> =>
+    api.put(`${BASE}/config-transferencia`, dto).then((r: any) => r.data?.data ?? r.data),
 };
 
 // ─── Tipos Cotações ───────────────────────────────────────────────────────────
