@@ -32,7 +32,7 @@ services:
 
   minio:
     # Pinado — revisar trimestralmente. Não usar :latest em produção.
-    image: minio/minio:RELEASE.2026-03-12T18-19-41Z
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
     container_name: eldox_v3_minio
     hostname: eldox-v3-minio
     restart: unless-stopped
