@@ -351,6 +351,23 @@ export interface AlmInsightsResult {
   modelo: string;
 }
 
+export type AlmSugestaoStatus = 'pendente' | 'aplicado' | 'ignorado';
+export type AlmSugestaoTipo   = 'reorder' | 'anomalia';
+
+export interface AlmSugestaoIa {
+  id:            number;
+  tipo:          AlmSugestaoTipo;
+  catalogo_id:   number;
+  catalogo_nome: string;
+  local_id:      number;
+  unidade:       string;
+  dados_json:    AlmReorderPrediction | AlmAnomaliaDetectada;
+  status:        AlmSugestaoStatus;
+  solicitacao_id?: number;
+  criado_em:     string;
+  atualizado_em: string;
+}
+
 // ─── Payloads ─────────────────────────────────────────────────────────────────
 
 export interface CreateOcItemPayload {
@@ -620,9 +637,18 @@ export const almoxarifadoService = {
   removerPlanejamentoItem: (obraId: number, id: number): Promise<void> =>
     api.delete(`${BASE}/obras/${obraId}/planejamento/${id}`).then((r: any) => r.data?.data ?? r.data),
 
-  // IA Insights (Sprint 5)
-  getInsights: (obraId: number): Promise<AlmInsightsResult> =>
-    api.get(`${BASE}/obras/${obraId}/insights`).then((r: any) => r.data?.data ?? r.data),
+  // IA Preditiva (insights persistidos)
+  getInsights: (): Promise<AlmSugestaoIa[]> =>
+    api.get(`${BASE}/insights`).then((r: any) => r.data?.data ?? r.data),
+
+  aplicarSugestao: (id: number): Promise<{ solicitacao_id: number }> =>
+    api.patch(`${BASE}/insights/${id}/aplicar`).then((r: any) => r.data?.data ?? r.data),
+
+  ignorarSugestao: (id: number): Promise<void> =>
+    api.patch(`${BASE}/insights/${id}/ignorar`).then((r: any) => r.data?.data ?? r.data),
+
+  reanalisarInsights: (): Promise<{ enqueued: boolean }> =>
+    api.post(`${BASE}/insights/reanalisar`).then((r: any) => r.data?.data ?? r.data),
 
   // ── Cotações (Sprint A) ────────────────────────────────────────────────────
 
