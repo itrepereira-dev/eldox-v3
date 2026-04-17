@@ -35,7 +35,7 @@ export class AgenteReorderService {
    */
   async executar(
     tenantId: number,
-    obraId: number,
+    localId: number,
   ): Promise<AlmReorderPrediction[]> {
     const dataCorte = new Date();
     dataCorte.setDate(dataCorte.getDate() - DIAS_HISTORICO);
@@ -52,16 +52,16 @@ export class AgenteReorderService {
        JOIN fvm_catalogo_materiais m ON m.id = s.catalogo_id
        LEFT JOIN alm_movimentos mv
          ON mv.catalogo_id = s.catalogo_id
-        AND mv.obra_id     = s.obra_id
+        AND mv.local_id    = s.local_id
         AND mv.tenant_id   = s.tenant_id
         AND mv.tipo IN ('saida', 'perda')
         AND mv.created_at >= $3
        WHERE s.tenant_id = $1
-         AND s.obra_id   = $2
+         AND s.local_id  = $2
          AND s.quantidade > 0
        GROUP BY s.catalogo_id, m.nome, s.unidade, s.quantidade`,
       tenantId,
-      obraId,
+      localId,
       dataCorte,
     );
 
@@ -93,10 +93,10 @@ export class AgenteReorderService {
     if (!candidatos.length) return [];
 
     // Chama IA para análise e recomendação de quantidade de reposição
-    const predictions = await this._analisarComIA(candidatos, tenantId, obraId);
+    const predictions = await this._analisarComIA(candidatos, tenantId, localId);
 
     // Persiste alertas
-    await this._criarAlertas(predictions, tenantId, obraId);
+    await this._criarAlertas(predictions, tenantId, localId);
 
     return predictions;
   }
@@ -111,7 +111,7 @@ export class AgenteReorderService {
       dias_restantes: number;
     }[],
     tenantId: number,
-    obraId: number,
+    localId: number,
   ): Promise<AlmReorderPrediction[]> {
     const system = `Você é um especialista em gestão de estoque para obras de construção civil.
 Analise os dados de consumo e faça recomendações de reposição de estoque.
@@ -135,7 +135,7 @@ Regras:
       )
       .join('\n');
 
-    const userMessage = `Analise estes materiais em baixo estoque na obra ${obraId}:
+    const userMessage = `Analise estes materiais em baixo estoque no local ${localId}:
 ${itensStr}
 
 Retorne JSON no formato:
@@ -163,12 +163,12 @@ Retorne JSON no formato:
       );
     } catch (err: any) {
       this.logger.error(
-        `Erro na chamada IA reorder obra=${obraId}: ${err.message}`,
+        `Erro na chamada IA reorder local=${localId}: ${err.message}`,
       );
       // Fallback sem IA: usa regras simples
       return candidatos.map((c) => ({
         ...c,
-        local_id: obraId,
+        local_id: localId,
         nivel:
           c.dias_restantes < DIAS_ALERTA_CRITICO
             ? ('critico' as const)
@@ -191,7 +191,7 @@ Retorne JSON no formato:
       iaResults = JSON.parse(clean);
     } catch {
       this.logger.error(
-        `Resposta IA inválida para reorder obra=${obraId}: ${responseText.slice(0, 200)}`,
+        `Resposta IA inválida para reorder local=${localId}: ${responseText.slice(0, 200)}`,
       );
       iaResults = [];
     }
@@ -202,7 +202,7 @@ Retorne JSON no formato:
          (tenant_id, tipo, referencia_id, resultado, modelo, duracao_ms)
        VALUES ($1, 'reorder_prediction', $2, $3::jsonb, 'claude-haiku-4-5-20251001', $4)`,
       tenantId,
-      obraId,
+      localId,
       JSON.stringify({ itens: candidatos.length, predictions: iaResults }),
       duracaoMs,
     );
@@ -217,7 +217,7 @@ Retorne JSON no formato:
         quantidade_atual: c.quantidade_atual,
         consumo_medio_diario: c.consumo_medio_diario,
         dias_restantes: c.dias_restantes,
-        local_id: obraId,
+        local_id: localId,
         nivel: (ia?.nivel ??
           (c.dias_restantes < DIAS_ALERTA_CRITICO ? 'critico' : 'atencao')) as
           | 'critico'
@@ -232,17 +232,17 @@ Retorne JSON no formato:
   private async _criarAlertas(
     predictions: AlmReorderPrediction[],
     tenantId: number,
-    obraId: number,
+    localId: number,
   ): Promise<void> {
     for (const p of predictions) {
       // Upsert: se já existe alerta não lido para este item, atualiza; senão cria
       await this.prisma.$executeRawUnsafe(
         `INSERT INTO alm_alertas_estoque
-           (tenant_id, obra_id, catalogo_id, tipo, nivel, mensagem, lido)
+           (tenant_id, local_id, catalogo_id, tipo, nivel, mensagem, lido)
          VALUES ($1, $2, $3, 'reposicao_prevista', $4, $5, false)
          ON CONFLICT DO NOTHING`,
         tenantId,
-        obraId,
+        localId,
         p.catalogo_id,
         p.nivel,
         `${p.catalogo_nome}: ~${p.dias_restantes} dias restantes. ${p.analise_ia}`,
@@ -252,7 +252,7 @@ Retorne JSON no formato:
     this.logger.log(
       JSON.stringify({
         action: 'alm.reorder.alertas_criados',
-        obraId,
+        localId,
         tenantId,
         total: predictions.length,
         critico: predictions.filter((p) => p.nivel === 'critico').length,
@@ -265,8 +265,8 @@ Retorne JSON no formato:
    */
   async getInsights(
     tenantId: number,
-    obraId: number,
+    localId: number,
   ): Promise<AlmReorderPrediction[]> {
-    return this.executar(tenantId, obraId);
+    return this.executar(tenantId, localId);
   }
 }
