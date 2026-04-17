@@ -1,7 +1,7 @@
 // frontend-web/src/modules/concretagem/concretagens/pages/ConcrtagensListPage.tsx
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Plus, Layers, LayoutGrid, List } from 'lucide-react';
+import { Plus, Layers, LayoutGrid, List, FlaskConical } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/cn';
 import type { StatusConcretagem } from '@/services/concretagem.service';
@@ -30,11 +30,17 @@ const STATUS_COLORS: Record<StatusConcretagem, string> = {
 
 // ── Kanban columns ────────────────────────────────────────────────────────────
 
-const KANBAN_COLS: { status: StatusConcretagem; label: string; color: string }[] = [
-  { status: 'PROGRAMADA',         label: 'Programadas',         color: 'text-[var(--accent)]' },
-  { status: 'EM_LANCAMENTO',      label: 'Em Lançamento',       color: 'text-[var(--warn-text)]' },
-  { status: 'EM_RASTREABILIDADE', label: 'Em Rastreabilidade',  color: 'text-[var(--ok-text)]' },
-  { status: 'CONCLUIDA',          label: 'Concluídas',          color: 'text-[var(--text-faint)]' },
+const KANBAN_COLS: {
+  status: StatusConcretagem;
+  label: string;
+  textColor: string;
+  dotColor: string;
+  hint: string;
+}[] = [
+  { status: 'PROGRAMADA',         label: 'Programadas',         textColor: 'text-[var(--accent)]',    dotColor: 'bg-[var(--accent)]',    hint: 'Agendadas para execução' },
+  { status: 'EM_LANCAMENTO',      label: 'Em Lançamento',       textColor: 'text-[var(--warn-text)]', dotColor: 'bg-[var(--warn)]',      hint: 'Caminhões chegando' },
+  { status: 'EM_RASTREABILIDADE', label: 'Em Rastreabilidade',  textColor: 'text-[var(--ok-text)]',   dotColor: 'bg-[var(--ok)]',        hint: 'Aguardando ruptura de CPs' },
+  { status: 'CONCLUIDA',          label: 'Concluídas',          textColor: 'text-[var(--text-faint)]', dotColor: 'bg-[var(--text-faint)]', hint: 'Finalizadas' },
 ];
 
 // ── Tabs para view lista ──────────────────────────────────────────────────────
@@ -198,26 +204,31 @@ export default function ConcrtagensListPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 max-w-[1400px] mx-auto">
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-[var(--text-high)] m-0">Concretagens</h1>
-          <p className="text-sm text-[var(--text-faint)] mt-0.5 m-0">
-            Programação e controle de concretagens da obra
-          </p>
+      {/* Header — icon badge + título + toggle + CTA */}
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="flex items-start gap-4 min-w-0">
+          <div className="flex-shrink-0 w-11 h-11 rounded-xl bg-gradient-to-br from-[var(--accent-dim)] to-[var(--accent)]/10 border border-[var(--accent)]/30 flex items-center justify-center">
+            <FlaskConical size={20} className="text-[var(--accent)]" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-[20px] font-semibold text-[var(--text-high)] m-0 leading-tight">Gestão de Concretagens</h1>
+            <p className="text-sm text-[var(--text-faint)] mt-0.5 m-0">
+              Agendamentos, acompanhamento e rastreabilidade — Kanban ou lista
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           {/* Toggle view */}
-          <div className="flex bg-[var(--bg-raised)] rounded-lg p-0.5 gap-0.5">
+          <div className="flex bg-[var(--bg-raised)] rounded-lg p-1 gap-0.5 border border-[var(--border-dim)]">
             <button
               type="button"
               onClick={() => handleToggleView('kanban')}
               className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-[160ms]',
                 view === 'kanban'
-                  ? 'bg-[var(--bg-elevated)] text-[var(--text-high)]'
+                  ? 'bg-[var(--bg-elevated)] text-[var(--text-high)] shadow-sm'
                   : 'text-[var(--text-faint)] hover:text-[var(--text-med)]',
               )}
             >
@@ -227,9 +238,9 @@ export default function ConcrtagensListPage() {
               type="button"
               onClick={() => handleToggleView('lista')}
               className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-[160ms]',
                 view === 'lista'
-                  ? 'bg-[var(--bg-elevated)] text-[var(--text-high)]'
+                  ? 'bg-[var(--bg-elevated)] text-[var(--text-high)] shadow-sm'
                   : 'text-[var(--text-faint)] hover:text-[var(--text-med)]',
               )}
             >
@@ -239,7 +250,7 @@ export default function ConcrtagensListPage() {
           <button
             type="button"
             onClick={() => setModal(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--accent)] text-white text-sm font-medium hover:opacity-90 transition-opacity"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--accent)] text-white text-sm font-medium hover:opacity-90 hover:-translate-y-[1px] hover:shadow-md transition-all duration-[180ms]"
           >
             <Plus size={15} />
             Nova Concretagem
@@ -283,27 +294,36 @@ export default function ConcrtagensListPage() {
           {items.length === 0 && !isLoading ? (
             <EmptyState onNovo={() => setModal(true)} />
           ) : (
-            <div className="grid grid-cols-4 gap-4 min-h-[400px]">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 min-h-[400px]">
               {KANBAN_COLS.map((col) => {
                 const colItems = items.filter((b) => b.status === col.status);
                 return (
                   <div key={col.status} className="flex flex-col gap-2">
                     {/* Column header */}
-                    <div className="flex items-center justify-between px-1 mb-1">
-                      <span className={cn('text-xs font-bold tracking-wide uppercase', col.color)}>
-                        {col.label}
-                      </span>
-                      <span className="text-xs text-[var(--text-faint)] bg-[var(--bg-raised)] px-1.5 py-0.5 rounded-full">
+                    <div className="flex items-center justify-between px-2 py-1">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className={cn('flex-shrink-0 w-2 h-2 rounded-full', col.dotColor)} />
+                        <span className={cn('text-[11px] font-bold tracking-wider uppercase truncate', col.textColor)}>
+                          {col.label}
+                        </span>
+                      </div>
+                      <span className={cn(
+                        'flex-shrink-0 text-[11px] font-mono font-semibold min-w-[22px] h-5 px-1.5',
+                        'flex items-center justify-center rounded-full',
+                        'bg-[var(--bg-raised)] text-[var(--text-med)]',
+                      )}>
                         {isLoading ? '…' : colItems.length}
                       </span>
                     </div>
-                    {/* Cards */}
-                    <div className="flex flex-col gap-2 flex-1 min-h-[200px] p-2 rounded-xl bg-[var(--bg-base)]">
+
+                    {/* Cards container */}
+                    <div className="flex flex-col gap-2 flex-1 min-h-[280px] p-2 rounded-xl bg-[var(--bg-base)] border border-[var(--border-dim)]/50">
                       {isLoading ? (
                         <SkeletonCards />
                       ) : colItems.length === 0 ? (
-                        <div className="flex items-center justify-center h-20 text-xs text-[var(--text-faint)]">
-                          Nenhuma
+                        <div className="flex flex-col items-center justify-center h-full text-center py-8">
+                          <span className="text-xs text-[var(--text-faint)] italic">Sem items</span>
+                          <span className="text-[10px] text-[var(--text-faint)]/60 mt-1">{col.hint}</span>
                         </div>
                       ) : (
                         colItems.map((b) => (

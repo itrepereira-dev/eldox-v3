@@ -193,18 +193,16 @@ function FvmControleLink({ onClick }: { onClick?: () => void }) {
 }
 
 /* ── Concretagem Nav helper ──────────────────────────── */
-function ConcretagemNavGroup({ onClick }: { onClick?: () => void }) {
+// Link direto — o Dashboard da Concretagem serve de hub e leva para as
+// sub-telas (Gestão de Concretagens com Kanban+Lista, Croqui). Sem submenus.
+function ConcretagemNavLink({ onClick }: { onClick?: () => void }) {
   const obraAtivaId = useResolvedObraId()
-  const base = obraAtivaId ? `/obras/${obraAtivaId}/concretagem` : '/concretagem'
+  const to = obraAtivaId ? `/obras/${obraAtivaId}/concretagem` : '/concretagem'
   return (
-    <NavItemGroup
+    <NavItem
+      to={to}
       icon={<FlaskConical size={18} />}
       label="Concretagem"
-      items={[
-        { to: base,                   label: 'Dashboard', end: true },
-        { to: `${base}/concretagens`, label: 'Concretagens' },
-        { to: `${base}/croqui`,       label: 'Croqui' },
-      ]}
       onClick={onClick}
     />
   )
@@ -372,7 +370,7 @@ export function Sidebar({ onNavClick, className }: SidebarProps) {
             onClick={onNavClick}
           />
           <NaoConformidadesNavGroup onClick={onNavClick} />
-          <ConcretagemNavGroup onClick={onNavClick} />
+          <ConcretagemNavLink onClick={onNavClick} />
           <EnsaiosNavGroup onClick={onNavClick} />
         </NavSection>
 
