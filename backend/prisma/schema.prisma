@@ -276,34 +276,53 @@ model ObraQualityConfig {
 // Spec: SPEC-RDO-001
 // ─────────────────────────────────────────
 
+// ATENÇÃO: os valores abaixo precisam bater EXATAMENTE com os enums PostgreSQL
+// criados em prisma/migrations/20260414000001_rdo_module/migration.sql e
+// atualizados em 20260414000010_fix_rdo_enums/migration.sql.
+// Prisma faz comparação case-sensitive com o banco — valores lowercase são
+// obrigatórios.
+
 enum RdoStatus {
-  PREENCHENDO
-  REVISAO
-  APROVADO
+  preenchendo
+  revisao
+  aprovado
+
+  @@map("rdo_status")
 }
 
 enum RdoPeriodo {
-  MANHA
-  TARDE
-  NOITE
+  manha
+  tarde
+  noite
+
+  @@map("rdo_periodo")
 }
 
 enum RdoCondicaoClima {
-  CLARO
-  NUBLADO
-  CHUVOSO
+  ensolarado
+  parcialmente_nublado
+  nublado
+  chuvoso
+  tempestade
+
+  @@map("rdo_condicao_clima")
 }
 
 enum RdoTipoMaoDeObra {
-  CATALOGO
-  PERSONALIZADA
+  proprio
+  subcontratado
+  terceirizado
+
+  @@map("rdo_tipo_mao_de_obra")
 }
 
 enum RdoPapelAssinatura {
-  TECNICO
-  FISCAL
-  GESTOR
-  OUTRO
+  tecnico
+  fiscal
+  gestor
+  outro
+
+  @@map("rdo_papel_assinatura")
 }
 
 model Rdo {
@@ -313,7 +332,7 @@ model Rdo {
   obra             Obra      @relation(fields: [obraId], references: [id])
   data             DateTime  @db.Date @map("data")
   numero           Int       @map("numero") // sequencial por obra
-  status           RdoStatus @default(PREENCHENDO)
+  status           RdoStatus @default(preenchendo)
 
   criadoPorId      Int       @map("criado_por")
   criadoPor        Usuario   @relation("RdoCriadoPor", fields: [criadoPorId], references: [id])

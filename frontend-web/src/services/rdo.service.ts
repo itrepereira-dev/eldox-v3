@@ -3,10 +3,13 @@ import { api } from './api';
 
 // ─── Tipos base ──────────────────────────────────────────────────────────────
 
-export type RdoStatus = 'preenchendo' | 'revisao' | 'aprovado' | 'cancelado';
+// Enums sincronizados com backend/prisma/schema.prisma (RdoStatus/RdoPeriodo/
+// RdoCondicaoClima/RdoTipoMaoDeObra/RdoPapelAssinatura) — todos lowercase.
+export type RdoStatus = 'preenchendo' | 'revisao' | 'aprovado';
 export type PeriodoDia = 'manha' | 'tarde' | 'noite';
-export type CondicaoClima = 'ensolarado' | 'nublado' | 'chuvoso' | 'parcialmente_nublado' | 'tempestade';
+export type CondicaoClima = 'ensolarado' | 'parcialmente_nublado' | 'nublado' | 'chuvoso' | 'tempestade';
 export type TipoMaoObra = 'proprio' | 'subcontratado' | 'terceirizado';
+export type PapelAssinatura = 'tecnico' | 'fiscal' | 'gestor' | 'outro';
 
 // ─── Interfaces de entidade ──────────────────────────────────────────────────
 

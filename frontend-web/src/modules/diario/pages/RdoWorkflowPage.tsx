@@ -33,7 +33,6 @@ const STATUS_ORDER: Record<RdoStatus, number> = {
   preenchendo: 0,
   revisao: 1,
   aprovado: 2,
-  cancelado: -1,
 };
 
 function fmtDateTime(iso: string) {
@@ -314,19 +313,6 @@ export function RdoWorkflowPage() {
         </div>
       </div>
 
-      {/* ── Status cancelado ── */}
-      {rdo.status === 'cancelado' && (
-        <div style={{
-          padding: '16px 20px', borderRadius: 'var(--r-md)',
-          background: 'rgba(248,81,73,.08)', border: '1px solid rgba(248,81,73,.25)',
-          marginBottom: 28,
-        }}>
-          <p style={{ margin: 0, fontSize: 14, color: 'var(--nc)', fontWeight: 600 }}>
-            Este RDO foi cancelado e não pode ser aprovado.
-          </p>
-        </div>
-      )}
-
       {/* ── Timeline ── */}
       <div style={{
         background: 'var(--bg-surface)',
@@ -397,7 +383,7 @@ export function RdoWorkflowPage() {
       </div>
 
       {/* ── Painel de Validação IA ── */}
-      {rdo.status !== 'cancelado' && rdo.status !== 'aprovado' && validacaoResult && (
+      {rdo.status !== 'aprovado' && validacaoResult && (
         <div style={{
           background: 'var(--bg-surface)',
           border: '1px solid var(--border)',
@@ -497,7 +483,7 @@ export function RdoWorkflowPage() {
       )}
 
       {/* ── Ação principal ── */}
-      {rdo.status !== 'cancelado' && rdo.status !== 'aprovado' && (
+      {rdo.status !== 'aprovado' && (
         <div style={{
           background: 'var(--bg-surface)',
           border: '1px solid var(--border-dim)',

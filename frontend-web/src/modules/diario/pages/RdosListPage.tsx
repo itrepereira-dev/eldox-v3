@@ -10,7 +10,6 @@ const STATUS_META: Record<RdoStatus, { label: string; color: string; bg: string;
   preenchendo: { label: 'Preenchendo', color: 'var(--warn)',  bg: 'rgba(210,153,34,.12)',  border: 'rgba(210,153,34,.3)'  },
   revisao:     { label: 'Revisão',     color: 'var(--run)',   bg: 'rgba(88,166,255,.12)',  border: 'rgba(88,166,255,.3)'  },
   aprovado:    { label: 'Aprovado',    color: 'var(--ok)',    bg: 'rgba(63,185,80,.12)',   border: 'rgba(63,185,80,.3)'   },
-  cancelado:   { label: 'Cancelado',   color: 'var(--nc)',    bg: 'rgba(248,81,73,.12)',   border: 'rgba(248,81,73,.3)'   },
 };
 
 function fmtDate(iso: string) {
