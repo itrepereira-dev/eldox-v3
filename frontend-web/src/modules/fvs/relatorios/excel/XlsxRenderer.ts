@@ -63,6 +63,12 @@ export async function renderToXlsx(
       downloadBuffer(buffer, filename);
       break;
     }
+    case 'R6_USO': {
+      const { gerarUsoXlsx } = await import('./UsoXlsx');
+      const buffer = await gerarUsoXlsx(dados as import('../types').R6UsoData);
+      downloadBuffer(buffer, filename);
+      break;
+    }
     default:
       throw new Error(`Excel não suportado para tipo ${tipo}`);
   }
