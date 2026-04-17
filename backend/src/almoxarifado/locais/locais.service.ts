@@ -153,7 +153,7 @@ export class LocaisService {
        SET tipo             = COALESCE($3, tipo),
            nome             = COALESCE($4, nome),
            descricao        = COALESCE($5, descricao),
-           obra_id          = COALESCE($6, obra_id),
+           obra_id          = $6,
            endereco         = COALESCE($7, endereco),
            responsavel_nome = COALESCE($8, responsavel_nome),
            updated_at       = NOW()
@@ -161,7 +161,7 @@ export class LocaisService {
        RETURNING *`,
       id, tenantId,
       dto.tipo ?? null, dto.nome ?? null,
-      dto.descricao ?? null, dto.obra_id ?? null,
+      dto.descricao ?? null, obraIdFinal,
       dto.endereco ?? null, dto.responsavel_nome ?? null,
     );
 
