@@ -64,18 +64,18 @@ export class NfeController {
 
   // ── Listagem (autenticada) ────────────────────────────────────────────────
 
-  @Get('obras/:obraId/nfes')
+  @Get('locais/:localId/nfes')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO', 'VISITANTE')
   listar(
     @TenantId() tenantId: number,
-    @Param('obraId', ParseIntPipe) obraId: number,
+    @Param('localId', ParseIntPipe) localId: number,
     @Query('status') status?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ) {
     return this.nfe.listar(tenantId, {
-      obraId,
+      localId,
       status,
       limit: limit ? Number(limit) : undefined,
       offset: offset ? Number(offset) : undefined,

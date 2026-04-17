@@ -1,6 +1,10 @@
 // backend/src/almoxarifado/nfe/dto/aceitar-nfe.dto.ts
+import { IsNumber } from 'class-validator';
 
 export class AceitarNfeDto {
+  @IsNumber()
+  local_id!: number;
+
   oc_id?: number;
   observacao?: string;
 }

@@ -4,7 +4,6 @@ import {
   Logger,
   NotFoundException,
   BadRequestException,
-  ConflictException,
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import type { Queue } from 'bull';
@@ -186,7 +185,7 @@ export class NfeService {
   async listar(
     tenantId: number,
     filters: {
-      obraId?: number;
+      localId?: number;
       status?: string;
       limit?: number;
       offset?: number;
@@ -198,9 +197,9 @@ export class NfeService {
     const params: unknown[] = [tenantId];
     let i = 2;
 
-    if (filters.obraId) {
-      conds.push(`nf.obra_id = $${i++}`);
-      params.push(filters.obraId);
+    if (filters.localId) {
+      conds.push(`nf.local_id = $${i++}`);
+      params.push(filters.localId);
     }
     if (filters.status) {
       conds.push(`nf.status  = $${i++}`);
@@ -211,13 +210,15 @@ export class NfeService {
       `SELECT nf.*,
               oc.numero            AS oc_numero,
               u.nome               AS aceito_por_nome,
+              l.nome               AS local_nome,
               COUNT(it.id)::int    AS total_itens
        FROM alm_notas_fiscais nf
        LEFT JOIN alm_ordens_compra oc ON oc.id = nf.oc_id
        LEFT JOIN "Usuario" u ON u.id = nf.aceito_por
+       LEFT JOIN alm_locais l ON l.id = nf.local_id
        LEFT JOIN alm_nfe_itens it ON it.nfe_id = nf.id
        WHERE ${conds.join(' AND ')}
-       GROUP BY nf.id, oc.numero, u.nome
+       GROUP BY nf.id, oc.numero, u.nome, l.nome
        ORDER BY nf.created_at DESC
        LIMIT $${i++} OFFSET $${i++}`,
       ...params,
@@ -291,6 +292,16 @@ export class NfeService {
       throw new BadRequestException(`NF-e já está "${nfe.status}"`);
     }
 
+    // Valida que o local existe, pertence ao tenant e está ativo
+    const localRows = await this.prisma.$queryRawUnsafe<{ id: number }[]>(
+      `SELECT id FROM alm_locais WHERE id = $1 AND tenant_id = $2 AND ativo = true`,
+      dto.local_id,
+      tenantId,
+    );
+    if (!localRows.length) {
+      throw new NotFoundException(`Local ${dto.local_id} não encontrado ou inativo`);
+    }
+
     await this.prisma.$transaction(async (tx) => {
       if (dto.oc_id) {
         await tx.$executeRawUnsafe(
@@ -300,18 +311,70 @@ export class NfeService {
           tenantId,
         );
       }
+
       await tx.$executeRawUnsafe(
         `UPDATE alm_notas_fiscais
-         SET status = 'aceita', aceito_por = $1, aceito_at = NOW(), updated_at = NOW()
+         SET status = 'aceita', aceito_por = $1, aceito_at = NOW(), updated_at = NOW(), local_id = $4
          WHERE id = $2 AND tenant_id = $3`,
         usuarioId,
         nfeId,
         tenantId,
+        dto.local_id,
       );
+
+      // Busca itens com catalogo_id para criar movimentos de entrada
+      const itens = await tx.$queryRawUnsafe<
+        { id: number; catalogo_id: number; unidade_nfe: string; quantidade: number }[]
+      >(
+        `SELECT id, catalogo_id, unidade_nfe, quantidade
+         FROM alm_nfe_itens
+         WHERE nfe_id = $1 AND catalogo_id IS NOT NULL`,
+        nfeId,
+      );
+
+      for (const item of itens) {
+        // Upsert saldo — garante que a linha existe antes de atualizar
+        const saldoRows = await tx.$queryRawUnsafe<{ id: number; quantidade: number }[]>(
+          `INSERT INTO alm_estoque_saldo (tenant_id, local_id, catalogo_id, quantidade, unidade, updated_at)
+           VALUES ($1, $2, $3, 0, $4, NOW())
+           ON CONFLICT (tenant_id, local_id, catalogo_id) DO UPDATE SET id = alm_estoque_saldo.id
+           RETURNING id, quantidade::float`,
+          tenantId,
+          dto.local_id,
+          item.catalogo_id,
+          item.unidade_nfe,
+        );
+        const saldoAnterior = Number(saldoRows[0].quantidade);
+        const saldoPosterior = saldoAnterior + Number(item.quantidade);
+
+        // Atualiza saldo
+        await tx.$executeRawUnsafe(
+          `UPDATE alm_estoque_saldo SET quantidade = $1, updated_at = NOW() WHERE id = $2`,
+          saldoPosterior,
+          saldoRows[0].id,
+        );
+
+        // Registra movimento de entrada
+        await tx.$executeRawUnsafe(
+          `INSERT INTO alm_movimentos
+             (tenant_id, catalogo_id, local_id, tipo, quantidade, unidade,
+              saldo_anterior, saldo_posterior, referencia_tipo, referencia_id, criado_por, created_at)
+           VALUES ($1,$2,$3,'entrada',$4,$5,$6,$7,'nfe',$8,$9,NOW())`,
+          tenantId,
+          item.catalogo_id,
+          dto.local_id,
+          item.quantidade,
+          item.unidade_nfe,
+          saldoAnterior,
+          saldoPosterior,
+          nfeId,
+          usuarioId,
+        );
+      }
     });
 
     this.logger.log(
-      JSON.stringify({ action: 'alm.nfe.aceitar', tenantId, nfeId, usuarioId }),
+      JSON.stringify({ action: 'alm.nfe.aceitar', tenantId, nfeId, usuarioId, localId: dto.local_id }),
     );
   }
 
