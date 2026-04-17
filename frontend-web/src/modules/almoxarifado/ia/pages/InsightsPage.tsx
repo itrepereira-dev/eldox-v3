@@ -1,9 +1,14 @@
 // frontend-web/src/modules/almoxarifado/ia/pages/InsightsPage.tsx
-import { useParams } from 'react-router-dom'
-import { Brain, RefreshCw, AlertTriangle, Clock, TrendingUp, Zap } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Brain, RefreshCw, AlertTriangle, TrendingUp, Zap } from 'lucide-react'
 import { cn } from '@/lib/cn'
-import { useInsights } from '../hooks/useInsights'
-import type { AlmReorderPrediction, AlmAnomaliaDetectada } from '../../_service/almoxarifado.service'
+import {
+  useInsights,
+  useAplicarSugestao,
+  useIgnorarSugestao,
+  useReanalisarInsights,
+} from '../hooks/useInsights'
+import type { AlmSugestaoIa, AlmReorderPrediction, AlmAnomaliaDetectada } from '../../_service/almoxarifado.service'
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -13,8 +18,18 @@ function fmtQty(n: number, un: string) {
 
 // ── Reorder Card ───────────────────────────────────────────────────────────────
 
-function ReorderCard({ p }: { p: AlmReorderPrediction }) {
+function ReorderCard({
+  sugestao,
+  onAplicar,
+  isLoading,
+}: {
+  sugestao: AlmSugestaoIa
+  onAplicar: (id: number) => void
+  isLoading: boolean
+}) {
+  const p = sugestao.dados_json as AlmReorderPrediction
   const isCritico = p.nivel === 'critico'
+
   return (
     <div className={cn(
       'p-4 rounded-lg border',
@@ -23,7 +38,7 @@ function ReorderCard({ p }: { p: AlmReorderPrediction }) {
         : 'border-[var(--warn)] bg-[var(--warn-bg)]',
     )}>
       <div className="flex items-start justify-between gap-2 mb-2">
-        <p className="text-[14px] font-semibold text-[var(--text-high)] leading-tight">{p.catalogo_nome}</p>
+        <p className="text-[14px] font-semibold text-[var(--text-high)] leading-tight">{sugestao.catalogo_nome}</p>
         <span className={cn(
           'shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide',
           isCritico ? 'bg-[var(--nc)] text-white' : 'bg-[var(--warn)] text-white',
@@ -35,37 +50,60 @@ function ReorderCard({ p }: { p: AlmReorderPrediction }) {
       <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[12px] mb-3">
         <div>
           <span className="text-[var(--text-faint)]">Estoque atual</span>
-          <p className="font-mono font-semibold text-[var(--text-high)]">{fmtQty(p.quantidade_atual, p.unidade)}</p>
+          <p className="font-semibold text-[var(--text-high)]">{fmtQty(p.quantidade_atual, sugestao.unidade)}</p>
         </div>
         <div>
           <span className="text-[var(--text-faint)]">Consumo/dia</span>
-          <p className="font-mono font-semibold text-[var(--text-high)]">
-            {p.consumo_medio_diario.toFixed(2)} {p.unidade}
+          <p className="font-semibold text-[var(--text-high)]">
+            {p.consumo_medio_diario.toFixed(2)} {sugestao.unidade}
           </p>
         </div>
         <div>
           <span className="text-[var(--text-faint)]">Dias restantes</span>
-          <p className={cn('font-mono font-bold', isCritico ? 'text-[var(--nc)]' : 'text-[var(--warn)]')}>
+          <p className={cn('font-bold', isCritico ? 'text-[var(--nc)]' : 'text-[var(--warn)]')}>
             ~{p.dias_restantes} dias
           </p>
         </div>
         <div>
           <span className="text-[var(--text-faint)]">Repor</span>
-          <p className="font-mono font-semibold text-[var(--text-high)]">{fmtQty(p.recomendacao_qty, p.unidade)}</p>
+          <p className="font-semibold text-[var(--text-high)]">{fmtQty(p.recomendacao_qty, sugestao.unidade)}</p>
         </div>
       </div>
 
-      <p className="text-[11px] text-[var(--text-low)] italic border-t border-[var(--border-dim)] pt-2">
+      <p className="text-[11px] text-[var(--text-low)] italic border-t border-[var(--border-dim)] pt-2 mb-3">
         {p.analise_ia}
       </p>
+
+      <button
+        onClick={() => onAplicar(sugestao.id)}
+        disabled={isLoading}
+        className={cn(
+          'w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded',
+          'bg-[var(--accent)] text-white text-[12px] font-semibold',
+          'hover:bg-[var(--accent-hover)] transition-colors',
+          'disabled:opacity-50 disabled:cursor-not-allowed',
+        )}
+      >
+        {isLoading ? 'Criando…' : '+ Criar Solicitação'}
+      </button>
     </div>
   )
 }
 
 // ── Anomalia Card ──────────────────────────────────────────────────────────────
 
-function AnomaliaCard({ a }: { a: AlmAnomaliaDetectada }) {
+function AnomaliaCard({
+  sugestao,
+  onIgnorar,
+  isLoading,
+}: {
+  sugestao: AlmSugestaoIa
+  onIgnorar: (id: number) => void
+  isLoading: boolean
+}) {
+  const a = sugestao.dados_json as AlmAnomaliaDetectada
   const isCritico = a.nivel === 'critico'
+
   return (
     <div className={cn(
       'p-4 rounded-lg border',
@@ -74,7 +112,7 @@ function AnomaliaCard({ a }: { a: AlmAnomaliaDetectada }) {
         : 'border-[var(--warn)] bg-[var(--warn-bg)]',
     )}>
       <div className="flex items-start justify-between gap-2 mb-2">
-        <p className="text-[14px] font-semibold text-[var(--text-high)] leading-tight">{a.catalogo_nome}</p>
+        <p className="text-[14px] font-semibold text-[var(--text-high)] leading-tight">{sugestao.catalogo_nome}</p>
         <span className={cn(
           'shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide',
           isCritico ? 'bg-[var(--nc)] text-white' : 'bg-[var(--warn)] text-white',
@@ -86,17 +124,30 @@ function AnomaliaCard({ a }: { a: AlmAnomaliaDetectada }) {
       <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[12px] mb-3">
         <div>
           <span className="text-[var(--text-faint)]">Consumo últimos 7d</span>
-          <p className="font-mono font-semibold text-[var(--text-high)]">{fmtQty(a.consumo_recente_7d, a.unidade)}</p>
+          <p className="font-semibold text-[var(--text-high)]">{fmtQty(a.consumo_recente_7d, sugestao.unidade)}</p>
         </div>
         <div>
           <span className="text-[var(--text-faint)]">Consumo últimos 30d</span>
-          <p className="font-mono text-[var(--text-low)]">{fmtQty(a.consumo_medio_30d, a.unidade)}</p>
+          <p className="text-[var(--text-low)]">{fmtQty(a.consumo_medio_30d, sugestao.unidade)}</p>
         </div>
       </div>
 
-      <p className="text-[11px] text-[var(--text-low)] italic border-t border-[var(--border-dim)] pt-2">
+      <p className="text-[11px] text-[var(--text-low)] italic border-t border-[var(--border-dim)] pt-2 mb-3">
         {a.explicacao_ia}
       </p>
+
+      <button
+        onClick={() => onIgnorar(sugestao.id)}
+        disabled={isLoading}
+        className={cn(
+          'w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded',
+          'bg-[var(--bg-raised)] border border-[var(--border-dim)]',
+          'text-[12px] text-[var(--text-low)] hover:text-[var(--text-high)]',
+          'disabled:opacity-50 transition-colors',
+        )}
+      >
+        {isLoading ? 'Ignorando…' : 'Ignorar'}
+      </button>
     </div>
   )
 }
@@ -104,19 +155,27 @@ function AnomaliaCard({ a }: { a: AlmAnomaliaDetectada }) {
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export function InsightsPage() {
-  const { obraId } = useParams<{ obraId: string }>()
-  const id = Number(obraId)
+  const navigate = useNavigate()
 
-  const { data, isLoading, isFetching, refetch, dataUpdatedAt } = useInsights(id)
+  const { data = [], isLoading, isFetching } = useInsights()
+  const aplicar    = useAplicarSugestao()
+  const ignorar    = useIgnorarSugestao()
+  const reanalisar = useReanalisarInsights()
 
-  const analisadoEm = dataUpdatedAt
-    ? new Date(dataUpdatedAt).toLocaleString('pt-BR')
-    : null
+  const reorders  = data.filter((s) => s.tipo === 'reorder')
+  const anomalias = data.filter((s) => s.tipo === 'anomalia')
+  const totalCritico = data.filter((s) => {
+    const d = s.dados_json as any
+    return d?.nivel === 'critico'
+  }).length
 
-  const totalCritico = [
-    ...(data?.reorder  ?? []).filter((r) => r.nivel === 'critico'),
-    ...(data?.anomalias ?? []).filter((a) => a.nivel === 'critico'),
-  ].length
+  function handleAplicar(id: number) {
+    aplicar.mutate(id, {
+      onSuccess: ({ solicitacao_id }) => {
+        navigate(`/almoxarifado/solicitacoes/${solicitacao_id}`)
+      },
+    })
+  }
 
   return (
     <div className="p-6">
@@ -128,30 +187,23 @@ export function InsightsPage() {
             IA Preditiva
           </h1>
           <p className="text-[13px] text-[var(--text-low)] mt-0.5">
-            Previsão de reposição e detecção de anomalias de consumo
+            Previsão de reposição e detecção de anomalias · análise automática a cada 6h
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          {analisadoEm && (
-            <span className="text-[11px] text-[var(--text-faint)] flex items-center gap-1">
-              <Clock size={10} /> Análise: {analisadoEm}
-            </span>
+        <button
+          onClick={() => reanalisar.mutate()}
+          disabled={isFetching || reanalisar.isPending}
+          className={cn(
+            'flex items-center gap-1.5 px-3 py-1.5 rounded',
+            'bg-[var(--bg-raised)] border border-[var(--border-dim)]',
+            'text-[12px] text-[var(--text-low)] hover:text-[var(--text-high)]',
+            'disabled:opacity-50 transition-colors',
           )}
-          <button
-            onClick={() => refetch()}
-            disabled={isFetching}
-            className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded',
-              'bg-[var(--bg-raised)] border border-[var(--border-dim)]',
-              'text-[12px] text-[var(--text-low)] hover:text-[var(--text-high)]',
-              'disabled:opacity-50 transition-colors',
-            )}
-          >
-            <RefreshCw size={12} className={cn(isFetching && 'animate-spin')} />
-            {isFetching ? 'Analisando…' : 'Reanalisar'}
-          </button>
-        </div>
+        >
+          <RefreshCw size={12} className={cn((isFetching || reanalisar.isPending) && 'animate-spin')} />
+          {reanalisar.isPending ? 'Enfileirando…' : 'Reanalisar agora'}
+        </button>
       </div>
 
       {/* Alerta geral */}
@@ -174,69 +226,64 @@ export function InsightsPage() {
             </div>
           ))}
         </div>
+      ) : data.length === 0 ? (
+        <div className="py-16 text-center bg-[var(--bg-surface)] border border-[var(--border-dim)] rounded-lg">
+          <Brain size={32} className="mx-auto mb-3 text-[var(--text-faint)]" />
+          <p className="text-[14px] font-semibold text-[var(--text-high)] mb-1">Estoque saudável</p>
+          <p className="text-[13px] text-[var(--text-faint)]">
+            Nenhuma sugestão pendente · análise automática a cada 6h
+          </p>
+        </div>
       ) : (
         <>
           {/* Seção Reposição */}
-          <section className="mb-8">
-            <h2 className="text-[14px] font-semibold text-[var(--text-high)] flex items-center gap-2 mb-3">
-              <AlertTriangle size={14} className="text-[var(--warn)]" />
-              Reposição Prevista
-              {data?.reorder.length ? (
+          {reorders.length > 0 && (
+            <section className="mb-8">
+              <h2 className="text-[14px] font-semibold text-[var(--text-high)] flex items-center gap-2 mb-3">
+                <AlertTriangle size={14} className="text-[var(--warn)]" />
+                Reposição Prevista
                 <span className="ml-1 px-1.5 py-0.5 bg-[var(--warn-bg)] text-[var(--warn)] text-[10px] font-bold rounded-full">
-                  {data.reorder.length}
+                  {reorders.length}
                 </span>
-              ) : null}
-            </h2>
-
-            {!data?.reorder.length ? (
-              <div className="py-8 text-center bg-[var(--bg-surface)] border border-[var(--border-dim)] rounded-lg">
-                <AlertTriangle size={24} className="mx-auto mb-2 text-[var(--text-faint)]" />
-                <p className="text-[13px] text-[var(--text-faint)]">
-                  Nenhum material com previsão de ruptura nos próximos 14 dias.
-                </p>
-              </div>
-            ) : (
+              </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {data.reorder
-                  .sort((a, b) => a.dias_restantes - b.dias_restantes)
-                  .map((p) => <ReorderCard key={p.catalogo_id} p={p} />)}
+                {reorders
+                  .sort((a, b) => (a.dados_json as AlmReorderPrediction).dias_restantes - (b.dados_json as AlmReorderPrediction).dias_restantes)
+                  .map((s) => (
+                    <ReorderCard
+                      key={s.id}
+                      sugestao={s}
+                      onAplicar={handleAplicar}
+                      isLoading={aplicar.isPending && aplicar.variables === s.id}
+                    />
+                  ))}
               </div>
-            )}
-          </section>
+            </section>
+          )}
 
           {/* Seção Anomalias */}
-          <section>
-            <h2 className="text-[14px] font-semibold text-[var(--text-high)] flex items-center gap-2 mb-3">
-              <TrendingUp size={14} className="text-[var(--nc)]" />
-              Anomalias de Consumo
-              {data?.anomalias.length ? (
+          {anomalias.length > 0 && (
+            <section>
+              <h2 className="text-[14px] font-semibold text-[var(--text-high)] flex items-center gap-2 mb-3">
+                <TrendingUp size={14} className="text-[var(--nc)]" />
+                Anomalias de Consumo
                 <span className="ml-1 px-1.5 py-0.5 bg-[var(--nc-bg)] text-[var(--nc)] text-[10px] font-bold rounded-full">
-                  {data.anomalias.length}
+                  {anomalias.length}
                 </span>
-              ) : null}
-            </h2>
-
-            {!data?.anomalias.length ? (
-              <div className="py-8 text-center bg-[var(--bg-surface)] border border-[var(--border-dim)] rounded-lg">
-                <TrendingUp size={24} className="mx-auto mb-2 text-[var(--text-faint)]" />
-                <p className="text-[13px] text-[var(--text-faint)]">
-                  Nenhuma anomalia de consumo detectada nos últimos 7 dias.
-                </p>
-              </div>
-            ) : (
+              </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {data.anomalias
-                  .sort((a, b) => b.fator_desvio - a.fator_desvio)
-                  .map((a) => <AnomaliaCard key={a.catalogo_id} a={a} />)}
+                {anomalias
+                  .sort((a, b) => (b.dados_json as AlmAnomaliaDetectada).fator_desvio - (a.dados_json as AlmAnomaliaDetectada).fator_desvio)
+                  .map((s) => (
+                    <AnomaliaCard
+                      key={s.id}
+                      sugestao={s}
+                      onIgnorar={(id) => ignorar.mutate(id)}
+                      isLoading={ignorar.isPending && ignorar.variables === s.id}
+                    />
+                  ))}
               </div>
-            )}
-          </section>
-
-          {/* Footer modelo */}
-          {data && (
-            <p className="mt-6 text-[10px] text-[var(--text-faint)] text-center font-mono">
-              Modelo: {data.modelo} · Analisado em: {new Date(data.analisado_em).toLocaleString('pt-BR')}
-            </p>
+            </section>
           )}
         </>
       )}
