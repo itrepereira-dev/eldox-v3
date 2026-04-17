@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { obrasService, type ObraLocal } from '../../services/obras.service';
 import { FileText, BookOpenCheck } from 'lucide-react';
 import { EditarObraModal } from './EditarObraModal';
+import { RelatorioConfigModal } from './RelatorioConfigModal';
 import { useModelosByObra, useDesvincularModeloObra, useVincularModeloObra, useModelos } from '../../modules/fvs/modelos/hooks/useModelos';
 import { useAppShell } from '../../components/layout/useAppShell';
 
@@ -137,6 +138,7 @@ export function ObraDetalhePage() {
 
   const [abaAtiva, setAbaAtiva] = useState<'locais' | 'templates' | 'qualidade'>('locais');
   const [editandoObra, setEditandoObra] = useState(false);
+  const [personalizandoPdf, setPersonalizandoPdf] = useState(false);
   const [modeloParaVincular, setModeloParaVincular] = useState<number | null>(null);
 
   const [editandoHierarquia, setEditandoHierarquia] = useState(false);
@@ -248,16 +250,30 @@ export function ObraDetalhePage() {
             {obra.cidade && ` · ${obra.cidade}${obra.estado ? `/${obra.estado}` : ''}`}
           </p>
         </div>
-        <button
-          onClick={() => setEditandoObra(true)}
-          style={{
-            background: 'var(--bg-surface)', border: '1px solid var(--bg-border)',
-            color: 'var(--text-60)', borderRadius: 'var(--radius-md)',
-            padding: '8px 16px', cursor: 'pointer', fontSize: '13px',
-          }}
-        >
-          Editar
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={() => setPersonalizandoPdf(true)}
+            title="Personalizar logo, título e seções do PDF do RDO desta obra"
+            style={{
+              background: 'var(--bg-surface)', border: '1px solid var(--bg-border)',
+              color: 'var(--text-60)', borderRadius: 'var(--radius-md)',
+              padding: '8px 14px', cursor: 'pointer', fontSize: '13px',
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}
+          >
+            📄 Personalizar PDF
+          </button>
+          <button
+            onClick={() => setEditandoObra(true)}
+            style={{
+              background: 'var(--bg-surface)', border: '1px solid var(--bg-border)',
+              color: 'var(--text-60)', borderRadius: 'var(--radius-md)',
+              padding: '8px 16px', cursor: 'pointer', fontSize: '13px',
+            }}
+          >
+            Editar
+          </button>
+        </div>
       </div>
 
       {/* Card GED */}
@@ -612,6 +628,14 @@ export function ObraDetalhePage() {
           </div>
         )}
       </div>}
+
+      {personalizandoPdf && (
+        <RelatorioConfigModal
+          obraId={obraId}
+          obraNome={obra.nome}
+          onClose={() => setPersonalizandoPdf(false)}
+        />
+      )}
 
       {editandoObra && (
         <EditarObraModal obra={obra} onClose={() => setEditandoObra(false)} />

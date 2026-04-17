@@ -91,6 +91,24 @@ export interface GerarMassaPayload {
 
 export type EstrategiaGeracao = 'generica' | 'edificacao' | 'linear' | 'instalacao';
 
+// Personalização do relatório PDF por obra (G8)
+export interface RelatorioConfigSecoes {
+  clima: boolean;
+  mao_obra: boolean;
+  equipamentos: boolean;
+  atividades: boolean;
+  ocorrencias: boolean;
+  checklist: boolean;
+  fotos: boolean;
+  assinaturas: boolean;
+}
+
+export interface RelatorioConfig {
+  logo_cliente_url: string | null;
+  titulo: string | null;
+  secoes: RelatorioConfigSecoes;
+}
+
 export const obrasService = {
   // Tipos
   async getTipos(): Promise<ObraTipo[]> {
@@ -133,6 +151,20 @@ export const obrasService = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return data.data ?? data;
+  },
+
+  // Personalização do relatório PDF (G8)
+  async getRelatorioConfig(obraId: number): Promise<RelatorioConfig> {
+    const { data } = await api.get(`/obras/${obraId}/relatorio-config`);
+    return (data.data ?? data) as RelatorioConfig;
+  },
+
+  async patchRelatorioConfig(
+    obraId: number,
+    patch: Partial<RelatorioConfig>,
+  ): Promise<RelatorioConfig> {
+    const { data } = await api.patch(`/obras/${obraId}/relatorio-config`, patch);
+    return (data.data ?? data) as RelatorioConfig;
   },
 
   // Locais
