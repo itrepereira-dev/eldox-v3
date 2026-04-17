@@ -104,6 +104,13 @@ export function ObraDetalhePage() {
     },
   });
 
+  const duplicarLocalMutation = useMutation({
+    mutationFn: (localId: number) => obrasService.duplicarLocal(obraId, localId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['obra-locais', obraId] });
+    },
+  });
+
   const renomearLocalMutation = useMutation({
     mutationFn: ({ localId, nome }: { localId: number; nome: string }) =>
       obrasService.updateLocal(obraId, localId, { nome }),
@@ -598,6 +605,8 @@ export function ObraDetalhePage() {
                     { localId: abaixo.id, ordem: local.ordem },
                   ]);
                 }}
+                podeDuplicar={nivelAtual === 1}
+                onDuplicar={() => duplicarLocalMutation.mutate(local.id)}
               />
             ))}
           </div>
@@ -1030,6 +1039,23 @@ function LocalRow({
         >
           {local.status === 'bloqueado' ? '🔒' : '🔓'}
         </button>
+
+        {/* Duplicar (nível 1 = torre) */}
+        {podeDuplicar && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onDuplicar?.(); }}
+            title="Duplicar (copia este nível com todos os subitens)"
+            style={{
+              background: 'transparent', border: 'none',
+              color: 'var(--text-40)', cursor: 'pointer',
+              fontSize: '13px', padding: '0 4px', opacity: 0.5,
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.5')}
+          >
+            ⊕
+          </button>
+        )}
 
         {local.totalFilhos > 0 && (
           <span style={{ fontSize: '12px', color: 'var(--text-60)' }}>

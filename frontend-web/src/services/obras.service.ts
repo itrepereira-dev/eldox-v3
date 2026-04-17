@@ -178,6 +178,11 @@ export const obrasService = {
     return data.data ?? data;
   },
 
+  async duplicarLocal(obraId: number, localId: number): Promise<ObraLocal> {
+    const { data } = await api.post(`/obras/${obraId}/locais/${localId}/duplicar`);
+    return data.data ?? data;
+  },
+
   async saveNiveisConfig(
     obraId: number,
     niveis: { nivel: number; labelSingular: string; labelPlural: string }[],
