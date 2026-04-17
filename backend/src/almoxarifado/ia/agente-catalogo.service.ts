@@ -23,9 +23,9 @@ export interface MatchResult {
   catalogo_nome: string | null;
   fator_conversao: number;
   unidade_catalogo: string | null;
-  confianca: number;           // 0-100
+  confianca: number; // 0-100
   precisa_confirmacao: boolean;
-  sugestao_id: number | null;  // alm_catalogo_sugestoes_ia.id se precisar confirmação
+  sugestao_id: number | null; // alm_catalogo_sugestoes_ia.id se precisar confirmação
   origem: 'variante_confirmada' | 'ia' | 'sem_match';
   motivo: string;
 }
@@ -80,11 +80,15 @@ export class AgenteCatalogoService {
     if (varianteFuzzy && varianteFuzzy.score >= 0.85) {
       // Alta confiança no fuzzy — ainda pede confirmação
       const sugestaoId = await this._salvarSugestao(
-        tenantId, descricaoOrig, unidadeOrig,
-        varianteFuzzy.catalogo_id, varianteFuzzy.fator_conversao,
+        tenantId,
+        descricaoOrig,
+        unidadeOrig,
+        varianteFuzzy.catalogo_id,
+        varianteFuzzy.fator_conversao,
         varianteFuzzy.score * 100,
         `Similar a "${varianteFuzzy.descricao_orig}" (confiança ${Math.round(varianteFuzzy.score * 100)}%)`,
-        null, nfeItemId,
+        null,
+        nfeItemId,
       );
       return {
         catalogo_id: varianteFuzzy.catalogo_id,
@@ -103,35 +107,50 @@ export class AgenteCatalogoService {
     const candidatos = await this._buscarCandidatosCatalogo(tenantId, descNorm);
     if (!candidatos.length) {
       return {
-        catalogo_id: null, catalogo_nome: null,
-        fator_conversao: 1.0, unidade_catalogo: null,
-        confianca: 0, precisa_confirmacao: false,
-        sugestao_id: null, origem: 'sem_match',
+        catalogo_id: null,
+        catalogo_nome: null,
+        fator_conversao: 1.0,
+        unidade_catalogo: null,
+        confianca: 0,
+        precisa_confirmacao: false,
+        sugestao_id: null,
+        origem: 'sem_match',
         motivo: 'Nenhum candidato encontrado no catálogo',
       };
     }
 
     // ── 4. Chamada IA para identificar o melhor match ─────────────────────────
     const iaResult = await this._chamarIa(
-      tenantId, descricaoOrig, unidadeOrig, candidatos,
+      tenantId,
+      descricaoOrig,
+      unidadeOrig,
+      candidatos,
     );
 
     if (!iaResult || iaResult.catalogo_id === null) {
       return {
-        catalogo_id: null, catalogo_nome: null,
-        fator_conversao: 1.0, unidade_catalogo: null,
+        catalogo_id: null,
+        catalogo_nome: null,
+        fator_conversao: 1.0,
+        unidade_catalogo: null,
         confianca: iaResult?.confianca ?? 0,
         precisa_confirmacao: false,
-        sugestao_id: null, origem: 'sem_match',
+        sugestao_id: null,
+        origem: 'sem_match',
         motivo: iaResult?.motivo ?? 'IA não encontrou correspondência adequada',
       };
     }
 
     // ── 5. Salva sugestão para o almoxarife confirmar ─────────────────────────
-    const candidatoSelecionado = candidatos.find((c) => c.id === iaResult.catalogo_id);
+    const candidatoSelecionado = candidatos.find(
+      (c) => c.id === iaResult.catalogo_id,
+    );
     const sugestaoId = await this._salvarSugestao(
-      tenantId, descricaoOrig, unidadeOrig,
-      iaResult.catalogo_id, iaResult.fator_conversao ?? 1.0,
+      tenantId,
+      descricaoOrig,
+      unidadeOrig,
+      iaResult.catalogo_id,
+      iaResult.fator_conversao ?? 1.0,
       iaResult.confianca,
       iaResult.motivo,
       iaResult.alternativas ?? null,
@@ -157,16 +176,28 @@ export class AgenteCatalogoService {
     sugestaoId: number,
     tenantId: number,
     usuarioId: number,
-    ajustes?: { catalogo_id?: number; fator_conversao?: number; marca?: string },
+    ajustes?: {
+      catalogo_id?: number;
+      fator_conversao?: number;
+      marca?: string;
+    },
   ): Promise<number> {
-    const rows = await this.prisma.$queryRawUnsafe<{
-      id: number; tenant_id: number; descricao_orig: string; unidade_orig: string | null;
-      catalogo_id_sug: number; fator_sug: number;
-    }[]>(
+    const rows = await this.prisma.$queryRawUnsafe<
+      {
+        id: number;
+        tenant_id: number;
+        descricao_orig: string;
+        unidade_orig: string | null;
+        catalogo_id_sug: number;
+        fator_sug: number;
+      }[]
+    >(
       `SELECT * FROM alm_catalogo_sugestoes_ia WHERE id = $1 AND tenant_id = $2 AND status = 'pendente'`,
-      sugestaoId, tenantId,
+      sugestaoId,
+      tenantId,
     );
-    if (!rows.length) throw new Error(`Sugestão ${sugestaoId} não encontrada ou já processada`);
+    if (!rows.length)
+      throw new Error(`Sugestão ${sugestaoId} não encontrada ou já processada`);
 
     const s = rows[0];
     const catalogoId = ajustes?.catalogo_id ?? s.catalogo_id_sug;
@@ -180,8 +211,14 @@ export class AgenteCatalogoService {
        VALUES ($1, $2, $3, $4, $5, $6, 'ia', $7, $8, NOW())
        ON CONFLICT DO NOTHING
        RETURNING id`,
-      tenantId, catalogoId, s.descricao_orig, s.unidade_orig, fator,
-      ajustes?.marca ?? null, null, usuarioId,
+      tenantId,
+      catalogoId,
+      s.descricao_orig,
+      s.unidade_orig,
+      fator,
+      ajustes?.marca ?? null,
+      null,
+      usuarioId,
     );
 
     // Marca sugestão como aprovada
@@ -190,25 +227,38 @@ export class AgenteCatalogoService {
        SET status = 'aprovado', revisado_por = $1, revisado_at = NOW(),
            variante_criada_id = $2, updated_at = NOW()
        WHERE id = $3`,
-      usuarioId, variante[0]?.id ?? null, sugestaoId,
+      usuarioId,
+      variante[0]?.id ?? null,
+      sugestaoId,
     );
 
-    this.logger.log(JSON.stringify({
-      action: 'catalogo.variante.criada', tenantId, catalogoId,
-      descricaoOrig: s.descricao_orig, confirmedBy: usuarioId,
-    }));
+    this.logger.log(
+      JSON.stringify({
+        action: 'catalogo.variante.criada',
+        tenantId,
+        catalogoId,
+        descricaoOrig: s.descricao_orig,
+        confirmedBy: usuarioId,
+      }),
+    );
 
     return variante[0]?.id ?? 0;
   }
 
   // ── Rejeitar sugestão ─────────────────────────────────────────────────────────
 
-  async rejeitarSugestao(sugestaoId: number, tenantId: number, usuarioId: number): Promise<void> {
+  async rejeitarSugestao(
+    sugestaoId: number,
+    tenantId: number,
+    usuarioId: number,
+  ): Promise<void> {
     await this.prisma.$executeRawUnsafe(
       `UPDATE alm_catalogo_sugestoes_ia
        SET status = 'rejeitado', revisado_por = $1, revisado_at = NOW(), updated_at = NOW()
        WHERE id = $2 AND tenant_id = $3`,
-      usuarioId, sugestaoId, tenantId,
+      usuarioId,
+      sugestaoId,
+      tenantId,
     );
   }
 
@@ -222,16 +272,23 @@ export class AgenteCatalogoService {
        WHERE s.tenant_id = $1 AND s.status = 'pendente'
        ORDER BY s.confianca DESC, s.created_at ASC
        LIMIT $2 OFFSET $3`,
-      tenantId, limit, offset,
+      tenantId,
+      limit,
+      offset,
     );
   }
 
   // ── Helpers privados ──────────────────────────────────────────────────────────
 
   private async _buscarVarianteExata(tenantId: number, descricaoNorm: string) {
-    const rows = await this.prisma.$queryRawUnsafe<{
-      catalogo_id: number; catalogo_nome: string; fator_conversao: number; unidade: string;
-    }[]>(
+    const rows = await this.prisma.$queryRawUnsafe<
+      {
+        catalogo_id: number;
+        catalogo_nome: string;
+        fator_conversao: number;
+        unidade: string;
+      }[]
+    >(
       `SELECT v.catalogo_id, m.nome AS catalogo_nome, v.fator_conversao, m.unidade
        FROM alm_catalogo_variantes v
        JOIN fvm_catalogo_materiais m ON m.id = v.catalogo_id
@@ -240,17 +297,25 @@ export class AgenteCatalogoService {
          AND v.ativo = true
          AND v.confirmado_at IS NOT NULL
        LIMIT 1`,
-      tenantId, descricaoNorm,
+      tenantId,
+      descricaoNorm,
     );
     return rows[0] ?? null;
   }
 
   private async _buscarVarianteFuzzy(tenantId: number, descricaoNorm: string) {
-    const rows = await this.prisma.$queryRawUnsafe<{
-      catalogo_id: number; catalogo_nome: string; fator_conversao: number; unidade: string;
-      descricao_orig: string; score: number;
-    }[]>(
-      `SELECT v.catalogo_id, m.nome AS catalogo_nome, v.fator_conversao, m.unidade,
+    const rows = await this.prisma
+      .$queryRawUnsafe<
+        {
+          catalogo_id: number;
+          catalogo_nome: string;
+          fator_conversao: number;
+          unidade: string;
+          descricao_orig: string;
+          score: number;
+        }[]
+      >(
+        `SELECT v.catalogo_id, m.nome AS catalogo_nome, v.fator_conversao, m.unidade,
               v.descricao_orig,
               similarity(UPPER(v.descricao_orig), $2) AS score
        FROM alm_catalogo_variantes v
@@ -261,8 +326,10 @@ export class AgenteCatalogoService {
          AND similarity(UPPER(v.descricao_orig), $2) > 0.5
        ORDER BY score DESC
        LIMIT 1`,
-      tenantId, descricaoNorm,
-    ).catch(() => [] as any[]); // pg_trgm pode não estar instalado
+        tenantId,
+        descricaoNorm,
+      )
+      .catch(() => [] as any[]); // pg_trgm pode não estar instalado
     return rows[0] ?? null;
   }
 
@@ -286,7 +353,9 @@ export class AgenteCatalogoService {
            OR UPPER(m.nome) ILIKE $3
          )
        LIMIT 20`,
-      tenantId, tokens, `%${descricaoNorm.slice(0, 30)}%`,
+      tenantId,
+      tokens,
+      `%${descricaoNorm.slice(0, 30)}%`,
     );
 
     return rows;
@@ -305,7 +374,10 @@ export class AgenteCatalogoService {
     alternativas?: { catalogo_id: number; score: number; motivo: string }[];
   } | null> {
     const catalogoStr = candidatos
-      .map((c) => `  {"id":${c.id},"nome":${JSON.stringify(c.nome)},"un":"${c.unidade}"${c.sinapi_codigo ? `,"sinapi":"${c.sinapi_codigo}"` : ''}}`)
+      .map(
+        (c) =>
+          `  {"id":${c.id},"nome":${JSON.stringify(c.nome)},"un":"${c.unidade}"${c.sinapi_codigo ? `,"sinapi":"${c.sinapi_codigo}"` : ''}}`,
+      )
       .join('\n');
 
     const system = `Você é um especialista em almoxarifado de construção civil.
@@ -343,8 +415,12 @@ Retorne:
     try {
       const resp = await this.ia.callClaudeForAgent(
         'claude-haiku-4-5-20251001',
-        system, userMsg,
-        512, tenantId, SISTEMA_USUARIO_ID, 'alm.catalogo-match',
+        system,
+        userMsg,
+        512,
+        tenantId,
+        SISTEMA_USUARIO_ID,
+        'alm.catalogo-match',
       );
       const clean = resp.replace(/```json\n?|\n?```/g, '').trim();
       const parsed = JSON.parse(clean);
@@ -381,8 +457,14 @@ Retorne:
           confianca, motivo_ia, alternativas, nfe_item_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9)
        RETURNING id`,
-      tenantId, descricaoOrig, unidadeOrig, catalogoId, fator,
-      confianca, motivo, alternativas ? JSON.stringify(alternativas) : null,
+      tenantId,
+      descricaoOrig,
+      unidadeOrig,
+      catalogoId,
+      fator,
+      confianca,
+      motivo,
+      alternativas ? JSON.stringify(alternativas) : null,
       nfeItemId,
     );
     return rows[0]?.id ?? 0;

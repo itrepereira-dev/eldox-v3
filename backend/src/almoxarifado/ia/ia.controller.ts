@@ -1,5 +1,12 @@
 // backend/src/almoxarifado/ia/ia.controller.ts
-import { Controller, Get, Param, ParseIntPipe, UseGuards, Req } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  UseGuards,
+  Req,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -12,7 +19,7 @@ import type { AlmInsightsResult } from '../types/alm.types';
 @Controller('api/v1/almoxarifado')
 export class IaController {
   constructor(
-    private readonly reorder:  AgenteReorderService,
+    private readonly reorder: AgenteReorderService,
     private readonly anomalia: AgenteAnomaliaService,
   ) {}
 
@@ -35,7 +42,7 @@ export class IaController {
       reorder,
       anomalias,
       analisado_em: new Date(),
-      modelo:       'claude-haiku-4-5-20251001',
+      modelo: 'claude-haiku-4-5-20251001',
     };
   }
 }

@@ -2,7 +2,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { IaService } from '../../ia/ia.service';
-import type { AlmReorderPrediction, AlmInsightsResult } from '../types/alm.types';
+import type {
+  AlmReorderPrediction,
+  AlmInsightsResult,
+} from '../types/alm.types';
 
 const SISTEMA_USUARIO_ID = 1;
 const DIAS_HISTORICO = 30;
@@ -30,7 +33,10 @@ export class AgenteReorderService {
    * Analisa o histórico de consumo de uma obra e retorna previsões de reposição.
    * Cria alertas na tabela alm_alertas_estoque para itens críticos/atenção.
    */
-  async executar(tenantId: number, obraId: number): Promise<AlmReorderPrediction[]> {
+  async executar(
+    tenantId: number,
+    obraId: number,
+  ): Promise<AlmReorderPrediction[]> {
     const dataCorte = new Date();
     dataCorte.setDate(dataCorte.getDate() - DIAS_HISTORICO);
 
@@ -54,7 +60,9 @@ export class AgenteReorderService {
          AND s.obra_id   = $2
          AND s.quantidade > 0
        GROUP BY s.catalogo_id, m.nome, s.unidade, s.quantidade`,
-      tenantId, obraId, dataCorte,
+      tenantId,
+      obraId,
+      dataCorte,
     );
 
     if (!saldos.length) return [];
@@ -63,16 +71,18 @@ export class AgenteReorderService {
     const candidatos = saldos
       .filter((s) => Number(s.consumo_total_30d) > 0)
       .map((s) => {
-        const consumo_medio_diario = Number(s.consumo_total_30d) / DIAS_HISTORICO;
+        const consumo_medio_diario =
+          Number(s.consumo_total_30d) / DIAS_HISTORICO;
         const quantidade_atual = Number(s.quantidade_atual);
-        const dias_restantes = consumo_medio_diario > 0
-          ? Math.floor(quantidade_atual / consumo_medio_diario)
-          : 999;
+        const dias_restantes =
+          consumo_medio_diario > 0
+            ? Math.floor(quantidade_atual / consumo_medio_diario)
+            : 999;
 
         return {
-          catalogo_id:         s.catalogo_id,
-          catalogo_nome:       s.catalogo_nome,
-          unidade:             s.unidade,
+          catalogo_id: s.catalogo_id,
+          catalogo_nome: s.catalogo_nome,
+          unidade: s.unidade,
           quantidade_atual,
           consumo_medio_diario,
           dias_restantes,
@@ -113,14 +123,16 @@ Regras:
 - nivel: "critico" se dias_restantes < 7, "atencao" se < 14`;
 
     const itensStr = candidatos
-      .map((c) => JSON.stringify({
-        id:              c.catalogo_id,
-        material:        c.catalogo_nome,
-        un:              c.unidade,
-        estoque_atual:   c.quantidade_atual,
-        consumo_diario:  Number(c.consumo_medio_diario.toFixed(3)),
-        dias_restantes:  c.dias_restantes,
-      }))
+      .map((c) =>
+        JSON.stringify({
+          id: c.catalogo_id,
+          material: c.catalogo_nome,
+          un: c.unidade,
+          estoque_atual: c.quantidade_atual,
+          consumo_diario: Number(c.consumo_medio_diario.toFixed(3)),
+          dias_restantes: c.dias_restantes,
+        }),
+      )
       .join('\n');
 
     const userMessage = `Analise estes materiais em baixo estoque na obra ${obraId}:
@@ -150,25 +162,37 @@ Retorne JSON no formato:
         'alm.reorder',
       );
     } catch (err: any) {
-      this.logger.error(`Erro na chamada IA reorder obra=${obraId}: ${err.message}`);
+      this.logger.error(
+        `Erro na chamada IA reorder obra=${obraId}: ${err.message}`,
+      );
       // Fallback sem IA: usa regras simples
       return candidatos.map((c) => ({
         ...c,
-        obra_id:          obraId,
-        nivel:            c.dias_restantes < DIAS_ALERTA_CRITICO ? 'critico' as const : 'atencao' as const,
+        obra_id: obraId,
+        nivel:
+          c.dias_restantes < DIAS_ALERTA_CRITICO
+            ? ('critico' as const)
+            : ('atencao' as const),
         recomendacao_qty: Math.ceil(c.consumo_medio_diario * 30),
-        analise_ia:       'Análise automática por regra de estoque mínimo.',
+        analise_ia: 'Análise automática por regra de estoque mínimo.',
       }));
     }
 
     const duracaoMs = Date.now() - inicio;
 
-    let iaResults: Array<{ catalogo_id: number; nivel: string; recomendacao_qty: number; analise_ia: string }>;
+    let iaResults: Array<{
+      catalogo_id: number;
+      nivel: string;
+      recomendacao_qty: number;
+      analise_ia: string;
+    }>;
     try {
       const clean = responseText.replace(/```json\n?|\n?```/g, '').trim();
       iaResults = JSON.parse(clean);
     } catch {
-      this.logger.error(`Resposta IA inválida para reorder obra=${obraId}: ${responseText.slice(0, 200)}`);
+      this.logger.error(
+        `Resposta IA inválida para reorder obra=${obraId}: ${responseText.slice(0, 200)}`,
+      );
       iaResults = [];
     }
 
@@ -177,7 +201,8 @@ Retorne JSON no formato:
       `INSERT INTO alm_ai_analises
          (tenant_id, tipo, referencia_id, resultado, modelo, duracao_ms)
        VALUES ($1, 'reorder_prediction', $2, $3::jsonb, 'claude-haiku-4-5-20251001', $4)`,
-      tenantId, obraId,
+      tenantId,
+      obraId,
       JSON.stringify({ itens: candidatos.length, predictions: iaResults }),
       duracaoMs,
     );
@@ -186,21 +211,29 @@ Retorne JSON no formato:
     return candidatos.map((c) => {
       const ia = iaResults.find((r) => r.catalogo_id === c.catalogo_id);
       return {
-        catalogo_id:         c.catalogo_id,
-        catalogo_nome:       c.catalogo_nome,
-        unidade:             c.unidade,
-        quantidade_atual:    c.quantidade_atual,
+        catalogo_id: c.catalogo_id,
+        catalogo_nome: c.catalogo_nome,
+        unidade: c.unidade,
+        quantidade_atual: c.quantidade_atual,
         consumo_medio_diario: c.consumo_medio_diario,
-        dias_restantes:      c.dias_restantes,
-        obra_id:             obraId,
-        nivel:               (ia?.nivel ?? (c.dias_restantes < DIAS_ALERTA_CRITICO ? 'critico' : 'atencao')) as 'critico' | 'atencao',
-        recomendacao_qty:    ia?.recomendacao_qty ?? Math.ceil(c.consumo_medio_diario * 30),
-        analise_ia:          ia?.analise_ia ?? 'Material com estoque baixo.',
+        dias_restantes: c.dias_restantes,
+        obra_id: obraId,
+        nivel: (ia?.nivel ??
+          (c.dias_restantes < DIAS_ALERTA_CRITICO ? 'critico' : 'atencao')) as
+          | 'critico'
+          | 'atencao',
+        recomendacao_qty:
+          ia?.recomendacao_qty ?? Math.ceil(c.consumo_medio_diario * 30),
+        analise_ia: ia?.analise_ia ?? 'Material com estoque baixo.',
       };
     });
   }
 
-  private async _criarAlertas(predictions: AlmReorderPrediction[], tenantId: number, obraId: number): Promise<void> {
+  private async _criarAlertas(
+    predictions: AlmReorderPrediction[],
+    tenantId: number,
+    obraId: number,
+  ): Promise<void> {
     for (const p of predictions) {
       // Upsert: se já existe alerta não lido para este item, atualiza; senão cria
       await this.prisma.$executeRawUnsafe(
@@ -216,19 +249,24 @@ Retorne JSON no formato:
       );
     }
 
-    this.logger.log(JSON.stringify({
-      action:  'alm.reorder.alertas_criados',
-      obraId,
-      tenantId,
-      total:   predictions.length,
-      critico: predictions.filter((p) => p.nivel === 'critico').length,
-    }));
+    this.logger.log(
+      JSON.stringify({
+        action: 'alm.reorder.alertas_criados',
+        obraId,
+        tenantId,
+        total: predictions.length,
+        critico: predictions.filter((p) => p.nivel === 'critico').length,
+      }),
+    );
   }
 
   /**
    * Retorna as predições de reposição para exibição no frontend (sem persistir alertas).
    */
-  async getInsights(tenantId: number, obraId: number): Promise<AlmReorderPrediction[]> {
+  async getInsights(
+    tenantId: number,
+    obraId: number,
+  ): Promise<AlmReorderPrediction[]> {
     return this.executar(tenantId, obraId);
   }
 }

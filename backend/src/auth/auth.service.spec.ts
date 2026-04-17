@@ -108,7 +108,11 @@ describe('AuthService', () => {
     };
 
     configService = {
-      get: jest.fn().mockImplementation((_key: string, defaultValue?: string) => defaultValue ?? null),
+      get: jest
+        .fn()
+        .mockImplementation(
+          (_key: string, defaultValue?: string) => defaultValue ?? null,
+        ),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -157,9 +161,15 @@ describe('AuthService', () => {
       });
 
       // Assert — chamadas ao Prisma na ordem esperada
-      expect(prisma.tenant.findUnique).toHaveBeenCalledWith({ where: { slug: REGISTER_DTO.tenantSlug } });
-      expect(prisma.usuario.findFirst).toHaveBeenCalledWith({ where: { email: REGISTER_DTO.adminEmail } });
-      expect(prisma.plano.findUnique).toHaveBeenCalledWith({ where: { nome: 'starter' } });
+      expect(prisma.tenant.findUnique).toHaveBeenCalledWith({
+        where: { slug: REGISTER_DTO.tenantSlug },
+      });
+      expect(prisma.usuario.findFirst).toHaveBeenCalledWith({
+        where: { email: REGISTER_DTO.adminEmail },
+      });
+      expect(prisma.plano.findUnique).toHaveBeenCalledWith({
+        where: { nome: 'starter' },
+      });
       expect(prisma.tenant.create).toHaveBeenCalledTimes(1);
 
       // Assert — senha hasheada antes de persistir
@@ -258,7 +268,10 @@ describe('AuthService', () => {
       });
 
       // Assert — bcrypt.compare chamado com senha e hash corretos
-      expect(bcrypt.compare).toHaveBeenCalledWith(LOGIN_DTO.senha, USUARIO_MOCK.senhaHash);
+      expect(bcrypt.compare).toHaveBeenCalledWith(
+        LOGIN_DTO.senha,
+        USUARIO_MOCK.senhaHash,
+      );
 
       // Assert — dois tokens gerados (access + refresh)
       expect(jwtService.sign).toHaveBeenCalledTimes(2);
@@ -280,7 +293,10 @@ describe('AuthService', () => {
 
     it('tenant inativo: deve lançar UnauthorizedException', async () => {
       // Arrange — tenant existe mas está inativo
-      prisma.tenant.findUnique.mockResolvedValueOnce({ ...TENANT_MOCK, ativo: false });
+      prisma.tenant.findUnique.mockResolvedValueOnce({
+        ...TENANT_MOCK,
+        ativo: false,
+      });
 
       // Act & Assert
       await expectToRejectWith(

@@ -31,9 +31,13 @@ export class NfeMatchService {
    */
   async matchItens(nfeId: number, tenantId: number): Promise<void> {
     // Busca itens ainda sem match
-    const itens = await this.prisma.$queryRawUnsafe<{
-      id: number; xprod: string; unidade_nfe: string | null;
-    }[]>(
+    const itens = await this.prisma.$queryRawUnsafe<
+      {
+        id: number;
+        xprod: string;
+        unidade_nfe: string | null;
+      }[]
+    >(
       `SELECT id, xprod, unidade_nfe
        FROM alm_nfe_itens
        WHERE nfe_id = $1 AND match_status = 'pendente'`,
@@ -47,7 +51,10 @@ export class NfeMatchService {
 
     for (const item of itens) {
       const match = await this.agenteCatalogo.identificarProduto(
-        tenantId, item.xprod, item.unidade_nfe, item.id,
+        tenantId,
+        item.xprod,
+        item.unidade_nfe,
+        item.id,
       );
 
       if (match.origem === 'variante_confirmada') {
@@ -60,8 +67,15 @@ export class NfeMatchService {
                ai_sugestoes = $2::jsonb
            WHERE id = $3 AND nfe_id = $4`,
           match.catalogo_id,
-          JSON.stringify([{ catalogo_id: match.catalogo_id, score: 1.0, motivo: match.motivo }]),
-          item.id, nfeId,
+          JSON.stringify([
+            {
+              catalogo_id: match.catalogo_id,
+              score: 1.0,
+              motivo: match.motivo,
+            },
+          ]),
+          item.id,
+          nfeId,
         );
       } else if (match.origem === 'ia' && match.confianca >= 70) {
         // IA já processou, salva sugestão + atualiza item como pendente
@@ -74,8 +88,15 @@ export class NfeMatchService {
            WHERE id = $4 AND nfe_id = $5`,
           match.catalogo_id,
           match.confianca / 100,
-          JSON.stringify([{ catalogo_id: match.catalogo_id, score: match.confianca / 100, motivo: match.motivo }]),
-          item.id, nfeId,
+          JSON.stringify([
+            {
+              catalogo_id: match.catalogo_id,
+              score: match.confianca / 100,
+              motivo: match.motivo,
+            },
+          ]),
+          item.id,
+          nfeId,
         );
       } else {
         // Sem match via variantes — envia para o batch de IA clássico
@@ -96,7 +117,9 @@ export class NfeMatchService {
     );
 
     if (!catalogo.length) {
-      this.logger.warn(`Catálogo vazio para tenant ${tenantId} — match IA abortado`);
+      this.logger.warn(
+        `Catálogo vazio para tenant ${tenantId} — match IA abortado`,
+      );
       return;
     }
 
@@ -109,17 +132,23 @@ export class NfeMatchService {
   }
 
   private async _matchBatch(
-    itens:    { id: number; xprod: string; unidade_nfe: string | null }[],
+    itens: { id: number; xprod: string; unidade_nfe: string | null }[],
     catalogo: CatalogoEntry[],
-    nfeId:    number,
+    nfeId: number,
     tenantId: number,
   ): Promise<void> {
     const catalogoStr = catalogo
-      .map((c) => `  {"id":${c.id},"nome":${JSON.stringify(c.nome)},"un":${JSON.stringify(c.unidade_padrao ?? '')}${c.codigo ? `,"cod":${JSON.stringify(c.codigo)}` : ''}}`)
+      .map(
+        (c) =>
+          `  {"id":${c.id},"nome":${JSON.stringify(c.nome)},"un":${JSON.stringify(c.unidade_padrao ?? '')}${c.codigo ? `,"cod":${JSON.stringify(c.codigo)}` : ''}}`,
+      )
       .join('\n');
 
     const itensStr = itens
-      .map((i) => `  {"item_id":${i.id},"xprod":${JSON.stringify(i.xprod)},"un":${JSON.stringify(i.unidade_nfe ?? '')}}`)
+      .map(
+        (i) =>
+          `  {"item_id":${i.id},"xprod":${JSON.stringify(i.xprod)},"un":${JSON.stringify(i.unidade_nfe ?? '')}}`,
+      )
       .join('\n');
 
     const system = `Você é um assistente de almoxarifado especializado em correspondência de materiais de construção.
@@ -166,7 +195,9 @@ Retorne JSON no formato:
         'alm.nfe-match',
       );
     } catch (err: any) {
-      this.logger.error(`Erro na chamada IA para match NF-e ${nfeId}: ${err.message}`);
+      this.logger.error(
+        `Erro na chamada IA para match NF-e ${nfeId}: ${err.message}`,
+      );
       return;
     }
 
@@ -182,7 +213,9 @@ Retorne JSON no formato:
       const clean = responseText.replace(/```json\n?|\n?```/g, '').trim();
       matches = JSON.parse(clean);
     } catch {
-      this.logger.error(`Resposta IA inválida para NF-e ${nfeId}: ${responseText.slice(0, 200)}`);
+      this.logger.error(
+        `Resposta IA inválida para NF-e ${nfeId}: ${responseText.slice(0, 200)}`,
+      );
       return;
     }
 
@@ -202,7 +235,8 @@ Retorne JSON no formato:
         m.match_status,
         sugestoes[0]?.score ?? null,
         JSON.stringify(sugestoes),
-        m.item_id, nfeId,
+        m.item_id,
+        nfeId,
       );
     }
 
@@ -211,16 +245,20 @@ Retorne JSON no formato:
       `INSERT INTO alm_ai_analises
          (tenant_id, tipo, referencia_id, resultado, modelo, duracao_ms)
        VALUES ($1, 'nfe_match', $2, $3::jsonb, 'claude-haiku-4-5-20251001', $4)`,
-      tenantId, nfeId,
+      tenantId,
+      nfeId,
       JSON.stringify({ itens_processados: itens.length, matches }),
       duracaoMs,
     );
 
-    this.logger.log(JSON.stringify({
-      action: 'alm.nfe.match',
-      nfeId, tenantId,
-      itens: itens.length,
-      auto: matches.filter((m) => m.match_status === 'auto').length,
-    }));
+    this.logger.log(
+      JSON.stringify({
+        action: 'alm.nfe.match',
+        nfeId,
+        tenantId,
+        itens: itens.length,
+        auto: matches.filter((m) => m.match_status === 'auto').length,
+      }),
+    );
   }
 }

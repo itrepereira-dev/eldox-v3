@@ -8,9 +8,13 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 
 // xlsx carregado dinamicamente
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 let xlsx: any = null;
-try { xlsx = require('xlsx'); } catch { /* ignorado — validado no uso */ }
+try {
+  xlsx = require('xlsx');
+} catch {
+  /* ignorado — validado no uso */
+}
 
 export interface SinapiInsumo {
   id: number;
@@ -45,26 +49,41 @@ export class SinapiService {
     referenciaMes: string, // YYYY-MM
     desonerado: boolean = false,
   ): Promise<{ inseridos: number; atualizados: number; ignorados: number }> {
-    if (!xlsx) throw new BadRequestException('Biblioteca xlsx não instalada. Execute: npm install xlsx');
+    if (!xlsx)
+      throw new BadRequestException(
+        'Biblioteca xlsx não instalada. Execute: npm install xlsx',
+      );
 
     const ufNorm = uf.toUpperCase().trim();
-    if (!/^[A-Z]{2}$/.test(ufNorm)) throw new BadRequestException('UF inválida. Use 2 letras (ex: SP, RJ)');
-    if (!/^\d{4}-\d{2}$/.test(referenciaMes)) throw new BadRequestException('Mês de referência inválido. Use YYYY-MM');
+    if (!/^[A-Z]{2}$/.test(ufNorm))
+      throw new BadRequestException('UF inválida. Use 2 letras (ex: SP, RJ)');
+    if (!/^\d{4}-\d{2}$/.test(referenciaMes))
+      throw new BadRequestException('Mês de referência inválido. Use YYYY-MM');
 
-    const wb    = xlsx.read(fileBuffer, { type: 'buffer' });
+    const wb = xlsx.read(fileBuffer, { type: 'buffer' });
     const sheet = wb.Sheets[wb.SheetNames[0]];
-    const rows  = xlsx.utils.sheet_to_json(sheet, { defval: null, raw: false }) as Record<string, string | null>[];
+    const rows = xlsx.utils.sheet_to_json(sheet, {
+      defval: null,
+      raw: false,
+    }) as Record<string, string | null>[];
 
     if (!rows.length) throw new BadRequestException('Planilha vazia');
 
     // Detectar formato das colunas
     const primeiraLinha = rows[0];
-    const colunas = Object.keys(primeiraLinha).map((k) => k.toUpperCase().trim());
+    const colunas = Object.keys(primeiraLinha).map((k) =>
+      k.toUpperCase().trim(),
+    );
 
     // Helpers para encontrar colunas por variações de nome
-    const findCol = (row: Record<string, string | null>, ...keys: string[]): string | null => {
+    const findCol = (
+      row: Record<string, string | null>,
+      ...keys: string[]
+    ): string | null => {
       for (const key of keys) {
-        const found = Object.keys(row).find((k) => k.toUpperCase().trim() === key);
+        const found = Object.keys(row).find(
+          (k) => k.toUpperCase().trim() === key,
+        );
         if (found && row[found]) return String(row[found]).trim();
       }
       return null;
@@ -76,14 +95,23 @@ export class SinapiService {
     );
     const campoPreco = desonerado ? 'DESONERADO' : 'NÃO DESONERADO';
     const colPrecoGen = colunas.find(
-      (c) => c.includes(campoPreco) || c.includes('PRECO') || c.includes('PREÇO') || c.includes('VALOR'),
+      (c) =>
+        c.includes(campoPreco) ||
+        c.includes('PRECO') ||
+        c.includes('PREÇO') ||
+        c.includes('VALOR'),
     );
     const colPreco = colPrecoUf ?? colPrecoGen ?? null;
 
-    this.logger.log(JSON.stringify({
-      action: 'sinapi.import.start',
-      uf: ufNorm, referenciaMes, linhas: rows.length, colPreco,
-    }));
+    this.logger.log(
+      JSON.stringify({
+        action: 'sinapi.import.start',
+        uf: ufNorm,
+        referenciaMes,
+        linhas: rows.length,
+        colPreco,
+      }),
+    );
 
     let inseridos = 0;
     let atualizados = 0;
@@ -95,10 +123,26 @@ export class SinapiService {
       const lote = rows.slice(i, i + BATCH);
 
       for (const row of lote) {
-        const codigo = findCol(row, 'CÓDIGO', 'CODIGO', 'CÓD', 'COD', 'CÓDIGO SINAPI');
-        const descricao = findCol(row, 'DESCRIÇÃO', 'DESCRICAO', 'DESCRIÇÃO DO SERVIÇO', 'SERVIÇO');
+        const codigo = findCol(
+          row,
+          'CÓDIGO',
+          'CODIGO',
+          'CÓD',
+          'COD',
+          'CÓDIGO SINAPI',
+        );
+        const descricao = findCol(
+          row,
+          'DESCRIÇÃO',
+          'DESCRICAO',
+          'DESCRIÇÃO DO SERVIÇO',
+          'SERVIÇO',
+        );
 
-        if (!codigo || !descricao) { ignorados++; continue; }
+        if (!codigo || !descricao) {
+          ignorados++;
+          continue;
+        }
 
         const unidade = findCol(row, 'UNIDADE', 'UN', 'UND', 'UNID') ?? 'un';
         const tipo = findCol(row, 'TIPO', 'NATUREZA') ?? 'INSUMO';
@@ -111,7 +155,10 @@ export class SinapiService {
           )?.[1];
           if (rawStr) {
             const num = parseFloat(
-              String(rawStr).replace(/\./g, '').replace(',', '.').replace(/[^\d.]/g, ''),
+              String(rawStr)
+                .replace(/\./g, '')
+                .replace(',', '.')
+                .replace(/[^\d.]/g, ''),
             );
             if (!isNaN(num) && num > 0) precoRaw = num;
           }
@@ -120,7 +167,9 @@ export class SinapiService {
         // UPSERT: se já existe para este código/UF/mês, atualiza preço
         const exists = await this.prisma.$queryRawUnsafe<{ id: number }[]>(
           `SELECT id FROM sinapi_insumos WHERE codigo = $1 AND uf = $2 AND referencia_mes = $3`,
-          codigo, ufNorm, referenciaMes,
+          codigo,
+          ufNorm,
+          referenciaMes,
         );
 
         if (exists.length) {
@@ -130,7 +179,12 @@ export class SinapiService {
                  ${desonerado ? 'preco_desonerado' : 'preco_nao_desonerado'} = $5,
                  updated_at = NOW()
              WHERE id = $6`,
-            descricao, unidade, tipo.toUpperCase(), grupo, precoRaw, exists[0].id,
+            descricao,
+            unidade,
+            tipo.toUpperCase(),
+            grupo,
+            precoRaw,
+            exists[0].id,
           );
           atualizados++;
         } else {
@@ -139,17 +193,30 @@ export class SinapiService {
                (codigo, descricao, unidade, tipo, grupo, uf, referencia_mes,
                 ${desonerado ? 'preco_desonerado' : 'preco_nao_desonerado'})
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-            codigo, descricao, unidade, tipo.toUpperCase(), grupo, ufNorm, referenciaMes, precoRaw,
+            codigo,
+            descricao,
+            unidade,
+            tipo.toUpperCase(),
+            grupo,
+            ufNorm,
+            referenciaMes,
+            precoRaw,
           );
           inseridos++;
         }
       }
     }
 
-    this.logger.log(JSON.stringify({
-      action: 'sinapi.import.done',
-      uf: ufNorm, referenciaMes, inseridos, atualizados, ignorados,
-    }));
+    this.logger.log(
+      JSON.stringify({
+        action: 'sinapi.import.done',
+        uf: ufNorm,
+        referenciaMes,
+        inseridos,
+        atualizados,
+        ignorados,
+      }),
+    );
 
     return { inseridos, atualizados, ignorados };
   }
@@ -171,7 +238,9 @@ export class SinapiService {
     // Mês mais recente se não informado
     let mes = params.referenciaMes;
     if (!mes) {
-      const latest = await this.prisma.$queryRawUnsafe<{ referencia_mes: string }[]>(
+      const latest = await this.prisma.$queryRawUnsafe<
+        { referencia_mes: string }[]
+      >(
         `SELECT referencia_mes FROM sinapi_insumos WHERE uf = $1 AND ativo = true
          ORDER BY referencia_mes DESC LIMIT 1`,
         uf,
@@ -196,7 +265,9 @@ export class SinapiService {
     const [items, counts] = await Promise.all([
       this.prisma.$queryRawUnsafe<SinapiInsumo[]>(
         `SELECT * FROM sinapi_insumos s ${where} ORDER BY s.descricao ASC LIMIT $${p++} OFFSET $${p}`,
-        ...vals, limit, offset,
+        ...vals,
+        limit,
+        offset,
       ),
       this.prisma.$queryRawUnsafe<{ total: number }[]>(
         `SELECT COUNT(*)::int AS total FROM sinapi_insumos s ${where}`,
@@ -209,19 +280,25 @@ export class SinapiService {
 
   // ── Buscar por código exato ───────────────────────────────────────────────────
 
-  async buscarPorCodigo(codigo: string, uf: string): Promise<SinapiInsumo | null> {
+  async buscarPorCodigo(
+    codigo: string,
+    uf: string,
+  ): Promise<SinapiInsumo | null> {
     const rows = await this.prisma.$queryRawUnsafe<SinapiInsumo[]>(
       `SELECT * FROM sinapi_insumos
        WHERE codigo = $1 AND uf = $2 AND ativo = true
        ORDER BY referencia_mes DESC LIMIT 1`,
-      codigo, uf.toUpperCase(),
+      codigo,
+      uf.toUpperCase(),
     );
     return rows[0] ?? null;
   }
 
   // ── Listar meses disponíveis por UF ──────────────────────────────────────────
 
-  async listarMeses(uf: string): Promise<{ referencia_mes: string; total: number }[]> {
+  async listarMeses(
+    uf: string,
+  ): Promise<{ referencia_mes: string; total: number }[]> {
     return this.prisma.$queryRawUnsafe(
       `SELECT referencia_mes, COUNT(*)::int AS total
        FROM sinapi_insumos WHERE uf = $1 AND ativo = true

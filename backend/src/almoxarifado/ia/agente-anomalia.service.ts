@@ -30,10 +30,15 @@ export class AgenteAnomaliaService {
    * Detecta consumo anômalo comparando os últimos 7 dias com a média dos últimos 30 dias.
    * Itens com fator de desvio >= FATOR_ANOMALIA_ATENCAO são analisados por IA.
    */
-  async executar(tenantId: number, obraId: number): Promise<AlmAnomaliaDetectada[]> {
+  async executar(
+    tenantId: number,
+    obraId: number,
+  ): Promise<AlmAnomaliaDetectada[]> {
     const agora = new Date();
-    const data7d  = new Date(agora); data7d.setDate(agora.getDate() - 7);
-    const data30d = new Date(agora); data30d.setDate(agora.getDate() - 30);
+    const data7d = new Date(agora);
+    data7d.setDate(agora.getDate() - 7);
+    const data30d = new Date(agora);
+    data30d.setDate(agora.getDate() - 30);
 
     const consumos = await this.prisma.$queryRawUnsafe<ConsumoItem[]>(
       `SELECT
@@ -54,7 +59,10 @@ export class AgenteAnomaliaService {
          AND s.obra_id   = $2
        GROUP BY m.id, m.nome, s.unidade
        HAVING COALESCE(SUM(CASE WHEN mv.created_at >= $4 THEN mv.quantidade ELSE 0 END), 0) > 0`,
-      tenantId, obraId, data7d, data30d,
+      tenantId,
+      obraId,
+      data7d,
+      data30d,
     );
 
     if (!consumos.length) return [];
@@ -62,21 +70,20 @@ export class AgenteAnomaliaService {
     // Filtra anomalias: normaliza consumo_7d para base diária e compara com média diária 30d
     const anomalias = consumos
       .map((c) => {
-        const consumo_7d   = Number(c.consumo_7d);
-        const consumo_30d  = Number(c.consumo_30d);
+        const consumo_7d = Number(c.consumo_7d);
+        const consumo_30d = Number(c.consumo_30d);
         // média diária dos últimos 30d (excluindo os 7d para não inflar com a própria anomalia)
         const media_diaria_30d = consumo_30d / 30;
         const consumo_diario_7d = consumo_7d / 7;
-        const fator_desvio = media_diaria_30d > 0
-          ? consumo_diario_7d / media_diaria_30d
-          : 0;
+        const fator_desvio =
+          media_diaria_30d > 0 ? consumo_diario_7d / media_diaria_30d : 0;
 
         return {
-          catalogo_id:       c.catalogo_id,
-          catalogo_nome:     c.catalogo_nome,
-          unidade:           c.unidade,
+          catalogo_id: c.catalogo_id,
+          catalogo_nome: c.catalogo_nome,
+          unidade: c.unidade,
           consumo_recente_7d: consumo_7d,
-          consumo_medio_30d:  consumo_30d,
+          consumo_medio_30d: consumo_30d,
           fator_desvio,
         };
       })
@@ -109,14 +116,16 @@ Regras:
 - Causas comuns: frente de trabalho nova, desperdício, furto, lançamento duplicado, pico de serviço`;
 
     const itensStr = anomalias
-      .map((a) => JSON.stringify({
-        id:              a.catalogo_id,
-        material:        a.catalogo_nome,
-        un:              a.unidade,
-        consumo_7d:      Number(a.consumo_recente_7d.toFixed(2)),
-        consumo_30d:     Number(a.consumo_medio_30d.toFixed(2)),
-        fator_desvio:    Number(a.fator_desvio.toFixed(2)),
-      }))
+      .map((a) =>
+        JSON.stringify({
+          id: a.catalogo_id,
+          material: a.catalogo_nome,
+          un: a.unidade,
+          consumo_7d: Number(a.consumo_recente_7d.toFixed(2)),
+          consumo_30d: Number(a.consumo_medio_30d.toFixed(2)),
+          fator_desvio: Number(a.fator_desvio.toFixed(2)),
+        }),
+      )
       .join('\n');
 
     const userMessage = `Analise estas anomalias de consumo detectadas na obra ${obraId}:
@@ -145,23 +154,34 @@ Retorne JSON no formato:
         'alm.anomalia',
       );
     } catch (err: any) {
-      this.logger.error(`Erro na chamada IA anomalia obra=${obraId}: ${err.message}`);
+      this.logger.error(
+        `Erro na chamada IA anomalia obra=${obraId}: ${err.message}`,
+      );
       return anomalias.map((a) => ({
         ...a,
-        obra_id:       obraId,
-        nivel:         a.fator_desvio >= FATOR_ANOMALIA_CRITICO ? 'critico' as const : 'atencao' as const,
+        obra_id: obraId,
+        nivel:
+          a.fator_desvio >= FATOR_ANOMALIA_CRITICO
+            ? ('critico' as const)
+            : ('atencao' as const),
         explicacao_ia: `Consumo ${a.fator_desvio.toFixed(1)}x acima da média dos últimos 30 dias.`,
       }));
     }
 
     const duracaoMs = Date.now() - inicio;
 
-    let iaResults: Array<{ catalogo_id: number; nivel: string; explicacao_ia: string }>;
+    let iaResults: Array<{
+      catalogo_id: number;
+      nivel: string;
+      explicacao_ia: string;
+    }>;
     try {
       const clean = responseText.replace(/```json\n?|\n?```/g, '').trim();
       iaResults = JSON.parse(clean);
     } catch {
-      this.logger.error(`Resposta IA inválida para anomalia obra=${obraId}: ${responseText.slice(0, 200)}`);
+      this.logger.error(
+        `Resposta IA inválida para anomalia obra=${obraId}: ${responseText.slice(0, 200)}`,
+      );
       iaResults = [];
     }
 
@@ -170,8 +190,12 @@ Retorne JSON no formato:
       `INSERT INTO alm_ai_analises
          (tenant_id, tipo, referencia_id, resultado, modelo, duracao_ms)
        VALUES ($1, 'anomalia_consumo', $2, $3::jsonb, 'claude-haiku-4-5-20251001', $4)`,
-      tenantId, obraId,
-      JSON.stringify({ anomalias_detectadas: anomalias.length, resultados: iaResults }),
+      tenantId,
+      obraId,
+      JSON.stringify({
+        anomalias_detectadas: anomalias.length,
+        resultados: iaResults,
+      }),
       duracaoMs,
     );
 
@@ -179,15 +203,20 @@ Retorne JSON no formato:
     const resultado: AlmAnomaliaDetectada[] = anomalias.map((a) => {
       const ia = iaResults.find((r) => r.catalogo_id === a.catalogo_id);
       return {
-        catalogo_id:        a.catalogo_id,
-        catalogo_nome:      a.catalogo_nome,
-        unidade:            a.unidade,
+        catalogo_id: a.catalogo_id,
+        catalogo_nome: a.catalogo_nome,
+        unidade: a.unidade,
         consumo_recente_7d: a.consumo_recente_7d,
-        consumo_medio_30d:  a.consumo_medio_30d,
-        fator_desvio:       a.fator_desvio,
-        obra_id:            obraId,
-        nivel:              (ia?.nivel ?? (a.fator_desvio >= FATOR_ANOMALIA_CRITICO ? 'critico' : 'atencao')) as 'critico' | 'atencao',
-        explicacao_ia:      ia?.explicacao_ia ?? `Consumo ${a.fator_desvio.toFixed(1)}x acima da média.`,
+        consumo_medio_30d: a.consumo_medio_30d,
+        fator_desvio: a.fator_desvio,
+        obra_id: obraId,
+        nivel: (ia?.nivel ??
+          (a.fator_desvio >= FATOR_ANOMALIA_CRITICO
+            ? 'critico'
+            : 'atencao')) as 'critico' | 'atencao',
+        explicacao_ia:
+          ia?.explicacao_ia ??
+          `Consumo ${a.fator_desvio.toFixed(1)}x acima da média.`,
       };
     });
 
@@ -206,13 +235,15 @@ Retorne JSON no formato:
       );
     }
 
-    this.logger.log(JSON.stringify({
-      action:   'alm.anomalia.detectadas',
-      obraId,
-      tenantId,
-      total:    resultado.length,
-      critico:  resultado.filter((a) => a.nivel === 'critico').length,
-    }));
+    this.logger.log(
+      JSON.stringify({
+        action: 'alm.anomalia.detectadas',
+        obraId,
+        tenantId,
+        total: resultado.length,
+        critico: resultado.filter((a) => a.nivel === 'critico').length,
+      }),
+    );
 
     return resultado;
   }

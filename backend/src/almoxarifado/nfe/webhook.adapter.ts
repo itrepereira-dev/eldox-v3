@@ -33,7 +33,7 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 export interface NfeNormalizada {
-  chave_nfe: string;       // 44 caracteres — identificador único da NF-e
+  chave_nfe: string; // 44 caracteres — identificador único da NF-e
   numero: string;
   serie: string;
   emitente_cnpj: string;
@@ -44,7 +44,7 @@ export interface NfeNormalizada {
 }
 
 export interface NfeItemNormalizado {
-  xprod: string;           // descrição original do produto na NF-e
+  xprod: string; // descrição original do produto na NF-e
   ncm: string | null;
   cfop: string | null;
   unidade_nfe: string;
@@ -61,47 +61,72 @@ export interface NfeItemNormalizado {
  * TODO: Implementar quando a documentação do Qive estiver disponível.
  * Por enquanto, tenta um mapeamento genérico baseado em campos comuns de NF-e XML/JSON.
  */
-export function parseWebhookPayload(raw: Record<string, unknown>): NfeNormalizada {
+export function parseWebhookPayload(
+  raw: Record<string, unknown>,
+): NfeNormalizada {
   // ── Tentativa de mapeamento genérico ─────────────────────────────────────
   // Suporta formatos comuns de XML-NF-e convertido para JSON (ex: xml2js, fast-xml-parser)
   // Ajustar para o formato exato do Qive quando disponível
 
   // Tenta diferentes estruturas conhecidas
-  const nfe   = (raw['nfeProc'] as any)?.['NFe']?.['infNFe'] ?? (raw['NFe'] as any)?.['infNFe'] ?? raw;
-  const ide   = (nfe['ide'] as any)  ?? {};
-  const emit  = (nfe['emit'] as any) ?? {};
-  const total = (nfe['total'] as any) ?? {};
-  const det   = (nfe['det'] as any)  ?? [];
+  const nfe =
+    (raw['nfeProc'] as any)?.['NFe']?.['infNFe'] ??
+    (raw['NFe'] as any)?.['infNFe'] ??
+    raw;
+  const ide = nfe['ide'] ?? {};
+  const emit = nfe['emit'] ?? {};
+  const total = nfe['total'] ?? {};
+  const det = nfe['det'] ?? [];
 
   const chave = extractChave(raw);
   if (!chave) {
     throw new Error(
       'Payload de NF-e inválido: chave de acesso (44 chars) não encontrada. ' +
-      'Verifique o mapeamento em webhook.adapter.ts',
+        'Verifique o mapeamento em webhook.adapter.ts',
     );
   }
 
-  const itens: NfeItemNormalizado[] = (Array.isArray(det) ? det : [det]).map((d: any) => {
-    const prod = d['prod'] ?? d;
-    return {
-      xprod:         String(prod['xProd'] ?? prod['descricao'] ?? prod['nome'] ?? ''),
-      ncm:           String(prod['NCM'] ?? prod['ncm'] ?? '') || null,
-      cfop:          String(prod['CFOP'] ?? prod['cfop'] ?? '') || null,
-      unidade_nfe:   String(prod['uCom'] ?? prod['unidade'] ?? prod['un'] ?? 'un'),
-      quantidade:    Number(prod['qCom'] ?? prod['quantidade'] ?? prod['qtd'] ?? 0),
-      valor_unitario: Number(prod['vUnCom'] ?? prod['valorUnitario'] ?? prod['preco'] ?? 0),
-      valor_total:   Number(prod['vProd'] ?? prod['valorTotal'] ?? 0),
-    };
-  }).filter((i) => i.xprod);
+  const itens: NfeItemNormalizado[] = (Array.isArray(det) ? det : [det])
+    .map((d: any) => {
+      const prod = d['prod'] ?? d;
+      return {
+        xprod: String(prod['xProd'] ?? prod['descricao'] ?? prod['nome'] ?? ''),
+        ncm: String(prod['NCM'] ?? prod['ncm'] ?? '') || null,
+        cfop: String(prod['CFOP'] ?? prod['cfop'] ?? '') || null,
+        unidade_nfe: String(
+          prod['uCom'] ?? prod['unidade'] ?? prod['un'] ?? 'un',
+        ),
+        quantidade: Number(
+          prod['qCom'] ?? prod['quantidade'] ?? prod['qtd'] ?? 0,
+        ),
+        valor_unitario: Number(
+          prod['vUnCom'] ?? prod['valorUnitario'] ?? prod['preco'] ?? 0,
+        ),
+        valor_total: Number(prod['vProd'] ?? prod['valorTotal'] ?? 0),
+      };
+    })
+    .filter((i) => i.xprod);
 
   return {
-    chave_nfe:     chave,
-    numero:        String(ide['nNF'] ?? ide['numero'] ?? raw['numero'] ?? ''),
-    serie:         String(ide['serie'] ?? raw['serie'] ?? '1'),
-    emitente_cnpj: String(emit['CNPJ'] ?? emit['cnpj'] ?? raw['emitente_cnpj'] ?? '').replace(/\D/g, ''),
-    emitente_nome: String(emit['xNome'] ?? emit['razaoSocial'] ?? emit['nome'] ?? raw['emitente_nome'] ?? ''),
-    data_emissao:  parseDate(ide['dhEmi'] ?? ide['dEmi'] ?? raw['data_emissao'] ?? new Date()),
-    valor_total:   Number(total['ICMSTot']?.['vNF'] ?? total['vNF'] ?? raw['valor_total'] ?? 0),
+    chave_nfe: chave,
+    numero: String(ide['nNF'] ?? ide['numero'] ?? raw['numero'] ?? ''),
+    serie: String(ide['serie'] ?? raw['serie'] ?? '1'),
+    emitente_cnpj: String(
+      emit['CNPJ'] ?? emit['cnpj'] ?? raw['emitente_cnpj'] ?? '',
+    ).replace(/\D/g, ''),
+    emitente_nome: String(
+      emit['xNome'] ??
+        emit['razaoSocial'] ??
+        emit['nome'] ??
+        raw['emitente_nome'] ??
+        '',
+    ),
+    data_emissao: parseDate(
+      ide['dhEmi'] ?? ide['dEmi'] ?? raw['data_emissao'] ?? new Date(),
+    ),
+    valor_total: Number(
+      total['ICMSTot']?.['vNF'] ?? total['vNF'] ?? raw['valor_total'] ?? 0,
+    ),
     itens,
   };
 }
