@@ -32,7 +32,7 @@ export class AgenteAnomaliaService {
    */
   async executar(
     tenantId: number,
-    obraId: number,
+    localId: number,
   ): Promise<AlmAnomaliaDetectada[]> {
     const agora = new Date();
     const data7d = new Date(agora);
@@ -51,16 +51,16 @@ export class AgenteAnomaliaService {
        JOIN fvm_catalogo_materiais m ON m.id = s.catalogo_id
        LEFT JOIN alm_movimentos mv
          ON mv.catalogo_id = s.catalogo_id
-        AND mv.obra_id     = s.obra_id
+        AND mv.local_id    = s.local_id
         AND mv.tenant_id   = s.tenant_id
         AND mv.tipo IN ('saida', 'perda')
         AND mv.created_at >= $4
        WHERE s.tenant_id = $1
-         AND s.obra_id   = $2
+         AND s.local_id  = $2
        GROUP BY m.id, m.nome, s.unidade
        HAVING COALESCE(SUM(CASE WHEN mv.created_at >= $4 THEN mv.quantidade ELSE 0 END), 0) > 0`,
       tenantId,
-      obraId,
+      localId,
       data7d,
       data30d,
     );
@@ -91,7 +91,7 @@ export class AgenteAnomaliaService {
 
     if (!anomalias.length) return [];
 
-    return this._analisarComIA(anomalias, tenantId, obraId);
+    return this._analisarComIA(anomalias, tenantId, localId);
   }
 
   private async _analisarComIA(
@@ -104,7 +104,7 @@ export class AgenteAnomaliaService {
       fator_desvio: number;
     }[],
     tenantId: number,
-    obraId: number,
+    localId: number,
   ): Promise<AlmAnomaliaDetectada[]> {
     const system = `Você é um especialista em gestão de estoque para obras de construção civil.
 Analise padrões de consumo anômalo e identifique possíveis causas.
@@ -128,7 +128,7 @@ Regras:
       )
       .join('\n');
 
-    const userMessage = `Analise estas anomalias de consumo detectadas na obra ${obraId}:
+    const userMessage = `Analise estas anomalias de consumo detectadas na obra ${localId}:
 ${itensStr}
 
 Retorne JSON no formato:
@@ -155,11 +155,11 @@ Retorne JSON no formato:
       );
     } catch (err: any) {
       this.logger.error(
-        `Erro na chamada IA anomalia obra=${obraId}: ${err.message}`,
+        `Erro na chamada IA anomalia localId=${localId}: ${err.message}`,
       );
       return anomalias.map((a) => ({
         ...a,
-        local_id: obraId,
+        local_id: localId,
         nivel:
           a.fator_desvio >= FATOR_ANOMALIA_CRITICO
             ? ('critico' as const)
@@ -180,7 +180,7 @@ Retorne JSON no formato:
       iaResults = JSON.parse(clean);
     } catch {
       this.logger.error(
-        `Resposta IA inválida para anomalia obra=${obraId}: ${responseText.slice(0, 200)}`,
+        `Resposta IA inválida para anomalia localId=${localId}: ${responseText.slice(0, 200)}`,
       );
       iaResults = [];
     }
@@ -191,7 +191,7 @@ Retorne JSON no formato:
          (tenant_id, tipo, referencia_id, resultado, modelo, duracao_ms)
        VALUES ($1, 'anomalia_consumo', $2, $3::jsonb, 'claude-haiku-4-5-20251001', $4)`,
       tenantId,
-      obraId,
+      localId,
       JSON.stringify({
         anomalias_detectadas: anomalias.length,
         resultados: iaResults,
@@ -209,7 +209,7 @@ Retorne JSON no formato:
         consumo_recente_7d: a.consumo_recente_7d,
         consumo_medio_30d: a.consumo_medio_30d,
         fator_desvio: a.fator_desvio,
-        local_id: obraId,
+        local_id: localId,
         nivel: (ia?.nivel ??
           (a.fator_desvio >= FATOR_ANOMALIA_CRITICO
             ? 'critico'
@@ -224,11 +224,11 @@ Retorne JSON no formato:
     for (const a of resultado) {
       await this.prisma.$executeRawUnsafe(
         `INSERT INTO alm_alertas_estoque
-           (tenant_id, obra_id, catalogo_id, tipo, nivel, mensagem, lido)
+           (tenant_id, local_id, catalogo_id, tipo, nivel, mensagem, lido)
          VALUES ($1, $2, $3, 'anomalia', $4, $5, false)
          ON CONFLICT DO NOTHING`,
         tenantId,
-        obraId,
+        localId,
         a.catalogo_id,
         a.nivel,
         `${a.catalogo_nome}: consumo ${a.fator_desvio.toFixed(1)}x acima da média. ${a.explicacao_ia}`,
@@ -238,7 +238,7 @@ Retorne JSON no formato:
     this.logger.log(
       JSON.stringify({
         action: 'alm.anomalia.detectadas',
-        obraId,
+        localId,
         tenantId,
         total: resultado.length,
         critico: resultado.filter((a) => a.nivel === 'critico').length,
