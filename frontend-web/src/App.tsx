@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from './components/ui/ThemeContext';
+import { ToastProvider } from './components/ui';
 
 // ── Carregamento imediato (telas críticas do caminho feliz) ───────────────────
 import { LoginPage } from './pages/auth/LoginPage';
@@ -101,6 +102,7 @@ export default function App() {
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
+        <ToastProvider>
         <BrowserRouter>
           <Suspense fallback={<PageSkeleton />}>
             <Routes>
@@ -221,6 +223,7 @@ export default function App() {
             </Routes>
           </Suspense>
         </BrowserRouter>
+        </ToastProvider>
       </QueryClientProvider>
     </ThemeProvider>
   );

@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════
    ELDOX DESIGN SYSTEM — CSS TOKENS
-   Fonte principal: Montserrat (400 / 500 / 600 / 700)
+   Fonte principal: DM Sans (300 / 400 / 500 / 600 / 700)
    Fonte mono:      Geist Mono (400 / 500)
    ═══════════════════════════════════════════════════════ */
 
@@ -87,9 +87,15 @@
   --sidebar-w: 240px;
   --topbar-h:  56px;
 
+  /* ui-upgrade: easing-curves */
+  --ease-out-expo:     cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring:       cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-in-out-quart: cubic-bezier(0.76, 0, 0.24, 1);
+  /* /ui-upgrade */
+
   /* Transições */
-  --transition-fast:   0.15s ease;
-  --transition-normal: 0.25s ease;
+  --transition-fast:   0.15s var(--ease-out-expo);
+  --transition-normal: 0.25s var(--ease-out-expo);
 
   /* ── Aliases para módulo Obras ── */
   --bg-elevated:  #1e293b;

@@ -1,5 +1,5 @@
 // frontend-web/src/modules/fvs/inspecao/pages/FichaGradePage.tsx
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useFicha, usePatchFicha, useGerarTokenCliente, useRevogarTokenCliente, useCalcularRisco } from '../hooks/useFichas';
 import { useGrade, useBulkInspecao } from '../hooks/useGrade';
@@ -117,6 +117,16 @@ export function FichaGradePage() {
     grade.locais.forEach(l => { if (l.pavimento_id) seen.set(l.pavimento_id, l.pavimento_nome ?? `Pav. ${l.pavimento_id}`); });
     return Array.from(seen.entries()).map(([id, nome]) => ({ id, nome }));
   }, [grade]);
+
+  // Auto-seleciona o primeiro pavimento quando a grade tem muitos locais (>30)
+  // evita tabela horizontal gigantesca em obras grandes
+  useEffect(() => {
+    if (!grade || filtroPavimento || searchParams.get('pavimento')) return;
+    if (grade.locais.length > 30 && pavimentos.length > 0) {
+      setFiltro('pavimento', String(pavimentos[0].id));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [grade?.locais.length, pavimentos.length]);
 
   function isCelulaVisivel(srvId: number, locId: number): boolean {
     if (!filtroStatus) return true;

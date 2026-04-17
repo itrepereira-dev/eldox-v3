@@ -11,6 +11,7 @@ import {
 import { GraficosAvancados } from '../components/GraficosAvancados';
 import { FiltrosPeriodo, useFiltrosPeriodo } from '../components/FiltrosPeriodo';
 import { RelatorioBotao } from '../../relatorios/components/RelatorioBotao';
+import { SkeletonKpiGrid } from '@/components/ui'
 
 // ── Tipos ──────────────────────────────────────────────────────────────────────
 
@@ -218,7 +219,7 @@ export default function FvsDashboardPage() {
         </div>
       )}
 
-      {resumo.isLoading && <div className="text-sm text-[var(--text-low)]">Carregando resumo…</div>}
+      {resumo.isLoading && <SkeletonKpiGrid cols={4} />}
 
       {r && (
         <>

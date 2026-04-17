@@ -181,9 +181,10 @@ function PrimaryAction({ label, onClick }: PrimaryActionProps) {
 export interface TopbarProps {
   breadcrumb?: BreadcrumbItem[]
   primaryAction?: { label: string; onClick?: () => void }
+  scrolled?: boolean
 }
 
-export function Topbar({ breadcrumb = [], primaryAction }: TopbarProps) {
+export function Topbar({ breadcrumb = [], primaryAction, scrolled = false }: TopbarProps) {
   const { openMobile, mobileOpen } = useAppShell()
 
   return (
@@ -193,6 +194,8 @@ export function Topbar({ breadcrumb = [], primaryAction }: TopbarProps) {
         'h-[56px] flex-shrink-0',
         'bg-[var(--bg-surface)] border-b border-[var(--border)]',
         'z-40',
+        'transition-all duration-[200ms]',
+        scrolled && 'backdrop-blur-md border-b-[var(--border-bright)] shadow-sm',
         /* scan-line decorativo */
         'after:content-[""] after:absolute after:bottom-0 after:left-0 after:right-0',
         'after:h-px after:bg-gradient-to-r after:from-transparent',

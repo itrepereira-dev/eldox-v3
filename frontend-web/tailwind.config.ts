@@ -5,7 +5,7 @@ const config: Config = {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     fontFamily: {
-      sans: ['Montserrat', 'system-ui', 'sans-serif'],
+      sans: ['DM Sans', 'system-ui', 'sans-serif'],
       mono: ['Geist Mono', 'monospace'],
     },
     fontSize: {
@@ -109,12 +109,27 @@ const config: Config = {
           from: { opacity: '0', transform: 'translateY(8px)' },
           to:   { opacity: '1', transform: 'translateY(0)' },
         },
+        subItemIn: {
+          from: { opacity: '0', transform: 'translateY(-5px)' },
+          to:   { opacity: '1', transform: 'translateY(0)' },
+        },
+        toastIn: {
+          from: { opacity: '0', transform: 'translateX(24px) scale(0.97)' },
+          to:   { opacity: '1', transform: 'translateX(0) scale(1)' },
+        },
       },
       animation: {
         'scan-line':   'scanLine 3s ease-in-out infinite',
         'shimmer':     'shimmer 1.5s infinite',
         'badge-pulse': 'badgePulse 2s ease-in-out infinite',
         'fade-in':     'fadeSlideIn 0.25s ease forwards',
+        'page-enter':  'fadeSlideIn 320ms cubic-bezier(0.16, 1, 0.3, 1) both',
+        'sub-item-in': 'subItemIn 220ms cubic-bezier(0.16, 1, 0.3, 1) both',
+        'toast-in':    'toastIn 280ms cubic-bezier(0.16, 1, 0.3, 1) both',
+      },
+      transitionTimingFunction: {
+        'out-expo': 'cubic-bezier(0.16, 1, 0.3, 1)',
+        'spring':   'cubic-bezier(0.34, 1.56, 0.64, 1)',
       },
       width:  { sidebar: 'var(--sidebar-w, 240px)' },
       height: { topbar:  'var(--topbar-h, 56px)' },

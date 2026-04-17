@@ -9,6 +9,7 @@ import type { FvsModelo } from '../../../../services/fvs.service';
 import { VincularObraModal } from '../components/VincularObraModal';
 import { cn } from '@/lib/cn';
 import { Plus, Building2 } from 'lucide-react';
+import { SkeletonList } from '@/components/ui';
 
 const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
   rascunho:  { label: 'Rascunho',  cls: 'bg-[var(--bg-raised)] text-[var(--text-faint)] border border-[var(--border-dim)]' },
@@ -54,8 +55,8 @@ export function ModelosListPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-48 text-[var(--text-faint)] text-sm">
-        Carregando...
+      <div className="p-6">
+        <SkeletonList rows={5} cols={3} />
       </div>
     );
   }

@@ -19,22 +19,30 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   icon?: React.ReactNode
 }
 
+/* ui-upgrade: variant classes with premium hover states */
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
-    'bg-accent hover:bg-accent-hover text-[var(--bg-void)] shadow-hover hover:-translate-y-px',
+    'bg-gradient-to-br from-accent to-[#2563eb] text-white ' +
+    'shadow-[0_2px_8px_rgba(59,130,246,.25)] ' +
+    'hover:shadow-[0_6px_20px_rgba(59,130,246,.45)] hover:-translate-y-[2px] ' +
+    'ease-spring duration-[200ms]',
   ghost:
-    'bg-transparent border border-border text-text-mid hover:border-accent hover:text-accent',
+    'bg-transparent border border-border-dim text-text-mid ' +
+    'hover:border-accent hover:text-accent hover:bg-accent-dim ' +
+    'ease-out-expo',
   gray:
-    'bg-bg-raised border border-border text-text-mid hover:bg-bg-hover',
+    'bg-bg-raised border border-border text-text-mid hover:bg-bg-hover ease-out-expo',
   ok:
-    'bg-ok text-[var(--bg-void)] hover:brightness-110',
+    'bg-ok text-[var(--bg-void)] hover:brightness-110 hover:-translate-y-px ease-out-expo',
   nc:
-    'bg-nc text-text-high hover:brightness-110',
+    'bg-nc text-text-high hover:brightness-110 hover:-translate-y-px ease-out-expo',
   run:
-    'bg-run text-[var(--bg-void)] hover:brightness-110',
+    'bg-run text-[var(--bg-void)] hover:brightness-110 hover:-translate-y-px ease-out-expo',
   'outline-accent':
-    'bg-transparent border-[1.5px] border-accent text-accent hover:bg-accent-dim',
+    'bg-transparent border-[1.5px] border-accent text-accent hover:bg-accent-dim ' +
+    'hover:shadow-[0_0_0_3px_rgba(59,130,246,.12)] ease-out-expo',
 }
+/* /ui-upgrade */
 
 const sizeClasses: Record<ButtonSize, string> = {
   sm: 'px-3 py-1.5 text-xs min-h-[32px]',
@@ -50,8 +58,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         disabled={disabled || loading}
         className={cn(
           'inline-flex items-center gap-1.5 rounded-sm font-semibold',
-          'cursor-pointer transition-all duration-fast',
-          'active:scale-[.97]',
+          'cursor-pointer transition-all duration-[150ms]',
+          'active:scale-[.97] active:translate-y-0',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-void)]',
           'disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none',
           variantClasses[variant],
           sizeClasses[size],

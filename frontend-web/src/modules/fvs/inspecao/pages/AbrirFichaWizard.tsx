@@ -281,8 +281,30 @@ export function AbrirFichaWizard({ obras: obrasProp = [], locaisPorObra = {} }: 
                 </label>
                 {sel && locais.length > 0 && (
                   <div className="px-4 py-3 border-t border-[var(--border-dim)] bg-[var(--bg-raised)]">
-                    <p className="text-xs font-semibold text-[var(--text-faint)] uppercase tracking-wide mb-2">Locais para este serviço:</p>
-                    <div className="flex flex-wrap gap-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-semibold text-[var(--text-faint)] uppercase tracking-wide">
+                        Locais para este serviço:
+                      </p>
+                      <label className="flex items-center gap-1.5 text-xs text-[var(--accent)] cursor-pointer font-medium">
+                        <input
+                          type="checkbox"
+                          checked={sel.localIds.length === locais.length}
+                          onChange={() => {
+                            const allIds = locais.map(l => l.id);
+                            const allSel = sel.localIds.length === locais.length;
+                            setServicosSelecionados(prev =>
+                              prev.map(s => s.servicoId === svc.id
+                                ? { ...s, localIds: allSel ? [] : allIds }
+                                : s
+                              )
+                            );
+                          }}
+                          className="accent-[var(--accent)] w-3.5 h-3.5"
+                        />
+                        Todos ({locais.length})
+                      </label>
+                    </div>
+                    <div className="flex flex-wrap gap-3 max-h-40 overflow-y-auto pr-1">
                       {locais.map(local => (
                         <label key={local.id} className="flex items-center gap-1.5 text-sm text-[var(--text-mid)] cursor-pointer">
                           <input

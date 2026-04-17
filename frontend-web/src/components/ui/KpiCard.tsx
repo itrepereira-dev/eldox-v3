@@ -41,9 +41,12 @@ export function KpiCard({
   const isPositive = trend && trend.value >= 0
 
   return (
+    /* ui-upgrade: hover lift + shadow + rounded-md */
     <div
       className={cn(
-        'bg-bg-surface border border-border-dim border-t-[3px] rounded-sm p-4',
+        'bg-bg-surface border border-border-dim border-t-[3px] rounded-md p-4',
+        'transition-all duration-[200ms] ease-out-expo',
+        'hover:-translate-y-[3px] hover:shadow-md hover:border-border',
         topBorderColor[variant],
         className,
       )}

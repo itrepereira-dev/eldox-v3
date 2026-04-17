@@ -1,5 +1,16 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useLocation, useParams } from 'react-router-dom'
+
+/* ui-upgrade: page transition wrapper */
+function PageTransition({ children }: { children: ReactNode }) {
+  const location = useLocation()
+  return (
+    <div key={location.pathname} className="animate-page-enter h-full">
+      {children}
+    </div>
+  )
+}
+/* /ui-upgrade */
 import { cn } from '@/lib/cn'
 import { AppShellProvider, useAppShell } from './useAppShell'
 import { Sidebar } from './Sidebar'
@@ -67,6 +78,16 @@ function ObraAtivaSync() {
 
 function AppShellInner({ children, breadcrumb, primaryAction }: AppShellInnerProps) {
   const { collapsed: _collapsed } = useAppShell()
+  const [scrolled, setScrolled] = useState(false)
+  const mainRef = useRef<HTMLElement>(null)
+
+  useEffect(() => {
+    const el = mainRef.current
+    if (!el) return
+    const handler = () => setScrolled(el.scrollTop > 8)
+    el.addEventListener('scroll', handler, { passive: true })
+    return () => el.removeEventListener('scroll', handler)
+  }, [])
 
   return (
     <div
@@ -88,19 +109,19 @@ function AppShellInner({ children, breadcrumb, primaryAction }: AppShellInnerPro
 
       {/* ── Área direita: topbar + conteúdo ── */}
       <div className="flex flex-col flex-1 min-w-0 h-screen overflow-hidden border-l border-[var(--border-dim)]">
-        <Topbar breadcrumb={breadcrumb} primaryAction={primaryAction} />
+        <Topbar breadcrumb={breadcrumb} primaryAction={primaryAction} scrolled={scrolled} />
 
         {/* ── Conteúdo principal ── */}
         <main
+          ref={mainRef}
           role="main"
           className={cn(
             'flex-1 overflow-y-auto overflow-x-hidden',
             'p-4 sm:p-6',
             'bg-[var(--bg-void)]',
-            'transition-all duration-[220ms]',
           )}
         >
-          {children}
+          <PageTransition>{children}</PageTransition>
         </main>
       </div>
       <AgenteFloat />
