@@ -1,4 +1,4 @@
-import { IsNumber, IsOptional, IsString, IsArray, ValidateNested, Min } from 'class-validator';
+import { IsNumber, IsOptional, IsString, IsArray, ValidateNested, Min, ArrayMinSize } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateTransferenciaItemDto {
@@ -25,6 +25,7 @@ export class CreateTransferenciaDto {
   observacao?: string | null;
 
   @IsArray()
+  @ArrayMinSize(1)
   @ValidateNested({ each: true })
   @Type(() => CreateTransferenciaItemDto)
   itens!: CreateTransferenciaItemDto[];

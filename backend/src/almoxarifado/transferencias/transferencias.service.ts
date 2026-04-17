@@ -258,6 +258,15 @@ export class TransferenciasService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      // Lock the transferencia row to prevent concurrent duplicate execution
+      const locked = await tx.$queryRawUnsafe<{ status: string }[]>(
+        `SELECT status FROM alm_transferencias WHERE id = $1 AND tenant_id = $2 FOR UPDATE`,
+        id, tenantId,
+      );
+      if (!locked.length || locked[0].status !== 'aprovada') {
+        throw new BadRequestException('Transferência não está mais disponível para execução');
+      }
+
       for (const execItem of itensParaExecutar) {
         const transItem = (transferencia.itens ?? []).find((i) => i.id === execItem.item_id);
         if (!transItem) {
@@ -315,7 +324,8 @@ export class TransferenciasService {
         const saldoDestinoRows = await tx.$queryRawUnsafe<{ quantidade: number }[]>(
           `SELECT COALESCE(quantidade, 0)::float AS quantidade
            FROM alm_estoque_saldo
-           WHERE tenant_id = $1 AND local_id = $2 AND catalogo_id = $3`,
+           WHERE tenant_id = $1 AND local_id = $2 AND catalogo_id = $3
+           FOR UPDATE`,
           tenantId, transferencia.local_destino_id, transItem.catalogo_id,
         );
         const saldoDestinoAtual = saldoDestinoRows.length ? Number(saldoDestinoRows[0].quantidade) : 0;
