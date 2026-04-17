@@ -34,7 +34,7 @@ else
   for f in prisma/rls/rls.sql prisma/rls/rls_rdo.sql; do
     if [ -f "$f" ]; then
       log "rls.apply file=$f"
-      npx prisma db execute --file "$f" --schema prisma/schema.prisma
+      npx prisma db execute --file "$f"
     else
       log "rls.missing file=$f"
     fi
