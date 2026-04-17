@@ -104,7 +104,7 @@ export function NovaSolicitacaoPage() {
         catalogo_id, quantidade, unidade, observacao,
       })),
     })
-    navigate(`/obras/${obraId}/almoxarifado/solicitacoes/${sol.id}`)
+    navigate(`/almoxarifado/solicitacoes/${sol.id}`)
   }
 
   async function handleSubmeter() {
@@ -120,7 +120,7 @@ export function NovaSolicitacaoPage() {
       })),
     })
     await submeter.mutateAsync(sol.id)
-    navigate(`/obras/${obraId}/almoxarifado/solicitacoes/${sol.id}`)
+    navigate(`/almoxarifado/solicitacoes/${sol.id}`)
   }
 
   const isLoading = criar.isPending || submeter.isPending
@@ -130,7 +130,7 @@ export function NovaSolicitacaoPage() {
     <div className="p-6 max-w-[820px]">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 mb-5 text-[12px]">
-        <Link to={`/obras/${obraId}/almoxarifado/solicitacoes`} className="text-[var(--text-faint)] hover:text-[var(--text-high)]">
+        <Link to={`/almoxarifado/solicitacoes`} className="text-[var(--text-faint)] hover:text-[var(--text-high)]">
           Solicitações
         </Link>
         <span className="text-[var(--text-faint)]">/</span>
@@ -343,7 +343,7 @@ export function NovaSolicitacaoPage() {
       {/* Ações */}
       <div className="flex gap-3 justify-end">
         <Link
-          to={`/obras/${obraId}/almoxarifado/solicitacoes`}
+          to={`/almoxarifado/solicitacoes`}
           className={cn(
             'px-4 h-9 flex items-center text-[13px] font-medium rounded-sm',
             'border border-[var(--border-dim)] text-[var(--text-low)] bg-[var(--bg-raised)]',

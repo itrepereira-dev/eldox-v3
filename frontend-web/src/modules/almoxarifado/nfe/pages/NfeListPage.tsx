@@ -36,7 +36,7 @@ const TABS = [
 
 // ── Row ────────────────────────────────────────────────────────────────────────
 
-function NfeRow({ nfe, obraId }: { nfe: AlmNotaFiscal; obraId: string }) {
+function NfeRow({ nfe }: { nfe: AlmNotaFiscal }) {
   function fmtData(iso: string | null) {
     if (!iso) return '—'
     return new Date(iso).toLocaleDateString('pt-BR')
@@ -60,7 +60,7 @@ function NfeRow({ nfe, obraId }: { nfe: AlmNotaFiscal; obraId: string }) {
       </td>
       <td className="px-3 py-2.5">
         <Link
-          to={`/obras/${obraId}/almoxarifado/nfes/${nfe.id}`}
+          to={`/almoxarifado/nfes/${nfe.id}`}
           className="text-[13px] font-medium text-[var(--accent)] hover:underline"
         >
           NF {nfe.numero ?? '—'}/{nfe.serie ?? '—'}
@@ -212,7 +212,7 @@ export function NfeListPage() {
                   </td>
                 </tr>
               ) : (
-                filtered.map((n) => <NfeRow key={n.id} nfe={n} obraId={obraId!} />)
+                filtered.map((n) => <NfeRow key={n.id} nfe={n} />)
               )}
             </tbody>
           </table>

@@ -197,7 +197,7 @@ export function SolicitacaoDetalhePage() {
 
       {/* Breadcrumb */}
       <div className="flex items-center gap-1.5 mb-5 text-[12px]">
-        <Link to={`/obras/${obraId}/almoxarifado/solicitacoes`} className="text-[var(--text-faint)] hover:text-[var(--text-high)]">
+        <Link to={`/almoxarifado/solicitacoes`} className="text-[var(--text-faint)] hover:text-[var(--text-high)]">
           Solicitações
         </Link>
         <ChevronRight size={11} className="text-[var(--text-faint)]" />

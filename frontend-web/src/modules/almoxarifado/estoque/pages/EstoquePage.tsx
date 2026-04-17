@@ -386,9 +386,9 @@ export function EstoquePage() {
       <div className="flex border-b border-[var(--border-dim)] mb-5">
         {[
           { label: 'Saldo Atual', to: '' },
-          { label: 'Movimentos', to: `/obras/${obraId}/almoxarifado/estoque/movimentos` },
+          { label: 'Movimentos', to: `/almoxarifado/estoque/movimentos` },
           { label: `Alertas${criticos + atencao > 0 ? ` (${criticos + atencao})` : ''}`,
-            to: `/obras/${obraId}/almoxarifado/estoque/alertas` },
+            to: `/almoxarifado/estoque/alertas` },
         ].map((tab) => (
           tab.to ? (
             <Link

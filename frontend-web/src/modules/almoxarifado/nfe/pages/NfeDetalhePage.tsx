@@ -329,7 +329,7 @@ export function NfeDetalhePage() {
 
       {/* Breadcrumb */}
       <div className="flex items-center gap-1.5 mb-5 text-[12px]">
-        <Link to={`/obras/${obraId}/almoxarifado/nfes`} className="text-[var(--text-faint)] hover:text-[var(--text-high)]">
+        <Link to={`/almoxarifado/nfes`} className="text-[var(--text-faint)] hover:text-[var(--text-high)]">
           Notas Fiscais
         </Link>
         <ChevronRight size={11} className="text-[var(--text-faint)]" />

@@ -79,7 +79,7 @@ export function AlertasPage() {
     <div className="p-6">
       <div className="flex items-center gap-3 mb-5">
         <Link
-          to={`/obras/${obraId}/almoxarifado/estoque`}
+          to={`/almoxarifado/estoque`}
           className="text-[var(--text-faint)] hover:text-[var(--text-high)] text-[12px]"
         >
           ← Estoque

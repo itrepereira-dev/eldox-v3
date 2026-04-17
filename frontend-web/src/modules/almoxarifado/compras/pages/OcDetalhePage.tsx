@@ -239,7 +239,7 @@ export function OcDetalhePage() {
 
       {/* Breadcrumb */}
       <div className="flex items-center gap-1.5 mb-5 text-[12px]">
-        <Link to={`/obras/${obraId}/almoxarifado/ocs`} className="text-[var(--text-faint)] hover:text-[var(--text-high)]">
+        <Link to={`/almoxarifado/ocs`} className="text-[var(--text-faint)] hover:text-[var(--text-high)]">
           Ordens de Compra
         </Link>
         <ChevronRight size={11} className="text-[var(--text-faint)]" />

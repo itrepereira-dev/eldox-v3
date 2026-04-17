@@ -36,7 +36,7 @@ const TABS: Array<{ label: string; value: string }> = [
 
 // ── Row ────────────────────────────────────────────────────────────────────────
 
-function SolicitacaoRow({ sol, obraId }: { sol: AlmSolicitacao; obraId: string }) {
+function SolicitacaoRow({ sol }: { sol: AlmSolicitacao }) {
   function fmtData(iso: string | null) {
     if (!iso) return '—'
     return new Date(iso).toLocaleDateString('pt-BR')
@@ -53,7 +53,7 @@ function SolicitacaoRow({ sol, obraId }: { sol: AlmSolicitacao; obraId: string }
             <AlertTriangle size={12} className="text-[var(--warn)] flex-shrink-0" />
           )}
           <Link
-            to={`/obras/${obraId}/almoxarifado/solicitacoes/${sol.id}`}
+            to={`/almoxarifado/solicitacoes/${sol.id}`}
             className="text-[13px] font-medium text-[var(--accent)] hover:underline"
           >
             {sol.descricao}
@@ -129,7 +129,7 @@ export function SolicitacoesListPage() {
           )}
         </div>
         <Link
-          to={`/obras/${obraId}/almoxarifado/solicitacoes/nova`}
+          to={`/almoxarifado/solicitacoes/nova`}
           className={cn(
             'flex items-center gap-1.5 px-3 h-9 rounded-sm',
             'bg-[var(--accent)] text-white text-[13px] font-semibold',
@@ -205,7 +205,7 @@ export function SolicitacoesListPage() {
                 </tr>
               ) : (
                 filtered.map((s) => (
-                  <SolicitacaoRow key={s.id} sol={s} obraId={obraId!} />
+                  <SolicitacaoRow key={s.id} sol={s} />
                 ))
               )}
             </tbody>

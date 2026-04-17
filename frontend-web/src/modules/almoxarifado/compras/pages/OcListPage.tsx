@@ -36,7 +36,7 @@ const TABS: Array<{ label: string; value: string }> = [
 
 // ── Row ────────────────────────────────────────────────────────────────────────
 
-function OcRow({ oc, obraId }: { oc: AlmOrdemCompra; obraId: string }) {
+function OcRow({ oc }: { oc: AlmOrdemCompra }) {
   function fmtVal(val: number | null) {
     if (val == null) return '—'
     return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -49,7 +49,7 @@ function OcRow({ oc, obraId }: { oc: AlmOrdemCompra; obraId: string }) {
   return (
     <tr className="hover:bg-[var(--bg-raised)] transition-colors">
       <td className="px-3 py-2.5 font-mono text-[12px] text-[var(--accent)] font-semibold">
-        <Link to={`/obras/${obraId}/almoxarifado/ocs/${oc.id}`} className="hover:underline">
+        <Link to={`/almoxarifado/ocs/${oc.id}`} className="hover:underline">
           {oc.numero}
         </Link>
       </td>
@@ -117,7 +117,7 @@ export function OcListPage() {
           )}
         </div>
         <Link
-          to={`/obras/${obraId}/almoxarifado/ocs/nova`}
+          to={`/almoxarifado/ocs/nova`}
           className={cn(
             'flex items-center gap-1.5 px-3 h-9 rounded-sm',
             'bg-[var(--accent)] text-white text-[13px] font-semibold',
@@ -195,7 +195,7 @@ export function OcListPage() {
                   </td>
                 </tr>
               ) : (
-                filtered.map((o) => <OcRow key={o.id} oc={o} obraId={obraId!} />)
+                filtered.map((o) => <OcRow key={o.id} oc={o} />)
               )}
             </tbody>
           </table>
