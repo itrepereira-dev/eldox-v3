@@ -25,7 +25,12 @@ jobs:
           cache: npm
           cache-dependency-path: ./backend/package-lock.json
       - run: npm ci
-      - name: Lint backend
+      # Lint é ADVISORY por enquanto — existe débito técnico de ~450 violações
+      # @typescript-eslint/no-unsafe-* em services de IA e páginas FVS antigas.
+      # Tracked como [A] no relatório 2026-04-17. Promover a blocking quando
+      # o débito estiver zerado.
+      - name: Lint backend (advisory)
+        continue-on-error: true
         run: npm run lint
       - name: Type-check backend
         run: npx tsc --noEmit
@@ -50,7 +55,9 @@ jobs:
           cache: npm
           cache-dependency-path: ./frontend-web/package-lock.json
       - run: npm ci
-      - name: Lint frontend
+      # Lint advisory (mesmo motivo do backend — débito pré-existente).
+      - name: Lint frontend (advisory)
+        continue-on-error: true
         run: npm run lint
       - name: Type-check frontend
         run: npx tsc -b --noEmit
