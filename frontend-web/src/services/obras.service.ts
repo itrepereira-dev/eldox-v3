@@ -98,8 +98,10 @@ export const obrasService = {
     return data.data ?? data;
   },
 
-  // Obras CRUD
-  async getAll(params?: { status?: string; page?: number; limit?: number }): Promise<Obra[]> {
+  // Obras CRUD — retorno polimórfico: lista simples ou objeto paginado
+  // ({ items, total, totalPages }). Callers fazem narrowing com Array.isArray.
+  // Tipagem proposital solta (padrão do service) para não quebrar callers.
+  async getAll(params?: { status?: string; page?: number; limit?: number }) {
     const { data } = await api.get('/obras', { params });
     return data.data ?? data;
   },
