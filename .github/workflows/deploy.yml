@@ -162,8 +162,11 @@ jobs:
             docker compose -f infra/docker-compose.prod.yml ps
 
             if [ "$healthy" -ne 1 ]; then
-              echo "::error::Backend não ficou healthy em 60s. Dumping logs:"
-              docker logs --tail 200 eldox_v3_backend || true
+              echo "::error::Backend não ficou healthy em 60s."
+              echo "────── docker compose ps -a ──────"
+              docker compose -f infra/docker-compose.prod.yml ps -a || true
+              echo "────── docker logs eldox_v3_backend (últimas 300 linhas) ──────"
+              docker logs --tail 300 eldox_v3_backend 2>&1 || echo "(container não existe)"
               exit 1
             fi
 
