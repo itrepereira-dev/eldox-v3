@@ -2,8 +2,10 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Plus, Layers, LayoutGrid, List } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/cn';
 import type { StatusConcretagem } from '@/services/concretagem.service';
+import { obrasService, type Obra } from '@/services/obras.service';
 import { useListarConcretagens } from '../hooks/useConcretagens';
 import { ConcrtagemFormModal } from '../components/ConcrtagemFormModal';
 import { KanbanCard } from '../components/KanbanCard';
@@ -118,15 +120,60 @@ function EmptyState({ onNovo }: { onNovo: () => void }) {
   );
 }
 
+// ── No-obra placeholder ───────────────────────────────────────────────────────
+
+function NoObraSelected({ onNovo }: { onNovo: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 text-center px-6">
+      <div className="w-16 h-16 rounded-2xl bg-[var(--bg-raised)] flex items-center justify-center mb-4">
+        <Layers size={32} className="text-[var(--text-faint)]" />
+      </div>
+      <h3 className="text-base font-semibold text-[var(--text-high)] mb-1">
+        Selecione uma obra para visualizar as concretagens
+      </h3>
+      <p className="text-sm text-[var(--text-faint)] max-w-sm mb-5">
+        Use o filtro acima ou crie uma nova concretagem escolhendo a obra no formulário.
+      </p>
+      <button
+        type="button"
+        onClick={onNovo}
+        className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[var(--accent)] text-white text-sm font-medium hover:opacity-90 transition-opacity"
+      >
+        <Plus size={15} />
+        Nova Concretagem
+      </button>
+    </div>
+  );
+}
+
 // ── Componente principal ──────────────────────────────────────────────────────
 
 export default function ConcrtagensListPage() {
-  const { obraId }    = useParams<{ obraId: string }>();
-  const navigate      = useNavigate();
-  const obraIdNum     = Number(obraId) || 0;
+  const { obraId }   = useParams<{ obraId?: string }>();
+  const navigate     = useNavigate();
+  const obraIdNum    = Number(obraId) || 0;
 
-  const [view, setView]       = useState<'kanban' | 'lista'>(getInitialView);
-  const [tab, setTab]         = useState<TabKey>('TODOS');
+  // When coming from /concretagem (no obraId in URL) the user can filter locally
+  const [filterObraId, setFilterObraId] = useState<number>(obraIdNum);
+
+  // Obra selector data (used when no obraId in URL)
+  const { data: obrasData } = useQuery({
+    queryKey: ['obras-selector'],
+    queryFn: () => obrasService.getAll({ limit: 100 }),
+    staleTime: 60_000,
+    enabled: !obraIdNum, // only fetch when we need the filter
+  });
+  const obrasList: Obra[] = !obraIdNum
+    ? Array.isArray(obrasData)
+      ? obrasData
+      : ((obrasData as { items?: Obra[] })?.items ?? [])
+    : [];
+
+  // The effective obraId to use for queries
+  const effectiveObraId = obraIdNum || filterObraId;
+
+  const [view, setView]         = useState<'kanban' | 'lista'>(getInitialView);
+  const [tab, setTab]           = useState<TabKey>('TODOS');
   const [modalAberto, setModal] = useState(false);
 
   // Kanban busca todos; lista pode filtrar por tab
@@ -134,7 +181,7 @@ export default function ConcrtagensListPage() {
     ? { page: 1, limit: 200 }
     : (tab === 'TODOS' ? { page: 1, limit: 50 } : { status: tab as StatusConcretagem, page: 1, limit: 50 });
 
-  const { data: result, isLoading, isError } = useListarConcretagens(obraIdNum, listParams);
+  const { data: result, isLoading, isError } = useListarConcretagens(effectiveObraId, listParams);
   const items = result?.items ?? [];
 
   const formatData = (d: string) =>
@@ -145,8 +192,10 @@ export default function ConcrtagensListPage() {
     setViewPref(v);
   };
 
-  const goToDetalhe = (id: number) =>
-    navigate(`/obras/${obraIdNum}/concretagem/concretagens/${id}`);
+  const goToDetalhe = (id: number) => {
+    const oid = effectiveObraId;
+    navigate(`/obras/${oid}/concretagem/concretagens/${id}`);
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -198,14 +247,38 @@ export default function ConcrtagensListPage() {
         </div>
       </div>
 
+      {/* ── Obra filter (only when no obraId in URL) ── */}
+      {!obraIdNum && (
+        <div className="flex items-center gap-3">
+          <label className="text-xs font-medium text-[var(--text-low)] whitespace-nowrap">
+            Filtrar por obra
+          </label>
+          <select
+            value={filterObraId || ''}
+            onChange={(e) => setFilterObraId(Number(e.target.value) || 0)}
+            className="h-9 px-3 text-sm rounded-lg border border-[var(--border-dim)] bg-[var(--bg-raised)] text-[var(--text-high)] focus:outline-none focus:border-[var(--accent)] min-w-[220px]"
+          >
+            <option value="">Todas as obras</option>
+            {obrasList.map((o) => (
+              <option key={o.id} value={o.id}>{o.nome}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {isError && (
         <div className="text-center py-12 text-sm text-[var(--text-faint)]">
           Erro ao carregar concretagens
         </div>
       )}
 
+      {/* ── No obra selected placeholder ── */}
+      {!isError && !effectiveObraId && (
+        <NoObraSelected onNovo={() => setModal(true)} />
+      )}
+
       {/* ── KANBAN ── */}
-      {!isError && view === 'kanban' && (
+      {!isError && !!effectiveObraId && view === 'kanban' && (
         <>
           {items.length === 0 && !isLoading ? (
             <EmptyState onNovo={() => setModal(true)} />
@@ -247,7 +320,7 @@ export default function ConcrtagensListPage() {
       )}
 
       {/* ── LISTA ── */}
-      {!isError && view === 'lista' && (
+      {!isError && !!effectiveObraId && view === 'lista' && (
         <>
           {/* Tabs */}
           <div className="flex gap-1 border-b border-[var(--border-dim)]">
@@ -332,7 +405,10 @@ export default function ConcrtagensListPage() {
 
       {/* Modal criar */}
       {modalAberto && (
-        <ConcrtagemFormModal obraId={obraIdNum} onClose={() => setModal(false)} />
+        <ConcrtagemFormModal
+          obraId={effectiveObraId || undefined}
+          onClose={() => setModal(false)}
+        />
       )}
     </div>
   );

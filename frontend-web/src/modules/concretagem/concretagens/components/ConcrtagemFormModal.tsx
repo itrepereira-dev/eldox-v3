@@ -1,17 +1,37 @@
 // frontend-web/src/modules/concretagem/concretagens/components/ConcrtagemFormModal.tsx
 import { useState } from 'react';
 import { X } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import type { CreateConcrtagemPayload } from '@/services/concretagem.service';
+import { obrasService, type Obra } from '@/services/obras.service';
 import { useCriarConcretagem } from '../hooks/useConcretagens';
 
 interface Props {
-  obraId: number;
+  /** Pre-selected obra. When absent the user must choose one in the form. */
+  obraId?: number;
   onClose: () => void;
 }
 
-export function ConcrtagemFormModal({ obraId, onClose }: Props) {
-  const criar = useCriarConcretagem(obraId);
+export function ConcrtagemFormModal({ obraId: obraIdFromProps, onClose }: Props) {
+  const criar = useCriarConcretagem(obraIdFromProps);
 
+  // ── Obra selector ─────────────────────────────────────────────────────────
+  const { data: obrasData } = useQuery({
+    queryKey: ['obras-selector'],
+    queryFn: () => obrasService.getAll({ limit: 100 }),
+    staleTime: 60_000,
+  });
+  const obrasList: Obra[] = Array.isArray(obrasData)
+    ? obrasData
+    : ((obrasData as { items?: Obra[] })?.items ?? []);
+
+  // Relies on the modal being unmounted/remounted on each open.
+  // If that contract changes, replace with a useEffect sync.
+  const [selectedObraId, setSelectedObraId] = useState<number | null>(
+    obraIdFromProps && obraIdFromProps > 0 ? obraIdFromProps : null,
+  );
+
+  // ── Form state ────────────────────────────────────────────────────────────
   const [form, setForm] = useState<CreateConcrtagemPayload>({
     elemento_estrutural: '',
     volume_previsto: 0,
@@ -20,18 +40,23 @@ export function ConcrtagemFormModal({ obraId, onClose }: Props) {
     data_programada: new Date().toISOString().split('T')[0],
   });
 
-  const set = (key: keyof CreateConcrtagemPayload, value: string | number | boolean | undefined) =>
-    setForm((prev) => ({ ...prev, [key]: value }));
+  const set = (
+    key: keyof CreateConcrtagemPayload,
+    value: string | number | boolean | undefined,
+  ) => setForm((prev) => ({ ...prev, [key]: value }));
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!selectedObraId) return;
     try {
-      await criar.mutateAsync(form);
+      await criar.mutateAsync({ obraId: selectedObraId, payload: form });
       onClose();
     } catch {
       // erro tratado pelo react-query
     }
   }
+
+  const canSubmit = !!selectedObraId && !criar.isPending;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -46,6 +71,25 @@ export function ConcrtagemFormModal({ obraId, onClose }: Props) {
 
         {/* Formulário */}
         <form onSubmit={(e) => void handleSubmit(e)} className="px-6 py-5 space-y-4">
+
+          {/* ── Seletor de Obra (primeiro campo) ── */}
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-low)] mb-1">
+              Obra <span className="text-[var(--nc-text)]">*</span>
+            </label>
+            <select
+              value={selectedObraId ?? ''}
+              onChange={(e) => setSelectedObraId(Number(e.target.value) || null)}
+              className="w-full h-9 px-3 text-sm rounded-lg border border-[var(--border-dim)] bg-[var(--bg-raised)] text-[var(--text-high)] focus:outline-none focus:border-[var(--accent)]"
+              required
+            >
+              <option value="">Selecione uma obra...</option>
+              {obrasList.map((o) => (
+                <option key={o.id} value={o.id}>{o.nome}</option>
+              ))}
+            </select>
+          </div>
+
           <div>
             <label className="block text-xs font-medium text-[var(--text-low)] mb-1">
               Elemento Estrutural *
@@ -153,7 +197,9 @@ export function ConcrtagemFormModal({ obraId, onClose }: Props) {
                 className="w-full px-3 py-2 rounded-lg border border-[var(--border-dim)] bg-[var(--bg-raised)] text-sm text-[var(--text-high)] focus:outline-none focus:border-[var(--accent)]"
                 placeholder="Ex: 30"
                 value={form.intervalo_min_caminhoes ?? ''}
-                onChange={(e) => set('intervalo_min_caminhoes', e.target.value ? parseInt(e.target.value) : undefined)}
+                onChange={(e) =>
+                  set('intervalo_min_caminhoes', e.target.value ? parseInt(e.target.value) : undefined)
+                }
               />
             </div>
             <div className="flex items-center gap-2 pt-5">
@@ -201,7 +247,7 @@ export function ConcrtagemFormModal({ obraId, onClose }: Props) {
             </button>
             <button
               type="submit"
-              disabled={criar.isPending}
+              disabled={!canSubmit}
               className="px-4 py-2 rounded-lg bg-[var(--accent)] text-white text-sm font-medium hover:opacity-90 disabled:opacity-60 transition-opacity"
             >
               {criar.isPending ? 'Salvando...' : 'Criar Concretagem'}

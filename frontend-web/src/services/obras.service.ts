@@ -99,7 +99,7 @@ export const obrasService = {
   },
 
   // Obras CRUD
-  async getAll(params?: { status?: string; page?: number; limit?: number }) {
+  async getAll(params?: { status?: string; page?: number; limit?: number }): Promise<Obra[]> {
     const { data } = await api.get('/obras', { params });
     return data.data ?? data;
   },

@@ -162,7 +162,11 @@ export default function App() {
                 <Route path="/fvs/modelos/:id" element={<ModeloDetailPage />} />
                 <Route path="/fvs/modelos/:id/editar" element={<ModeloFormPage />} />
 
-                {/* Concretagem */}
+                {/* Concretagem — sem obra ativa (sidebar sempre visível) */}
+                <Route path="/concretagem" element={<ConcretagemDashboardPage />} />
+                <Route path="/concretagem/concretagens" element={<ConcrtagensListPage />} />
+
+                {/* Concretagem — com obra */}
                 <Route path="/obras/:obraId/concretagem" element={<ConcretagemDashboardPage />} />
                 <Route path="/obras/:obraId/concretagem/concretagens" element={<ConcrtagensListPage />} />
                 <Route path="/obras/:obraId/concretagem/concretagens/:concrtagemId" element={<ConcrtagemDetalhePage />} />

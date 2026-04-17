@@ -25,7 +25,6 @@ import {
   Building2,
   BookOpenCheck,
   Warehouse,
-  BarChart2,
   TestTubes,
   Gauge,
   ListChecks,
@@ -196,18 +195,7 @@ function FvmControleLink({ onClick }: { onClick?: () => void }) {
 /* ── Concretagem Nav helper ──────────────────────────── */
 function ConcretagemNavGroup({ onClick }: { onClick?: () => void }) {
   const obraAtivaId = useResolvedObraId()
-  if (!obraAtivaId) {
-    return (
-      <NavItemGroup
-        icon={<FlaskConical size={18} />}
-        label="Concretagem"
-        items={[]}
-        disabled
-        disabledReason="Selecione uma obra primeiro"
-      />
-    )
-  }
-  const base = `/obras/${obraAtivaId}/concretagem`
+  const base = obraAtivaId ? `/obras/${obraAtivaId}/concretagem` : '/concretagem'
   return (
     <NavItemGroup
       icon={<FlaskConical size={18} />}
@@ -251,30 +239,6 @@ function EnsaiosNavGroup({ onClick }: { onClick?: () => void }) {
   )
 }
 
-/* ── Planos de Ação Nav helper ───────────────────────────── */
-function PlanosAcaoLink({ onClick }: { onClick?: () => void }) {
-  const obraAtivaId = useResolvedObraId()
-  if (!obraAtivaId) {
-    return (
-      <NavItem
-        to="#"
-        icon={<ListChecks size={18} />}
-        label="Planos de Ação"
-        disabled
-        disabledReason="Selecione uma obra primeiro"
-      />
-    )
-  }
-  return (
-    <NavItem
-      to={`/obras/${obraAtivaId}/fvs/planos-acao`}
-      icon={<ListChecks size={18} />}
-      label="Planos de Ação"
-      onClick={onClick}
-    />
-  )
-}
-
 /* ── Almoxarifado Nav helper ─────────────────────────── */
 function AlmoxarifadoNavGroup({ onClick }: { onClick?: () => void }) {
   const obraAtivaId = useResolvedObraId()
@@ -302,6 +266,26 @@ function AlmoxarifadoNavGroup({ onClick }: { onClick?: () => void }) {
         { to: `${base}/nfes`,         label: 'NF-e' },
         { to: `${base}/planejamento`, label: 'Planejamento' },
         { to: `${base}/insights`,     label: 'Insights IA' },
+      ]}
+      onClick={onClick}
+    />
+  )
+}
+
+/* ── Não Conformidades Nav helper ────────────────────── */
+function NaoConformidadesNavGroup({ onClick }: { onClick?: () => void }) {
+  const obraAtivaId = useResolvedObraId()
+  const planosAcaoTo = obraAtivaId
+    ? `/obras/${obraAtivaId}/fvs/planos-acao`
+    : '#'
+
+  return (
+    <NavItemGroup
+      icon={<AlertTriangle size={18} />}
+      label="Não conformidades"
+      items={[
+        { to: '/ncs', label: 'Lista de NCs', end: true },
+        { to: planosAcaoTo, label: 'Planos de Ação' },
       ]}
       onClick={onClick}
     />
@@ -387,20 +371,7 @@ export function Sidebar({ onNavClick, className }: SidebarProps) {
             ]}
             onClick={onNavClick}
           />
-          <NavItem
-            to="/fvs/dashboard"
-            icon={<BarChart2 size={18} />}
-            label="Dashboard FVS"
-            onClick={onNavClick}
-          />
-          <NavItem
-            to="/ncs"
-            icon={<AlertTriangle size={18} />}
-            label="Não conformidades"
-            badge={{ variant: 'nc', count: 7 }}
-            onClick={onNavClick}
-          />
-          <PlanosAcaoLink onClick={onNavClick} />
+          <NaoConformidadesNavGroup onClick={onNavClick} />
           <ConcretagemNavGroup onClick={onNavClick} />
           <EnsaiosNavGroup onClick={onNavClick} />
         </NavSection>
@@ -457,11 +428,20 @@ export function Sidebar({ onNavClick, className }: SidebarProps) {
             label="Cadastros"
             items={[
               { to: '/configuracoes/fvs/catalogo',      label: 'Serviços FVS' },
-              { to: '/configuracoes/planos-acao',       label: 'Planos de Ação' },
               { to: '/configuracoes/ensaios/tipos',     label: 'Tipos de Ensaio' },
               { to: '/configuracoes/efetivo/cadastros', label: 'Cadastros Efetivo' },
             ]}
             onClick={onNavClick}
+          />
+        </NavSection>
+
+        <NavSection label="Configurações">
+          <NavItem
+            to="#"
+            icon={<Users size={18} />}
+            label="Gestão de Usuários"
+            disabled
+            disabledReason="Em breve"
           />
         </NavSection>
 

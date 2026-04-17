@@ -33,13 +33,16 @@ export function useBuscarConcretagem(obraId: number, id: number) {
   });
 }
 
-export function useCriarConcretagem(obraId: number) {
+export function useCriarConcretagem(obraIdDefault?: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (payload: CreateConcrtagemPayload) =>
+    mutationFn: ({ obraId, payload }: { obraId: number; payload: CreateConcrtagemPayload }) =>
       concretagemService.criarConcretagem(obraId, payload),
-    onSuccess: () => {
+    onSuccess: (_data, { obraId }) => {
       void qc.invalidateQueries({ queryKey: ['concretagens', obraId] });
+      if (obraIdDefault && obraIdDefault !== obraId) {
+        void qc.invalidateQueries({ queryKey: ['concretagens', obraIdDefault] });
+      }
     },
   });
 }
