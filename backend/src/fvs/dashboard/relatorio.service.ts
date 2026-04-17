@@ -243,4 +243,116 @@ export class RelatorioService {
       fichas,
     };
   }
+
+  async getRelatorioUso(
+    tenantId: number,
+    obraId: number,
+    dataInicio: string,
+    dataFim: string,
+  ) {
+    // Resolve obra nome
+    const obraRows = await this.prisma.$queryRawUnsafe<{ nome: string }[]>(
+      `SELECT nome FROM obras WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+      obraId, tenantId,
+    );
+    if (!obraRows[0]) throw new Error('Obra não encontrada');
+    const obra_nome = obraRows[0].nome;
+
+    // Aggregate por serviço
+    const porServicoRows = await this.prisma.$queryRawUnsafe<{
+      servico_nome: string;
+      total_fichas: number;
+      total_registros: number;
+      registros_ok: number;
+      registros_nc: number;
+    }[]>(
+      `
+      SELECT
+        s.nome AS servico_nome,
+        COUNT(DISTINCT f.id) AS total_fichas,
+        COUNT(r.id) AS total_registros,
+        COUNT(r.id) FILTER (WHERE r.status IN ('conforme','conforme_apos_reinspecao','liberado_com_concessao')) AS registros_ok,
+        COUNT(r.id) FILTER (WHERE r.status IN ('nao_conforme','nc_apos_reinspecao','retrabalho')) AS registros_nc
+      FROM fvs_fichas f
+      JOIN fvs_fichas_servicos fs ON fs.ficha_id = f.id
+      JOIN fvs_servicos s ON s.id = fs.servico_id
+      LEFT JOIN fvs_registros r ON r.ficha_id = f.id AND r.servico_id = fs.servico_id
+      WHERE f.obra_id = $1
+        AND f.tenant_id = $2
+        AND f.deleted_at IS NULL
+        AND f.created_at >= $3
+        AND f.created_at <= $4
+      GROUP BY s.nome
+      ORDER BY total_fichas DESC
+      `,
+      obraId, tenantId, dataInicio, dataFim,
+    );
+
+    const por_servico = porServicoRows.map((row) => {
+      const total = Number(row.total_registros);
+      const ok = Number(row.registros_ok);
+      return {
+        servico_nome: row.servico_nome,
+        total_fichas: Number(row.total_fichas),
+        total_registros: total,
+        registros_ok: ok,
+        registros_nc: Number(row.registros_nc),
+        taxa: total > 0 ? Math.round((ok / total) * 100) : 0,
+      };
+    });
+
+    // Aggregate por inspetor
+    const porInspetorRows = await this.prisma.$queryRawUnsafe<{
+      inspetor_nome: string;
+      total_fichas: number;
+      fichas_concluidas: number;
+    }[]>(
+      `
+      SELECT
+        COALESCE(u.nome, 'Desconhecido') AS inspetor_nome,
+        COUNT(*) AS total_fichas,
+        COUNT(*) FILTER (WHERE f.status IN ('concluida','aprovada')) AS fichas_concluidas
+      FROM fvs_fichas f
+      LEFT JOIN users u ON u.id = f.criado_por
+      WHERE f.obra_id = $1
+        AND f.tenant_id = $2
+        AND f.deleted_at IS NULL
+        AND f.created_at >= $3
+        AND f.created_at <= $4
+      GROUP BY u.nome
+      ORDER BY total_fichas DESC
+      `,
+      obraId, tenantId, dataInicio, dataFim,
+    );
+
+    const por_inspetor = porInspetorRows.map((row) => ({
+      inspetor_nome: row.inspetor_nome,
+      total_fichas: Number(row.total_fichas),
+      fichas_concluidas: Number(row.fichas_concluidas),
+    }));
+
+    // Total fichas in period
+    const totalRows = await this.prisma.$queryRawUnsafe<{ total: number }[]>(
+      `
+      SELECT COUNT(*) AS total
+      FROM fvs_fichas
+      WHERE obra_id = $1
+        AND tenant_id = $2
+        AND deleted_at IS NULL
+        AND created_at >= $3
+        AND created_at <= $4
+      `,
+      obraId, tenantId, dataInicio, dataFim,
+    );
+    const total_fichas = Number(totalRows[0]?.total ?? 0);
+
+    return {
+      obra_nome,
+      data_inicio: dataInicio,
+      data_fim: dataFim,
+      total_fichas,
+      por_servico,
+      por_inspetor,
+    };
+  }
 }

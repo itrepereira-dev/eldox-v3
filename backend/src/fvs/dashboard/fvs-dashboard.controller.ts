@@ -130,4 +130,18 @@ export class FvsDashboardController {
     const dataFim = query.data_fim ?? new Date().toISOString();
     return this.relatorioService.getConformidade(tenantId, obraId, servicoId, dataInicio, dataFim);
   }
+
+  // GET /api/v1/fvs/dashboard/obras/:obraId/relatorio-uso
+  @Get('obras/:obraId/relatorio-uso')
+  @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO', 'VISITANTE')
+  getRelatorioUso(
+    @TenantId() tenantId: number,
+    @Param('obraId', ParseIntPipe) obraId: number,
+    @Query('data_inicio') dataInicio?: string,
+    @Query('data_fim') dataFim?: string,
+  ) {
+    const fim = dataFim ?? new Date().toISOString();
+    const inicio = dataInicio ?? new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    return this.relatorioService.getRelatorioUso(tenantId, obraId, inicio, fim);
+  }
 }
