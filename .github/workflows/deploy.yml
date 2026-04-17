@@ -25,6 +25,9 @@ jobs:
           cache: npm
           cache-dependency-path: ./backend/package-lock.json
       - run: npm ci
+      # Prisma client precisa ser gerado antes do tsc (não há postinstall).
+      - name: Generate Prisma client
+        run: npx prisma generate
       # Lint é ADVISORY por enquanto — existe débito técnico de ~450 violações
       # @typescript-eslint/no-unsafe-* em services de IA e páginas FVS antigas.
       # Tracked como [A] no relatório 2026-04-17. Promover a blocking quando
