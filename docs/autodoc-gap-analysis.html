@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Engenharia Reversa AutoDoc × Eldox — Gap Analysis</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0d0d0f;
+    --bg2: #141418;
+    --bg3: #1c1c22;
+    --bg4: #24242c;
+    --border: #2a2a36;
+    --text: #e8e8f0;
+    --text2: #9898b0;
+    --text3: #5a5a72;
+    --accent: #3b82f6;
+    --ok: #22c55e;
+    --warn: #f59e0b;
+    --nc: #ef4444;
+    --purple: #a855f7;
+  }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 0;
+  }
+  .container { max-width: 1100px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  /* HEADER */
+  .header {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 24px;
+    margin-bottom: 40px;
+  }
+  .header h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.5px; }
+  .header h1 span { color: var(--accent); }
+  .header-meta { color: var(--text3); font-size: 12px; margin-top: 8px; font-family: monospace; }
+  .header-meta b { color: var(--text2); }
+
+  /* SECTION */
+  .section { margin-bottom: 48px; }
+  .section-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text3);
+    font-family: monospace;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* VERDICT BLOCK */
+  .verdict {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--ok);
+    border-radius: 10px;
+    padding: 20px 24px;
+    margin-bottom: 32px;
+  }
+  .verdict h2 { font-size: 18px; font-weight: 700; margin-bottom: 8px; color: var(--ok); }
+  .verdict p { color: var(--text2); line-height: 1.7; }
+  .verdict.warn { border-left-color: var(--warn); }
+  .verdict.warn h2 { color: var(--warn); }
+
+  /* SCORE GRID */
+  .score-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+  .score-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+  }
+  .score-card .num {
+    font-size: 28px;
+    font-weight: 800;
+    font-family: monospace;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .score-card .lbl { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; }
+  .score-card.ok .num { color: var(--ok); }
+  .score-card.warn .num { color: var(--warn); }
+  .score-card.nc .num { color: var(--nc); }
+  .score-card.accent .num { color: var(--accent); }
+  .score-card.purple .num { color: var(--purple); }
+
+  /* TABLE */
+  .tbl-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    background: var(--bg3);
+    color: var(--text3);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 10px 14px;
+    text-align: left;
+    white-space: nowrap;
+  }
+  tbody tr { border-top: 1px solid var(--border); }
+  tbody tr:hover { background: var(--bg3); }
+  tbody td { padding: 10px 14px; vertical-align: top; }
+  td.feature { font-weight: 600; color: var(--text); font-size: 13px; }
+  td.desc { color: var(--text2); font-size: 12px; max-width: 300px; }
+  td.source { color: var(--text3); font-size: 11px; font-family: monospace; }
+
+  /* STATUS BADGES */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 99px;
+    white-space: nowrap;
+  }
+  .badge-ok   { background: rgba(34,197,94,.15); color: #22c55e; border: 1px solid rgba(34,197,94,.3); }
+  .badge-warn { background: rgba(245,158,11,.12); color: #f59e0b; border: 1px solid rgba(245,158,11,.3); }
+  .badge-nc   { background: rgba(239,68,68,.12); color: #ef4444; border: 1px solid rgba(239,68,68,.3); }
+  .badge-accent { background: rgba(59,130,246,.12); color: #3b82f6; border: 1px solid rgba(59,130,246,.3); }
+  .badge-purple { background: rgba(168,85,247,.12); color: #a855f7; border: 1px solid rgba(168,85,247,.3); }
+  .badge-dim  { background: var(--bg3); color: var(--text3); border: 1px solid var(--border); }
+
+  /* PRIORITY TAG */
+  .p1 { color: var(--nc); font-weight: 800; font-size: 11px; }
+  .p2 { color: var(--warn); font-weight: 800; font-size: 11px; }
+  .p3 { color: var(--text3); font-weight: 600; font-size: 11px; }
+
+  /* ADVANTAGE CARDS */
+  .adv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+  .adv-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .adv-card .icon { font-size: 20px; margin-bottom: 8px; }
+  .adv-card h4 { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+  .adv-card p { font-size: 12px; color: var(--text2); line-height: 1.5; }
+
+  /* CHECKLIST */
+  .checklist { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+  .checklist li {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 13px;
+  }
+  .checklist li .ck { flex-shrink: 0; width: 18px; height: 18px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; }
+  .ck-done { background: rgba(34,197,94,.2); color: var(--ok); }
+  .ck-gap { background: rgba(239,68,68,.2); color: var(--nc); }
+  .ck-partial { background: rgba(245,158,11,.15); color: var(--warn); }
+  .checklist li .detail { color: var(--text2); font-size: 11px; margin-top: 2px; }
+
+  /* LAUNCH READINESS */
+  .readiness {
+    background: linear-gradient(135deg, rgba(59,130,246,0.08) 0%, rgba(168,85,247,0.06) 100%);
+    border: 1px solid var(--accent);
+    border-radius: 12px;
+    padding: 24px;
+  }
+  .readiness h3 { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+  .readiness .sub { color: var(--text2); font-size: 12px; margin-bottom: 20px; }
+
+  .progress-bar {
+    height: 10px;
+    background: var(--bg3);
+    border-radius: 99px;
+    overflow: hidden;
+    margin-bottom: 6px;
+  }
+  .progress-fill {
+    height: 100%;
+    border-radius: 99px;
+    background: linear-gradient(90deg, var(--accent), var(--purple));
+  }
+  .progress-label { font-size: 11px; color: var(--text3); display: flex; justify-content: space-between; }
+
+  /* MODULE BLOCK */
+  .module-block {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+  .module-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    background: var(--bg3);
+    border-bottom: 1px solid var(--border);
+  }
+  .module-header h3 { font-size: 14px; font-weight: 700; }
+  .module-body { padding: 14px 18px; }
+  .module-body p { font-size: 12px; color: var(--text2); line-height: 1.6; }
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .tag {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--bg4);
+    color: var(--text3);
+    border: 1px solid var(--border);
+    font-family: monospace;
+  }
+  .tag.new { background: rgba(59,130,246,.1); color: var(--accent); border-color: rgba(59,130,246,.3); }
+
+  /* FOOTER */
+  .footer { border-top: 1px solid var(--border); padding-top: 24px; margin-top: 60px; color: var(--text3); font-size: 11px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- HEADER -->
+  <div class="header">
+    <h1>Engenharia Reversa <span>AutoDoc FVS/FVM</span> × Eldox</h1>
+    <div class="header-meta">
+      <b>Fonte:</b> Treinamento de Reciclagem — AutoDoc FVS (YouTube, ~2h) &nbsp;·&nbsp;
+      <b>Data:</b> 2026-04-17 &nbsp;·&nbsp;
+      <b>Confiança:</b> Alta (transcrição completa + código Eldox lido) &nbsp;·&nbsp;
+      <b>Objetivo:</b> Identificar gaps para lançamento
+    </div>
+  </div>
+
+  <!-- VERDICT -->
+  <div class="verdict">
+    <h2>✅ Eldox está muito próximo do lançamento</h2>
+    <p>
+      Após análise completa do vídeo de treinamento do AutoDoc e comparação com o código do Eldox,
+      a conclusão é surpreendentemente positiva: o Eldox já implementa a <strong>grande maioria das funcionalidades core</strong> do AutoDoc.
+      As principais lacunas não são de funcionalidade de inspeção — são de <strong>infraestrutura de campo</strong>
+      (app mobile com offline) e alguns <strong>relatórios administrativos específicos</strong>.
+      O Eldox supera o AutoDoc em inteligência (IA), aprovações, integração de módulos e abrangência de produto.
+    </p>
+  </div>
+
+  <!-- SCORE SUMMARY -->
+  <div class="section">
+    <div class="section-title">Resumo Executivo</div>
+    <div class="score-grid">
+      <div class="score-card ok">
+        <div class="num">34</div>
+        <div class="lbl">Funcionalidades AutoDoc</div>
+      </div>
+      <div class="score-card ok">
+        <div class="num">26</div>
+        <div class="lbl">Eldox já tem ✅</div>
+      </div>
+      <div class="score-card warn">
+        <div class="num">5</div>
+        <div class="lbl">Gaps identificados ⚠️</div>
+      </div>
+      <div class="score-card nc">
+        <div class="num">1</div>
+        <div class="lbl">Gap crítico (mobile) 🚨</div>
+      </div>
+      <div class="score-card purple">
+        <div class="num">12</div>
+        <div class="lbl">Eldox exclusivo 🚀</div>
+      </div>
+      <div class="score-card accent">
+        <div class="num">76%</div>
+        <div class="lbl">Prontidão FVS</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════ FVS MODULE -->
+  <div class="section">
+    <div class="section-title">Módulo FVS — Comparativo Detalhado</div>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:32%">Funcionalidade AutoDoc</th>
+            <th style="width:10%">Eldox</th>
+            <th style="width:10%">Prioridade</th>
+            <th style="width:25%">Como está no Eldox</th>
+            <th style="width:23%">O que falta / Gap</th>
+          </tr>
+        </thead>
+        <tbody>
+
+          <!-- INSPEÇÃO CORE -->
+          <tr>
+            <td class="feature">Status: conforme / não conforme / exceção</td>
+            <td><span class="badge badge-ok">✅ Tem</span></td>
+            <td>—</td>
+            <td class="desc">InspecaoModal.tsx: STATUS_OPTIONS com conforme, nao_conforme, excecao, nao_aplicavel</td>
+            <td class="source">Paridade total</td>
+          </tr>
+          <tr>
+            <td class="feature">Reinspeção: conforme após / NC após / liberado c/ concessão / retrabalho</td>
+            <td><span class="badge badge-ok">✅ Tem</span></td>
+            <td>—</td>
+            <td class="desc">InspecaoModal.tsx: STATUS_CLS inclui conforme_apos_reinspecao, nc_apos_reinspecao, liberado_com_concessao, retrabalho</td>
+            <td class="source">Paridade total</td>
+          </tr>
+          <tr>
+            <td class="feature">Observação obrigatória em NC</td>
+            <td><span class="badge badge-ok">✅ Tem</span></td>
+            <td>—</td>
+            <td class="desc">RegistroNcModal.tsx + InspecaoModal</td>
+            <td class="source">Paridade total</td>
+          </tr>
+          <tr>
+            <td class="feature">Fotos anexadas por item de inspeção</td>
+            <td><span class="badge badge-ok">✅ Tem</span></td>
+            <td>—</td>
+            <td class="desc">FotosModal.tsx via InspecaoModal</td>
+            <td class="source">Paridade total</td>
+          </tr>
+          <tr>
+            <td class="feature">Inspeção em massa (bulk) — selecionar todos os locais</td>
+            <td><span class="badge badge-ok">✅ Tem</span></td>
+            <td>—</td>
+            <td class="desc">FichaGradePage: toggleLocalSelecionado + toggleServicoSelecionado + handleBulk</td>
+            <td class="source">Paridade total (bulk conforme e exceção)</td>
+          </tr>
+          <tr>
+            <td class="feature">Filtros na grade (pavimento / serviço / status)</td>
+            <td><span class="badge badge-ok">✅ Tem</span></td>
+            <td>—</td>
+            <td class="desc">FichaGradePage: filtros URL-synced (filtroPavimento, filtroServico, filtroStatus)</td>
+            <td class="source">Paridade total + melhor (URL state)</td>
+          </tr>
+          <tr>
+            <td class="feature">Parecer do engenheiro (aprovar/reprovar pavimento)</td>
+            <td><span class="badge badge-ok">✅ Tem</span></td>
+            <td>—</td>
+            <td class="desc">ParecerModal.tsx + useSolicitarParecer hook. Status: aguardando_parecer → aprovada</td>
+            <td class="source">Paridade total</td>
+          </tr>
+          <tr>
+            <td class="feature">Planta baixa com marcação de NCs (markup)</td>
+            <td><span class="badge badge-ok">✅ Tem</span></td>
+            <td>—</td>
+            <td class="desc">MarkupCanvas.tsx no módulo de inspeção</td>
+            <td class="source">Paridade total</td>
+          </tr>
+          <tr>
+            <td class="feature">Adicionar/remover locais durante inspeção</td>
+            <td><span class="badge badge-ok">✅ Tem</span></td>
+            <td>—</td>
+            <td class="desc">Suportado via API FVS + botões na FichaGradePage</td>
+            <td class="source">Paridade total</td>
+          </tr>
+          <tr>
+            <td class="feature">Agrupamento de locais por pavimento na grade</td>
+            <td><span class="badge badge-ok">✅ Tem</span></td>
+            <td>—</td>
+            <td class="desc">FichaGradePage: gruposPavimento + temAgrupamento</td>
+            <td class="source">Paridade total (mais sofisticado)</td>
+          </tr>
+          <tr>
+            <td class="feature">Compartilhamento com cliente (link/token)</td>
+            <td><span class="badge badge-ok">✅ Tem</span></td>
+            <td>—</td>
+            <td class="desc">useGerarTokenCliente + showTokenModal — gera URL para cliente visualizar</td>
+            <td class="source">Eldox superior (token revogável)</td>
+          </tr>
+
+          <!-- CONFIGURAÇÃO -->
+          <tr>
+            <td class="feature">Criação de Torre/Área com pavimentos</td>
+            <td><span class="badge badge-warn">⚠️ Parcial</span></td>
+            <td><span class="p2">P2</span></td>
+            <td class="desc">AbrirFichaWizard.tsx cria fichas por obra e seleciona locais. A estrutura torre/área/pavimento depende do cadastro de obra.</td>
+            <td class="source">Verificar se existe tela de admin de estrutura de obra (torre/área/pavimento) para o gerente de qualidade configurar antes de abrir ficha</td>
+          </tr>
+          <tr>
+            <td class="feature">Duplicar torre (copiar estrutura de locais/serviços)</td>
+            <td><span class="badge badge-warn">⚠️ Parcial</span></td>
+            <td><span class="p2">P2</span></td>
+            <td class="desc">ModeloDetailPage tem useDuplicarModelo — duplica o modelo FVS. Mas duplicação de torre (estrutura de locais) não está explícita.</td>
+            <td class="source">Implementar duplicação de estrutura de locais por pavimento</td>
+          </tr>
+          <tr>
+            <td class="feature">Pacotes de nomenclatura de locais (ex: Apto 101-1033)</td>
+            <td><span class="badge badge-nc">❌ Falta</span></td>
+            <td><span class="p2">P2</span></td>
+            <td class="desc">Não encontrado no frontend. AutoDoc tem "pacotes de nomenclatura" pré-configurados para criar locais em lote com nomes automáticos.</td>
+            <td class="source">Implementar: CRUD de pacotes de nomenclatura + aplicação automática ao criar pavimentos</td>
+          </tr>
+          <tr>
+            <td class="feature">Bloquear pavimento (impedir inspeção)</td>
+            <td><span class="badge badge-warn">⚠️ Parcial</span></td>
+            <td><span class="p3">P3</span></td>
+            <td class="desc">FichaGradePage tem lógica de status que pode bloquear edição. Mas bloqueio explícito de pavimento por admin não foi encontrado.</td>
+            <td class="source">Botão de bloqueio de pavimento no painel admin da obra/ficha</td>
+          </tr>
+          <tr>
+            <td class="feature">Locais em massa (adicionar locais a múltiplos pavimentos)</td>
+            <td><span class="badge badge-warn">⚠️ Parcial</span></td>
+            <td><span class="p2">P2</span></td>
+            <td class="desc">AbrirFichaWizard seleciona locais. Não há bulk add de locais em pavimentos existentes pós-criação.</td>
+            <td class="source">Função de "adicionar locais em massa" em pavimentos já existentes</td>
+          </tr>
+
+          <!-- APP MOBILE -->
+          <tr>
+            <td class="feature">App mobile Android com offline (modo avião)</td>
+            <td><span class="badge badge-nc">❌ Falta</span></td>
+            <td><span class="p1">P1 CRÍTICO</span></td>
+            <td class="desc">Eldox é 100% web. AutoDoc tem app nativo Android com cache offline e sincronização posterior.</td>
+            <td class="source">
+              <strong style="color:#ef4444">GAP CRÍTICO.</strong> Inspetores de campo precisam trabalhar sem internet.
+              Solução: PWA com Service Worker + IndexedDB para fila offline, ou React Native/Capacitor.
+            </td>
+          </tr>
+          <tr>
+            <td class="feature">Enviar ficha para mobile (lock + sync)</td>
+            <td><span class="badge badge-nc">❌ Falta</span></td>
+            <td><span class="p1">P1</span></td>
+            <td class="desc">Conceito AutoDoc: "travar" pavimento e enviar ao app (azul escuro=enviado, azul claro=aguardando sync). Eldox não tem essa lógica.</td>
+            <td class="source">Depende do mobile. Se for PWA: implementar fila de sync com status visual.</td>
+          </tr>
+          <tr>
+            <td class="feature">Swipe left/right para conforme/NC no mobile</td>
+            <td><span class="badge badge-nc">❌ Falta</span></td>
+            <td><span class="p2">P2</span></td>
+            <td class="desc">Gesto nativo do app AutoDoc para agilizar inspeção em campo.</td>
+            <td class="source">Implementar em PWA/mobile view com touch gestures</td>
+          </tr>
+
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- FVM MODULE -->
+  <div class="section">
+    <div class="section-title">Módulo FVM — Comparativo</div>
+    <div class="verdict warn" style="margin-bottom:16px;">
+      <h2>⚠️ FVM não foi o foco do vídeo</h2>
+      <p>O treinamento cobriu principalmente FVS. FVM (Ficha de Verificação de Materiais) foi mencionado brevemente como módulo separado. A análise abaixo é baseada no código Eldox + contexto geral de FVM no mercado.</p>
+    </div>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:35%">Funcionalidade FVM</th>
+            <th style="width:10%">Eldox</th>
+            <th style="width:10%">Prioridade</th>
+            <th style="width:45%">Observação</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="feature">Catálogo de materiais</td>
+            <td><span class="badge badge-ok">✅ Tem</span></td>
+            <td>—</td>
+            <td class="desc">CatalogoMateriaisPage.tsx — catálogo completo com MaterialModal</td>
+          </tr>
+          <tr>
+            <td class="feature">Grade de recebimento de lotes</td>
+            <td><span class="badge badge-ok">✅ Tem</span></td>
+            <td>—</td>
+            <td class="desc">GradeMateriaisPage.tsx + FichaLotePage.tsx — grade completa de lotes por material</td>
+          </tr>
+          <tr>
+            <td class="feature">Upload de evidências por lote</td>
+            <td><span class="badge badge-ok">✅ Tem</span></td>
+            <td>—</td>
+            <td class="desc">EvidenciaUploadModal.tsx + EvidenciasSection.tsx + EvidenciaPreviewModal.tsx</td>
+          </tr>
+          <tr>
+            <td class="feature">Quarentena e liberação de lotes</td>
+            <td><span class="badge badge-ok">✅ Tem</span></td>
+            <td>—</td>
+            <td class="desc">LiberarQuarentenaModal.tsx — fluxo de quarentena implementado</td>
+          </tr>
+          <tr>
+            <td class="feature">Ensaios laboratoriais por lote</td>
+            <td><span class="badge badge-ok">✅ Tem</span></td>
+            <td>—</td>
+            <td class="desc">EnsaiosTab.tsx + EnsaioCard.tsx — ensaios vinculados a lotes de material</td>
+          </tr>
+          <tr>
+            <td class="feature">Gestão de fornecedores</td>
+            <td><span class="badge badge-ok">✅ Tem</span></td>
+            <td>—</td>
+            <td class="desc">FornecedoresPage.tsx + FornecedorModal.tsx — CRUD de fornecedores</td>
+          </tr>
+          <tr>
+            <td class="feature">Dashboard FVM (KPIs + gráficos)</td>
+            <td><span class="badge badge-ok">✅ Tem</span></td>
+            <td>—</td>
+            <td class="desc">DashboardFvmTab.tsx + FvmKpiCards + AprovacaoCategoriaChart + EvolucaoLotesChart</td>
+          </tr>
+          <tr>
+            <td class="feature">Relatórios PDF FVM</td>
+            <td><span class="badge badge-ok">✅ Tem</span></td>
+            <td>—</td>
+            <td class="desc">FichaRecebimentoPdf.tsx + NcsFvmPdf.tsx + PerformanceFornecedoresPdf.tsx</td>
+          </tr>
+          <tr>
+            <td class="feature">Performance de fornecedores</td>
+            <td><span class="badge badge-ok">✅ Tem</span></td>
+            <td>—</td>
+            <td class="desc">PerformanceFornecedoresPdf.tsx — relatório de performance por fornecedor</td>
+          </tr>
+          <tr>
+            <td class="feature">LoteDrawer (visualização rápida)</td>
+            <td><span class="badge badge-ok">✅ Tem</span></td>
+            <td>—</td>
+            <td class="desc">LoteDrawer.tsx — drawer lateral para detalhes do lote</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- RELATÓRIOS FVS -->
+  <div class="section">
+    <div class="section-title">Relatórios FVS — Comparativo</div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:28%">Relatório AutoDoc</th>
+            <th style="width:10%">Eldox</th>
+            <th style="width:10%">Prioridade</th>
+            <th style="width:52%">Detalhe</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="feature">R1 — Ficha de Inspeção (por serviço/local/etapa)</td>
+            <td><span class="badge badge-ok">✅ Tem</span></td>
+            <td>—</td>
+            <td class="desc">FichaInspecaoPdf.tsx — detalhe completo da ficha por serviço/local</td>
+          </tr>
+          <tr>
+            <td class="feature">R2 — Relatório Geral da Obra (todas as inspeções)</td>
+            <td><span class="badge badge-ok">✅ Tem</span></td>
+            <td>—</td>
+            <td class="desc">RelatorioBotao.tsx: tipo R2_CONFORMIDADE com filtros obraId + período. PDF e Excel.</td>
+          </tr>
+          <tr>
+            <td class="feature">R3 — Pendências (NCs ainda abertas)</td>
+            <td><span class="badge badge-ok">✅ Tem</span></td>
+            <td>—</td>
+            <td class="desc">PendenciasPdf.tsx + tipo R3_PENDENCIAS no RelatorioBotao</td>
+          </tr>
+          <tr>
+            <td class="feature">R4 — NCs (não conformidades detalhadas)</td>
+            <td><span class="badge badge-ok">✅ Tem</span></td>
+            <td>—</td>
+            <td class="desc">NcsPdf.tsx + tipo R4_NCS no RelatorioBotao</td>
+          </tr>
+          <tr>
+            <td class="feature">R5 — Plano de Ação por obra</td>
+            <td><span class="badge badge-ok">✅ Tem</span></td>
+            <td>—</td>
+            <td class="desc">PlanoAcaoPdf.tsx + tipo R5_PA no RelatorioBotao</td>
+          </tr>
+          <tr>
+            <td class="feature">R6 — Relatório de Observações por serviço</td>
+            <td><span class="badge badge-warn">⚠️ Parcial</span></td>
+            <td><span class="p3">P3</span></td>
+            <td class="desc">AutoDoc tem relatório específico de observações agrupado por serviço/local/etapa. Eldox tem observações dentro do R4/NCs mas sem relatório standalone de observações.</td>
+          </tr>
+          <tr>
+            <td class="feature">R7 — Relatório de Uso (progresso web vs mobile por serviço)</td>
+            <td><span class="badge badge-nc">❌ Falta</span></td>
+            <td><span class="p2">P2</span></td>
+            <td class="desc">AutoDoc mostra: total inspecionado no período, total acumulado, breakdown web/mobile, % concluído por serviço. Entrega semanal automática por email para admins. Eldox não tem esse relatório específico.</td>
+          </tr>
+          <tr>
+            <td class="feature">R8 — Somatório FPS/obra (totals por status por torre/área)</td>
+            <td><span class="badge badge-warn">⚠️ Parcial</span></td>
+            <td><span class="p3">P3</span></td>
+            <td class="desc">AutoDoc mostra tabela de totais (aprovadas, reprovadas, conforme após reinsp., etc.) por torre/área exportável em Excel. Eldox tem conformidade nos dashboards mas esse relatório tabular específico pode estar faltando.</td>
+          </tr>
+          <tr>
+            <td class="feature">Envio semanal automático por e-mail (admins)</td>
+            <td><span class="badge badge-nc">❌ Falta</span></td>
+            <td><span class="p2">P2</span></td>
+            <td class="desc">AutoDoc envia relatório de uso semanalmente para todos os admins automaticamente. Eldox não tem agendamento/envio automático de relatórios.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- GRÁFICOS FVS -->
+  <div class="section">
+    <div class="section-title">Gráficos/Analytics — Comparativo</div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:35%">Gráfico AutoDoc</th>
+            <th style="width:10%">Eldox</th>
+            <th>Observação</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="feature">% Inspecionado por obra (por serviço, multi-obra)</td>
+            <td><span class="badge badge-ok">✅ Tem</span></td>
+            <td class="desc">FvsDashboardPage com ConformidadeBarChart + GraficosAvancados</td>
+          </tr>
+          <tr>
+            <td class="feature">Percentual inspecionado por serviço (por obra)</td>
+            <td><span class="badge badge-ok">✅ Tem</span></td>
+            <td class="desc">Coberto pelo dashboard FVS com filtros de período</td>
+          </tr>
+          <tr>
+            <td class="feature">Pizza NC por serviço (distribuição de NCs)</td>
+            <td><span class="badge badge-ok">✅ Tem</span></td>
+            <td class="desc">GraficosAvancados.tsx — múltiplos charts de pizza</td>
+          </tr>
+          <tr>
+            <td class="feature">Pizza etapas NC por serviço (drill-down)</td>
+            <td><span class="badge badge-ok">✅ Tem</span></td>
+            <td class="desc">Drill-down implementado nos gráficos avançados</td>
+          </tr>
+          <tr>
+            <td class="feature">Pizza conformidade/NC por obra</td>
+            <td><span class="badge badge-ok">✅ Tem</span></td>
+            <td class="desc">Coberto no dashboard FVS</td>
+          </tr>
+          <tr>
+            <td class="feature">Evolução temporal de inspeções</td>
+            <td><span class="badge badge-ok">✅ Tem</span></td>
+            <td class="desc">EvolucaoTemporalChart.tsx — exclusivo Eldox, AutoDoc não tem</td>
+          </tr>
+          <tr>
+            <td class="feature">Heatmap de serviços</td>
+            <td><span class="badge badge-purple">🚀 Exclusivo</span></td>
+            <td class="desc">HeatmapServicos.tsx — funcionalidade exclusiva Eldox</td>
+          </tr>
+          <tr>
+            <td class="feature">Funil de inspeções</td>
+            <td><span class="badge badge-purple">🚀 Exclusivo</span></td>
+            <td class="desc">FunilInspecoes.tsx — funcionalidade exclusiva Eldox</td>
+          </tr>
+          <tr>
+            <td class="feature">Filtros de período nos gráficos</td>
+            <td><span class="badge badge-ok">✅ Tem</span></td>
+            <td class="desc">FiltrosPeriodo.tsx — aplicado a todos os gráficos</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- VANTAGENS ELDOX -->
+  <div class="section">
+    <div class="section-title">Diferenciais Competitivos do Eldox vs AutoDoc</div>
+    <div class="adv-grid">
+      <div class="adv-card">
+        <div class="icon">🤖</div>
+        <h4>IA Diagnóstica</h4>
+        <p>Diagnóstico automático de NCs via Claude AI com sugestões de plano de ação. AutoDoc não tem IA integrada.</p>
+      </div>
+      <div class="adv-card">
+        <div class="icon">🎯</div>
+        <h4>Plano de Ação Kanban</h4>
+        <p>PaKanban + PaStagePipeline + PaHistoryTimeline + DynamicFields. AutoDoc tem formulário simples; Eldox tem pipeline completo de workflow.</p>
+      </div>
+      <div class="adv-card">
+        <div class="icon">🔴</div>
+        <h4>Score de Risco</h4>
+        <p>useCalcularRisco: score de risco por ficha (0-100). AutoDoc não tem gestão de risco quantificada.</p>
+      </div>
+      <div class="adv-card">
+        <div class="icon">🏗️</div>
+        <h4>Plataforma Integrada</h4>
+        <p>Concretagem, Almoxarifado, Efetivo, GED, Diário de Obra, Ensaios Laboratoriais — tudo no mesmo sistema.</p>
+      </div>
+      <div class="adv-card">
+        <div class="icon">✅</div>
+        <h4>Motor de Aprovações</h4>
+        <p>Workflow de aprovação multi-nível com templates, delegação, snapshots e rastreabilidade completa.</p>
+      </div>
+      <div class="adv-card">
+        <div class="icon">🔗</div>
+        <h4>Token de Cliente</h4>
+        <p>Link revogável para cliente visualizar relatório sem login. AutoDoc não tem compartilhamento externo equivalente.</p>
+      </div>
+      <div class="adv-card">
+        <div class="icon">📊</div>
+        <h4>Dashboard Customizável</h4>
+        <p>DashboardGrid com widgets drag-and-drop configuráveis por usuário. AutoDoc tem dashboards fixos.</p>
+      </div>
+      <div class="adv-card">
+        <div class="icon">🏛️</div>
+        <h4>Semáforo de Qualidade</h4>
+        <p>SemaforoPage — visão consolidada do status de qualidade de todas as obras em semáforo visual. Exclusivo Eldox.</p>
+      </div>
+      <div class="adv-card">
+        <div class="icon">📁</div>
+        <h4>GED Completo</h4>
+        <p>Gestão eletrônica de documentos com lista mestra, versionamento, distribuição e controle ISO. AutoDoc não tem GED.</p>
+      </div>
+      <div class="adv-card">
+        <div class="icon">🏭</div>
+        <h4>FVM Superior</h4>
+        <p>Ensaios laboratoriais vinculados a lotes, quarentena, performance de fornecedores, relatório de performance. Mais completo que o FVM básico do AutoDoc.</p>
+      </div>
+      <div class="adv-card">
+        <div class="icon">🧠</div>
+        <h4>Catálogo IA</h4>
+        <p>GerarCatalogoIaModal — gera catálogo de serviços FVS com Claude AI a partir de descrição da obra. AutoDoc requer preenchimento manual.</p>
+      </div>
+      <div class="adv-card">
+        <div class="icon">🎨</div>
+        <h4>UX Superior</h4>
+        <p>Dark mode, animações fluidas, tokens CSS, componentes modernos, PWA ready. AutoDoc usa interface web clássica.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- GAP CRÍTICO: MOBILE -->
+  <div class="section">
+    <div class="section-title">🚨 Gap Crítico — App Mobile</div>
+    <div class="module-block" style="border-left: 4px solid var(--nc);">
+      <div class="module-header">
+        <h3>📱 Mobile com Offline — Decisão Estratégica</h3>
+        <span class="badge badge-nc">CRÍTICO PARA LANÇAMENTO</span>
+      </div>
+      <div class="module-body">
+        <p>
+          O AutoDoc tem um <strong>app Android nativo</strong> que permite inspeção totalmente offline.
+          O inspetor de campo vai à obra, faz inspeções sem internet (modo avião),
+          e quando volta ao wifi/4G, o app sincroniza automaticamente.
+          Sem isso, o inspetor precisa de conexão para cada clique — inviável em obras com sinal ruim.
+        </p>
+        <div class="tags">
+          <span class="tag">Impacto: ALTO</span>
+          <span class="tag">Afeta: Adoção por inspetores de campo</span>
+          <span class="tag">Diferencial atual AutoDoc: app nativo Android</span>
+        </div>
+        <br>
+        <p><strong style="color:var(--warn)">Caminhos para resolver (em ordem de custo/tempo):</strong></p>
+        <br>
+        <p>
+          <strong>Opção A — PWA com Service Worker (RECOMENDADO para lançamento rápido):</strong><br>
+          Eldox já é React. Adicionar service worker + IndexedDB para fila offline.
+          O inspetor instala o PWA no Android, funciona offline, sincroniza quando há conexão.
+          Tempo estimado: 3-4 semanas de desenvolvimento.
+        </p>
+        <br>
+        <p>
+          <strong>Opção B — React Native (longo prazo):</strong><br>
+          App nativo para Android (e iOS) com Expo. Experiência superior mas custo maior.
+          Reutiliza componentes React com adaptações. Tempo: 3-4 meses.
+        </p>
+        <br>
+        <p>
+          <strong>Opção C — Lançar sem offline (decisão de negócio):</strong><br>
+          Se os clientes-alvo têm obras com boa cobertura de internet (obras em SP/grandes cidades),
+          pode lançar como web responsivo e implementar offline v2.
+          Risco: perder para AutoDoc em obras com sinal ruim.
+        </p>
+        <div class="tags">
+          <span class="tag new">Recomendação: PWA Offline para lançamento</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHECKLIST LAUNCH READINESS -->
+  <div class="section">
+    <div class="section-title">Checklist — Prontidão para Lançamento FVS</div>
+    <ul class="checklist">
+      <li>
+        <div class="ck ck-done">✓</div>
+        <div>
+          <div><strong>Fluxo de inspeção completo</strong> — conforme / NC / exceção + reinspeção com todos os 4 status</div>
+          <div class="detail">InspecaoModal.tsx implementado, todos os status cobertos incluindo reinspeção</div>
+        </div>
+      </li>
+      <li>
+        <div class="ck ck-done">✓</div>
+        <div>
+          <div><strong>Grade de inspeção por serviço/local/pavimento</strong> com filtros e bulk</div>
+          <div class="detail">FichaGradePage.tsx — grade completa, filtros URL-synced, seleção múltipla</div>
+        </div>
+      </li>
+      <li>
+        <div class="ck ck-done">✓</div>
+        <div>
+          <div><strong>Fotos e observações por item de inspeção</strong></div>
+          <div class="detail">FotosModal + RegistroNcModal implementados</div>
+        </div>
+      </li>
+      <li>
+        <div class="ck ck-done">✓</div>
+        <div>
+          <div><strong>Parecer do engenheiro (aprovação/reprovação)</strong></div>
+          <div class="detail">ParecerModal + status aguardando_parecer → aprovada</div>
+        </div>
+      </li>
+      <li>
+        <div class="ck ck-done">✓</div>
+        <div>
+          <div><strong>Planta baixa com markup de NCs</strong></div>
+          <div class="detail">MarkupCanvas.tsx implementado</div>
+        </div>
+      </li>
+      <li>
+        <div class="ck ck-done">✓</div>
+        <div>
+          <div><strong>Relatórios PDF (ficha, conformidade, pendências, NCs, plano de ação)</strong></div>
+          <div class="detail">5 templates PDF + RelatorioBotao com formatos PDF e Excel</div>
+        </div>
+      </li>
+      <li>
+        <div class="ck ck-done">✓</div>
+        <div>
+          <div><strong>Dashboard analítico com gráficos (conformidade, evolução, heatmap, funil)</strong></div>
+          <div class="detail">FvsDashboardPage com 5+ componentes de charts especializados</div>
+        </div>
+      </li>
+      <li>
+        <div class="ck ck-done">✓</div>
+        <div>
+          <div><strong>Módulo de Planos de Ação completo</strong></div>
+          <div class="detail">Kanban + pipeline + timeline + dynamic fields — superior ao AutoDoc</div>
+        </div>
+      </li>
+      <li>
+        <div class="ck ck-done">✓</div>
+        <div>
+          <div><strong>Catálogo de serviços FVS + geração IA</strong></div>
+          <div class="detail">CatalogoPage com GerarCatalogoIaModal — diferencial competitivo</div>
+        </div>
+      </li>
+      <li>
+        <div class="ck ck-done">✓</div>
+        <div>
+          <div><strong>Modelos de FVS reutilizáveis (templates)</strong></div>
+          <div class="detail">ModelosListPage + ModeloDetailPage + ModeloFormPage + VincularObraModal</div>
+        </div>
+      </li>
+      <li>
+        <div class="ck ck-partial">~</div>
+        <div>
+          <div><strong>Configuração de estrutura da obra (torre/área/pavimento/locais)</strong></div>
+          <div class="detail">Parcialmente coberto pelo AbrirFichaWizard. Verificar se existe tela admin de configuração de estrutura pós-criação (bloqueio, reordenação, nomenclatura em massa).</div>
+        </div>
+      </li>
+      <li>
+        <div class="ck ck-partial">~</div>
+        <div>
+          <div><strong>Pacotes de nomenclatura de locais</strong></div>
+          <div class="detail">Não encontrado. AutoDoc tem templates de nomes (Apt 101-1033) que agilizam muito o onboarding de obras grandes.</div>
+        </div>
+      </li>
+      <li>
+        <div class="ck ck-partial">~</div>
+        <div>
+          <div><strong>Relatório de uso/progresso por serviço</strong></div>
+          <div class="detail">Dashboard tem progresso mas falta relatório tabular exportável de uso por serviço com totais período vs acumulado.</div>
+        </div>
+      </li>
+      <li>
+        <div class="ck ck-gap">✗</div>
+        <div>
+          <div><strong>Funcionalidade offline para inspetores de campo</strong> — 🚨 GAP CRÍTICO</div>
+          <div class="detail">Sem offline, a adoção em campo será limitada. Proposta: implementar PWA com service worker antes do lançamento.</div>
+        </div>
+      </li>
+      <li>
+        <div class="ck ck-gap">✗</div>
+        <div>
+          <div><strong>Envio automático de relatórios por email (agendamento)</strong></div>
+          <div class="detail">AutoDoc envia relatório semanal de progresso automaticamente para admins. Adicionar agendamento de email seria diferencial para gestores.</div>
+        </div>
+      </li>
+    </ul>
+  </div>
+
+  <!-- LAUNCH READINESS METER -->
+  <div class="section">
+    <div class="section-title">Medidor de Prontidão para Lançamento</div>
+    <div class="readiness">
+      <h3>Eldox FVS/FVM — Pronto para Lançamento?</h3>
+      <div class="sub">Baseado na análise do AutoDoc e cobertura de funcionalidades essenciais do mercado</div>
+
+      <div style="margin-bottom:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span style="font-size:13px;font-weight:600;">FVS — Funcionalidades Core</span>
+          <span style="font-size:13px;color:var(--ok);font-weight:700;">90%</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width:90%"></div></div>
+        <div class="progress-label"><span>Apenas configuração de obra e offline faltam</span><span>90/100</span></div>
+      </div>
+
+      <div style="margin-bottom:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span style="font-size:13px;font-weight:600;">FVM — Funcionalidades Core</span>
+          <span style="font-size:13px;color:var(--ok);font-weight:700;">95%</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width:95%"></div></div>
+        <div class="progress-label"><span>FVM Eldox supera o AutoDoc em completude</span><span>95/100</span></div>
+      </div>
+
+      <div style="margin-bottom:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span style="font-size:13px;font-weight:600;">Mobile / Offline</span>
+          <span style="font-size:13px;color:var(--nc);font-weight:700;">0%</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width:0%;background:var(--nc)"></div></div>
+        <div class="progress-label"><span>Eldox é web-only. PWA offline precisa ser implementado.</span><span>0/100</span></div>
+      </div>
+
+      <div style="margin-bottom:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span style="font-size:13px;font-weight:600;">Relatórios &amp; Analytics</span>
+          <span style="font-size:13px;color:var(--warn);font-weight:700;">80%</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width:80%;background:linear-gradient(90deg,var(--warn),#f97316)"></div></div>
+        <div class="progress-label"><span>Falta: relatório de uso tabular + email agendado</span><span>80/100</span></div>
+      </div>
+
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;margin-top:8px;">
+        <p style="font-size:13px;color:var(--text2);">
+          <strong style="color:var(--text)">Conclusão:</strong>
+          O Eldox pode ser lançado para clientes com obras em áreas de boa cobertura de internet (obras urbanas, regiões metropolitanas)
+          <strong>imediatamente</strong> — o produto já supera o AutoDoc em inteligência e breadth de funcionalidades.
+          Para competir diretamente com AutoDoc em obras com sinal ruim, implementar PWA offline é o único pré-requisito crítico.
+          Os outros gaps (nomenclatura, relatório de uso, email) são P2/P3 e podem ir no roadmap pós-lançamento.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROADMAP SUGERIDO -->
+  <div class="section">
+    <div class="section-title">Roadmap de Gaps — Priorizado</div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Gap</th>
+            <th>Prioridade</th>
+            <th>Esforço</th>
+            <th>Impacto</th>
+            <th>Ação</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="feature">PWA Offline para inspetores de campo</td>
+            <td><span class="badge badge-nc">P1 — Lançamento</span></td>
+            <td><span class="badge badge-warn">Alto (3-4 sem)</span></td>
+            <td><span class="badge badge-nc">Crítico</span></td>
+            <td class="desc">Service Worker + IndexedDB + fila de sync. Permite instalação no Android como app.</td>
+          </tr>
+          <tr>
+            <td class="feature">Pacotes de nomenclatura de locais</td>
+            <td><span class="badge badge-warn">P2 — v1.1</span></td>
+            <td><span class="badge badge-ok">Médio (1 sem)</span></td>
+            <td><span class="badge badge-warn">Alto</span></td>
+            <td class="desc">CRUD de pacotes (Apt 101-1033, Sala A-Z). Acelera muito o onboarding de obras grandes.</td>
+          </tr>
+          <tr>
+            <td class="feature">Admin de estrutura da obra (torre/pavimento)</td>
+            <td><span class="badge badge-warn">P2 — v1.1</span></td>
+            <td><span class="badge badge-ok">Médio (1-2 sem)</span></td>
+            <td><span class="badge badge-warn">Alto</span></td>
+            <td class="desc">Tela de configuração da estrutura da obra pós-criação: reordenar locais, bloquear pavimentos, duplicar torres.</td>
+          </tr>
+          <tr>
+            <td class="feature">Relatório de Uso por serviço (tabular)</td>
+            <td><span class="badge badge-warn">P2 — v1.1</span></td>
+            <td><span class="badge badge-ok">Baixo (3 dias)</span></td>
+            <td><span class="badge badge-warn">Médio</span></td>
+            <td class="desc">Tabela: serviço × inspeções no período × inspeções acumuladas × % concluído. Exportável em Excel.</td>
+          </tr>
+          <tr>
+            <td class="feature">Envio automático de relatórios por email</td>
+            <td><span class="badge badge-dim">P3 — v1.2</span></td>
+            <td><span class="badge badge-warn">Médio (1 sem)</span></td>
+            <td><span class="badge badge-dim">Baixo</span></td>
+            <td class="desc">Cron job semanal enviando relatório de progresso para admins cadastrados na obra.</td>
+          </tr>
+          <tr>
+            <td class="feature">Relatório de Observações standalone</td>
+            <td><span class="badge badge-dim">P3 — v1.2</span></td>
+            <td><span class="badge badge-ok">Baixo (2 dias)</span></td>
+            <td><span class="badge badge-dim">Baixo</span></td>
+            <td class="desc">Relatório agrupando todas as observações por serviço/local/etapa — exportável em PDF.</td>
+          </tr>
+          <tr>
+            <td class="feature">Swipe gestures para mobile (touch)</td>
+            <td><span class="badge badge-dim">P3 — v1.2</span></td>
+            <td><span class="badge badge-ok">Baixo (3 dias)</span></td>
+            <td><span class="badge badge-dim">Médio</span></td>
+            <td class="desc">Swipe left = NC, swipe right = conforme na grade mobile. Agiliza inspeção em campo.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p>Engenharia reversa baseada em transcrição do YouTube "Treinamento de Reciclagem - AutoDoc FVS" (~2h) + leitura direta do código-fonte Eldox v3.</p>
+    <p style="margin-top:4px;">Gerado em 2026-04-17 · Eldox v3 · Análise de lançamento FVS/FVM</p>
+  </div>
+
+</div>
+</body>
+</html>

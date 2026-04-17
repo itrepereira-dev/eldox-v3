@@ -1,0 +1,1232 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Eldox — UI Audit FASE 1</title>
+<style>
+  :root {
+    --bg:       #0f172a;
+    --surface:  #1e293b;
+    --raised:   #263447;
+    --border:   #334155;
+    --accent:   #3b82f6;
+    --ok:       #22c55e;
+    --warn:     #f59e0b;
+    --nc:       #ef4444;
+    --text-hi:  #f1f5f9;
+    --text-lo:  #94a3b8;
+    --text-dim: #64748b;
+    --font: 'DM Sans', system-ui, sans-serif;
+    --mono: 'Geist Mono', 'Courier New', monospace;
+    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text-hi);
+    font-family: var(--font);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  /* ── Layout ── */
+  .container { max-width: 1100px; margin: 0 auto; padding: 48px 24px; }
+  h1 { font-size: 28px; font-weight: 700; margin-bottom: 4px; }
+  h2 { font-size: 18px; font-weight: 600; margin-bottom: 16px; color: var(--text-hi); }
+  h3 { font-size: 14px; font-weight: 600; margin-bottom: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); font-family: var(--mono); }
+  .subtitle { color: var(--text-lo); margin-bottom: 48px; font-size: 14px; }
+  .section { margin-bottom: 56px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+  }
+
+  /* ── Score table ── */
+  .score-table { width: 100%; border-collapse: collapse; }
+  .score-table th, .score-table td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .score-table th { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); }
+  .score-table tr:last-child td { border-bottom: none; }
+  .score-table td:first-child { font-weight: 500; }
+  .score-bar { display: flex; align-items: center; gap: 8px; }
+  .score-dots { display: flex; gap: 3px; }
+  .score-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--border); }
+  .score-dot.filled { background: var(--accent); }
+  .score-dot.before { background: #475569; }
+  .score-dot.after  { background: var(--ok); }
+  .score-num { font-family: var(--mono); font-size: 12px; font-weight: 600; min-width: 20px; }
+  .score-before { color: var(--text-lo); }
+  .score-after  { color: var(--ok); }
+  .arrow { color: var(--text-dim); font-size: 12px; margin: 0 4px; }
+  .tag-issue { display: inline-block; background: rgba(239,68,68,.12); color: #ef4444; border: 1px solid rgba(239,68,68,.25); padding: 2px 8px; border-radius: 4px; font-size: 11px; font-family: var(--mono); }
+
+  /* ── Before/After ── */
+  .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 700px) { .compare-grid { grid-template-columns: 1fr; } }
+  .compare-label { font-size: 11px; font-family: var(--mono); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 10px; }
+  .compare-label.before { color: var(--text-dim); }
+  .compare-label.after  { color: var(--ok); }
+
+  /* ── Mockup shells ── */
+  .mock-shell {
+    background: #0f172a;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    font-size: 12px;
+  }
+  .mock-topbar {
+    height: 40px;
+    background: #1e293b;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 8px;
+  }
+  .mock-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .mock-dot.red { background: #ef4444; }
+  .mock-dot.yellow { background: #f59e0b; }
+  .mock-dot.green { background: #22c55e; }
+  .mock-body { display: flex; }
+  .mock-sidebar {
+    width: 52px;
+    background: #1e293b;
+    border-right: 1px solid var(--border);
+    padding: 8px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    align-items: center;
+  }
+  .mock-nav-dot { width: 20px; height: 20px; border-radius: 4px; background: #334155; }
+  .mock-nav-dot.active { background: rgba(59,130,246,.3); position: relative; }
+  .mock-nav-dot.active::before { content: ''; position: absolute; left: -4px; top: 50%; transform: translateY(-50%); width: 2px; height: 12px; background: #3b82f6; border-radius: 1px; }
+  .mock-content { flex: 1; padding: 12px; }
+  .mock-kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 10px; }
+  .mock-kpi-before {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-top: 3px solid;
+    border-radius: 2px;
+    padding: 8px;
+    height: 56px;
+  }
+  .mock-kpi-after {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-top: 3px solid;
+    border-radius: 6px;
+    padding: 8px;
+    height: 56px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.3);
+    transition: transform 200ms cubic-bezier(0.16,1,0.3,1), box-shadow 200ms cubic-bezier(0.16,1,0.3,1);
+    cursor: pointer;
+  }
+  .mock-kpi-after:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,.4), 0 0 0 1px rgba(59,130,246,.15); }
+  .mock-kpi-label { font-family: monospace; font-size: 8px; color: #64748b; text-transform: uppercase; }
+  .mock-kpi-val { font-family: monospace; font-size: 16px; font-weight: 700; margin-top: 2px; }
+  .mock-chart-before { background: #1e293b; border: 1px solid #334155; border-radius: 2px; height: 80px; }
+  .mock-chart-after  { background: #1e293b; border: 1px solid #334155; border-radius: 8px; height: 80px; box-shadow: 0 2px 8px rgba(0,0,0,.3); }
+
+  /* ── KPI Colours ── */
+  .c-blue   { border-top-color: #3b82f6; color: #3b82f6; }
+  .c-green  { border-top-color: #22c55e; color: #22c55e; }
+  .c-amber  { border-top-color: #f59e0b; color: #f59e0b; }
+  .c-red    { border-top-color: #ef4444; color: #ef4444; }
+
+  /* ── Sidebar comparison ── */
+  .sidebar-demo { display: flex; gap: 20px; }
+  .sidebar-mock {
+    background: #1e293b;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    width: 200px;
+    flex-shrink: 0;
+    overflow: hidden;
+    padding: 12px 0;
+  }
+  .sidebar-section-label { font-size: 9px; font-family: monospace; text-transform: uppercase; letter-spacing: .08em; color: #475569; padding: 8px 16px 4px; }
+  .nav-item-before {
+    padding: 7px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #94a3b8;
+    border-left: 3px solid transparent;
+    cursor: pointer;
+  }
+  .nav-item-before.active { background: rgba(59,130,246,.12); color: #f1f5f9; border-left-color: #3b82f6; font-weight: 600; }
+  .nav-item-before:hover { background: #263447; }
+  .nav-item-after {
+    padding: 7px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #94a3b8;
+    border-left: 3px solid transparent;
+    cursor: pointer;
+    transition: all 160ms cubic-bezier(0.16,1,0.3,1);
+  }
+  .nav-item-after:hover { background: #263447; color: #f1f5f9; }
+  .nav-item-after.active {
+    background: rgba(59,130,246,.15);
+    color: #f1f5f9;
+    border-left-color: #3b82f6;
+    font-weight: 600;
+    box-shadow: inset 0 1px 0 rgba(59,130,246,.12), inset 0 -1px 0 rgba(59,130,246,.08);
+  }
+  .icon-square { width: 16px; height: 16px; background: #334155; border-radius: 3px; flex-shrink: 0; }
+  .icon-square.accent { background: rgba(59,130,246,.3); }
+
+  /* ── Submenu demo ── */
+  .submenu-before { display: flex; flex-direction: column; gap: 2px; padding-left: 28px; padding-bottom: 4px; }
+  .submenu-before .sub-item { padding: 5px 12px; font-size: 11px; color: #64748b; border-left: 2px solid transparent; }
+  .submenu-before .sub-item.active { color: #3b82f6; border-left-color: #3b82f6; }
+
+  .submenu-after { display: flex; flex-direction: column; gap: 2px; padding-left: 28px; padding-bottom: 4px; overflow: hidden; }
+  .submenu-after .sub-item {
+    padding: 5px 12px;
+    font-size: 11px;
+    color: #64748b;
+    border-left: 2px solid transparent;
+    opacity: 0;
+    transform: translateY(-6px);
+    transition: all 200ms var(--ease-out-expo);
+  }
+  .submenu-after.open .sub-item { opacity: 1; transform: translateY(0); }
+  .submenu-after.open .sub-item:nth-child(1) { transition-delay: 0ms; }
+  .submenu-after.open .sub-item:nth-child(2) { transition-delay: 40ms; }
+  .submenu-after.open .sub-item:nth-child(3) { transition-delay: 80ms; }
+  .submenu-after .sub-item.active { color: #3b82f6; border-left-color: #3b82f6; }
+
+  /* ── Button demos ── */
+  .btn-demos { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-top: 16px; }
+  .btn-before {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 20px; border-radius: 4px; border: none;
+    background: #3b82f6; color: #0f172a; font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: background-color 0.15s ease;
+    font-family: var(--font);
+  }
+  .btn-before:hover { background: #60a5fa; }
+  .btn-before:active { transform: scale(.97); }
+
+  .btn-after {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 20px; border-radius: 6px; border: none;
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    color: #fff; font-size: 13px; font-weight: 600;
+    cursor: pointer;
+    transition: transform 200ms cubic-bezier(0.34,1.56,0.64,1), box-shadow 200ms cubic-bezier(0.16,1,0.3,1);
+    box-shadow: 0 2px 8px rgba(59,130,246,.25);
+    font-family: var(--font);
+  }
+  .btn-after:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(59,130,246,.4), 0 0 0 1px rgba(59,130,246,.3);
+  }
+  .btn-after:active { transform: scale(.97); box-shadow: 0 1px 4px rgba(59,130,246,.2); }
+
+  .btn-ghost-after {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 20px; border-radius: 6px;
+    background: transparent; color: #3b82f6; font-size: 13px; font-weight: 600;
+    cursor: pointer; border: 1.5px solid rgba(59,130,246,.4);
+    transition: all 180ms cubic-bezier(0.16,1,0.3,1);
+    font-family: var(--font);
+  }
+  .btn-ghost-after:hover {
+    background: rgba(59,130,246,.1);
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59,130,246,.08);
+  }
+
+  .btn-focus-demo:focus-visible {
+    outline: 2px solid #3b82f6;
+    outline-offset: 3px;
+    border-radius: 6px;
+  }
+
+  /* ── Page transition demo ── */
+  .page-demo { position: relative; height: 100px; overflow: hidden; border-radius: 6px; background: #0f172a; border: 1px solid #334155; cursor: pointer; }
+  .page-slide {
+    position: absolute;
+    inset: 0;
+    background: #1e293b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: #94a3b8;
+    font-family: monospace;
+    letter-spacing: .04em;
+  }
+  .page-slide.before { opacity: 1; transition: none; }
+  .page-slide.after {
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 320ms cubic-bezier(0.16,1,0.3,1), transform 320ms cubic-bezier(0.16,1,0.3,1);
+  }
+  .page-slide.after.visible { opacity: 1; transform: translateY(0); }
+  .page-demo.trigger .page-slide.before { opacity: 0; transition: opacity 200ms ease; }
+  .page-demo.trigger .page-slide.after { opacity: 1; transform: translateY(0); transition: opacity 320ms cubic-bezier(0.16,1,0.3,1) 80ms, transform 320ms cubic-bezier(0.16,1,0.3,1) 80ms; }
+  .page-hint { font-size: 11px; color: var(--text-dim); font-family: var(--mono); margin-top: 6px; text-align: center; }
+
+  /* ── Improvements list ── */
+  .improvements { display: flex; flex-direction: column; gap: 10px; }
+  .improvement-item {
+    display: grid;
+    grid-template-columns: 32px 1fr 80px 80px;
+    gap: 12px;
+    align-items: center;
+    padding: 14px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    transition: border-color 180ms ease;
+  }
+  .improvement-item:hover { border-color: #475569; }
+  .improvement-item.selected { border-color: var(--ok); background: rgba(34,197,94,.05); }
+  .improvement-num {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: rgba(59,130,246,.15); color: #3b82f6;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-size: 12px; font-weight: 600;
+    flex-shrink: 0;
+  }
+  .improvement-body {}
+  .improvement-title { font-size: 13px; font-weight: 600; color: var(--text-hi); margin-bottom: 2px; }
+  .improvement-desc { font-size: 12px; color: var(--text-lo); }
+  .chip {
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;
+    font-family: var(--mono);
+  }
+  .chip-visual-high { background: rgba(34,197,94,.12); color: #22c55e; border: 1px solid rgba(34,197,94,.25); }
+  .chip-visual-mid  { background: rgba(245,158,11,.12); color: #f59e0b; border: 1px solid rgba(245,158,11,.25); }
+  .chip-effort-low  { background: rgba(100,116,139,.1); color: #94a3b8; border: 1px solid rgba(100,116,139,.2); }
+  .chip-effort-mid  { background: rgba(100,116,139,.1); color: #94a3b8; border: 1px solid rgba(100,116,139,.2); }
+  .chip-effort-high { background: rgba(239,68,68,.08); color: #f87171; border: 1px solid rgba(239,68,68,.18); }
+
+  /* ── Checkbox ── */
+  .check-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 12px; border-radius: 4px; border: 1px solid var(--border);
+    background: transparent; color: var(--text-lo); font-size: 11px;
+    cursor: pointer; transition: all 150ms ease; font-family: var(--mono);
+    font-weight: 500;
+  }
+  .check-btn:hover { border-color: var(--ok); color: var(--ok); }
+  .check-btn.checked { background: rgba(34,197,94,.12); border-color: var(--ok); color: var(--ok); }
+
+  /* ── Total ── */
+  .total-score {
+    display: flex; align-items: center; gap: 16px;
+    padding: 20px 24px;
+    background: rgba(59,130,246,.08);
+    border: 1px solid rgba(59,130,246,.2);
+    border-radius: 10px;
+    margin-top: 20px;
+  }
+  .total-score .big-num { font-size: 40px; font-weight: 700; font-family: var(--mono); color: var(--accent); }
+  .total-score .big-num.after-score { color: var(--ok); }
+  .total-score .meta { font-size: 12px; color: var(--text-lo); }
+  .total-score .meta strong { color: var(--text-hi); }
+
+  /* ── CTA ── */
+  .cta-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 28px 24px;
+    text-align: center;
+  }
+  .cta-box h2 { font-size: 20px; margin-bottom: 8px; }
+  .cta-box p  { color: var(--text-lo); margin-bottom: 20px; font-size: 14px; }
+  .cta-btn {
+    display: inline-block; padding: 12px 32px; border-radius: 8px;
+    background: linear-gradient(135deg, #3b82f6, #2563eb); color: white;
+    font-weight: 700; font-size: 14px; text-decoration: none;
+    box-shadow: 0 4px 16px rgba(59,130,246,.35);
+    cursor: pointer; border: none; font-family: var(--font);
+    transition: transform 200ms cubic-bezier(0.34,1.56,0.64,1), box-shadow 200ms ease;
+  }
+  .cta-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(59,130,246,.45); }
+
+  /* ── Divider ── */
+  .divider { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+
+  /* ── Stagger demo ── */
+  @keyframes stagger-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .stagger-row {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px;
+  }
+  .stagger-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-top: 3px solid #3b82f6;
+    border-radius: 6px; padding: 12px; height: 64px;
+    opacity: 0;
+  }
+  .stagger-card.animating { animation: stagger-in 400ms cubic-bezier(0.16,1,0.3,1) both; }
+  .stagger-card:nth-child(1) { animation-delay: 0ms; }
+  .stagger-card:nth-child(2) { animation-delay: 60ms; }
+  .stagger-card:nth-child(3) { animation-delay: 120ms; }
+  .stagger-card:nth-child(4) { animation-delay: 180ms; }
+  .stagger-card .sl { font-size: 8px; color: var(--text-dim); font-family: monospace; text-transform: uppercase; margin-bottom: 4px; }
+  .stagger-card .sv { font-size: 20px; font-weight: 700; font-family: monospace; color: #3b82f6; }
+
+  /* ── Badge ── */
+  @keyframes badge-pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.5); opacity: .5; }
+  }
+  .badge-dot { width: 8px; height: 8px; border-radius: 50%; background: #ef4444; display: inline-block; animation: badge-pulse 2s ease-in-out infinite; }
+
+  /* ── Scan line ── */
+  @keyframes scan-line {
+    from { opacity: 0; transform: translateX(-100%); }
+    50% { opacity: 1; }
+    to { opacity: 0; transform: translateX(100%); }
+  }
+  .scan-demo {
+    height: 1px;
+    background: linear-gradient(to right, transparent, #3b82f6, transparent);
+    animation: scan-line 3s ease-in-out infinite;
+    margin: 8px 0;
+  }
+
+  /* ── Focus ring demo ── */
+  .focus-demos { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+  .input-before {
+    padding: 8px 12px; border-radius: 4px;
+    background: #1e293b; border: 1px solid #334155;
+    color: #f1f5f9; font-size: 13px; outline: none;
+    font-family: var(--font);
+  }
+  .input-before:focus { border-color: #3b82f6; }
+  .input-after {
+    padding: 8px 12px; border-radius: 6px;
+    background: #1e293b; border: 1px solid #334155;
+    color: #f1f5f9; font-size: 13px; outline: none;
+    transition: all 180ms cubic-bezier(0.16,1,0.3,1);
+    font-family: var(--font);
+  }
+  .input-after:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59,130,246,.2);
+  }
+  .select-before {
+    padding: 8px 12px; border-radius: 4px;
+    background: #1e293b; border: 1px solid #334155;
+    color: #f1f5f9; font-size: 13px; outline: none;
+    font-family: var(--font);
+  }
+  .select-after {
+    padding: 8px 12px; border-radius: 6px;
+    background: #1e293b; border: 1px solid #334155;
+    color: #f1f5f9; font-size: 13px; outline: none;
+    transition: all 180ms cubic-bezier(0.16,1,0.3,1);
+    font-family: var(--font);
+  }
+  .select-after:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.2); }
+
+  /* ── Typography compare ── */
+  .typo-before { font-family: var(--font); color: var(--text-hi); }
+  .typo-before .heading { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+  .typo-before .sub { font-size: 13px; color: var(--text-lo); margin-bottom: 16px; }
+  .typo-before .label { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-dim); margin-bottom: 4px; }
+
+  .typo-after { font-family: var(--font); color: var(--text-hi); }
+  .typo-after .heading { font-size: 22px; font-weight: 700; margin-bottom: 4px; letter-spacing: -.02em; }
+  .typo-after .sub { font-size: 13px; color: var(--text-lo); margin-bottom: 16px; line-height: 1.65; }
+  .typo-after .label { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); margin-bottom: 4px; font-family: var(--mono); }
+  .typo-after .kpi-val { font-family: monospace; font-size: 28px; font-weight: 700; color: #3b82f6; letter-spacing: -.03em; }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+  /* ── Header hero ── */
+  .hero {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 40px; flex-wrap: wrap; gap: 16px;
+  }
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(59,130,246,.1); border: 1px solid rgba(59,130,246,.2);
+    color: #93c5fd; padding: 4px 12px; border-radius: 20px;
+    font-size: 11px; font-family: var(--mono); margin-bottom: 12px;
+  }
+  .score-overview {
+    display: flex; gap: 24px; align-items: center;
+  }
+  .overview-item { text-align: center; }
+  .overview-val { font-size: 32px; font-weight: 700; font-family: var(--mono); line-height: 1; }
+  .overview-label { font-size: 10px; color: var(--text-dim); font-family: var(--mono); text-transform: uppercase; margin-top: 2px; }
+
+  /* ── reduce motion ── */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- HERO -->
+  <div class="hero">
+    <div>
+      <div class="hero-badge">
+        <span class="badge-dot" style="background:#3b82f6; animation:none; width:6px; height:6px;"></span>
+        ui-upgrade-engine · FASE 1 — Auditoria
+      </div>
+      <h1>Eldox UI — Relatório Visual</h1>
+      <p class="subtitle">Diagnóstico em 8 dimensões · 10 melhorias propostas · 2026-04-16</p>
+    </div>
+    <div class="score-overview">
+      <div class="overview-item">
+        <div class="overview-val" style="color:#94a3b8">3.3</div>
+        <div class="overview-label">Score atual</div>
+      </div>
+      <div style="font-size:24px; color:#334155">→</div>
+      <div class="overview-item">
+        <div class="overview-val" style="color:#22c55e">4.6</div>
+        <div class="overview-label">Score meta</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════ TABELA DE SCORES ══════════════ -->
+  <div class="section">
+    <h2>1 — Score por dimensão</h2>
+    <div class="card">
+      <table class="score-table">
+        <thead>
+          <tr>
+            <th>Dimensão</th>
+            <th>Antes</th>
+            <th>Meta</th>
+            <th>Principal gap</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Hierarquia visual</td>
+            <td>
+              <div class="score-bar">
+                <div class="score-dots">
+                  <div class="score-dot before filled"></div>
+                  <div class="score-dot before filled"></div>
+                  <div class="score-dot before filled"></div>
+                  <div class="score-dot before filled"></div>
+                  <div class="score-dot"></div>
+                </div>
+                <span class="score-num score-before">4</span>
+              </div>
+            </td>
+            <td>
+              <div class="score-bar">
+                <div class="score-dots">
+                  <div class="score-dot after filled" style="background:var(--ok)"></div>
+                  <div class="score-dot after filled" style="background:var(--ok)"></div>
+                  <div class="score-dot after filled" style="background:var(--ok)"></div>
+                  <div class="score-dot after filled" style="background:var(--ok)"></div>
+                  <div class="score-dot after filled" style="background:var(--ok)"></div>
+                </div>
+                <span class="score-num score-after">5</span>
+              </div>
+            </td>
+            <td><span class="tag-issue">tracking tipográfico dos valores KPI</span></td>
+          </tr>
+          <tr>
+            <td>Respiração</td>
+            <td>
+              <div class="score-bar">
+                <div class="score-dots">
+                  <div class="score-dot before filled"></div>
+                  <div class="score-dot before filled"></div>
+                  <div class="score-dot before filled"></div>
+                  <div class="score-dot"></div>
+                  <div class="score-dot"></div>
+                </div>
+                <span class="score-num score-before">3</span>
+              </div>
+            </td>
+            <td>
+              <div class="score-bar">
+                <div class="score-dots">
+                  <div class="score-dot after filled" style="background:var(--ok)"></div>
+                  <div class="score-dot after filled" style="background:var(--ok)"></div>
+                  <div class="score-dot after filled" style="background:var(--ok)"></div>
+                  <div class="score-dot after filled" style="background:var(--ok)"></div>
+                  <div class="score-dot"></div>
+                </div>
+                <span class="score-num score-after">4</span>
+              </div>
+            </td>
+            <td><span class="tag-issue">cards sem separação visual entre seções</span></td>
+          </tr>
+          <tr>
+            <td>Tipografia</td>
+            <td>
+              <div class="score-bar">
+                <div class="score-dots">
+                  <div class="score-dot before filled"></div>
+                  <div class="score-dot before filled"></div>
+                  <div class="score-dot before filled"></div>
+                  <div class="score-dot before filled"></div>
+                  <div class="score-dot"></div>
+                </div>
+                <span class="score-num score-before">4</span>
+              </div>
+            </td>
+            <td>
+              <div class="score-bar">
+                <div class="score-dots">
+                  <div class="score-dot after filled" style="background:var(--ok)"></div>
+                  <div class="score-dot after filled" style="background:var(--ok)"></div>
+                  <div class="score-dot after filled" style="background:var(--ok)"></div>
+                  <div class="score-dot after filled" style="background:var(--ok)"></div>
+                  <div class="score-dot after filled" style="background:var(--ok)"></div>
+                </div>
+                <span class="score-num score-after">5</span>
+              </div>
+            </td>
+            <td><span class="tag-issue">letter-spacing negativo em headings e KPI</span></td>
+          </tr>
+          <tr>
+            <td>Cor</td>
+            <td>
+              <div class="score-bar">
+                <div class="score-dots">
+                  <div class="score-dot before filled"></div>
+                  <div class="score-dot before filled"></div>
+                  <div class="score-dot before filled"></div>
+                  <div class="score-dot before filled"></div>
+                  <div class="score-dot"></div>
+                </div>
+                <span class="score-num score-before">4</span>
+              </div>
+            </td>
+            <td>
+              <div class="score-bar">
+                <div class="score-dots">
+                  <div class="score-dot after filled" style="background:var(--ok)"></div>
+                  <div class="score-dot after filled" style="background:var(--ok)"></div>
+                  <div class="score-dot after filled" style="background:var(--ok)"></div>
+                  <div class="score-dot after filled" style="background:var(--ok)"></div>
+                  <div class="score-dot after filled" style="background:var(--ok)"></div>
+                </div>
+                <span class="score-num score-after">5</span>
+              </div>
+            </td>
+            <td><span class="tag-issue">botão primary sem gradiente, sem glow</span></td>
+          </tr>
+          <tr>
+            <td>Componentes</td>
+            <td>
+              <div class="score-bar">
+                <div class="score-dots">
+                  <div class="score-dot before filled"></div>
+                  <div class="score-dot before filled"></div>
+                  <div class="score-dot before filled"></div>
+                  <div class="score-dot"></div>
+                  <div class="score-dot"></div>
+                </div>
+                <span class="score-num score-before">3</span>
+              </div>
+            </td>
+            <td>
+              <div class="score-bar">
+                <div class="score-dots">
+                  <div class="score-dot after filled" style="background:var(--ok)"></div>
+                  <div class="score-dot after filled" style="background:var(--ok)"></div>
+                  <div class="score-dot after filled" style="background:var(--ok)"></div>
+                  <div class="score-dot after filled" style="background:var(--ok)"></div>
+                  <div class="score-dot after filled" style="background:var(--ok)"></div>
+                </div>
+                <span class="score-num score-after">5</span>
+              </div>
+            </td>
+            <td><span class="tag-issue">KpiCard sem hover · rounded-sm em tudo (4px)</span></td>
+          </tr>
+          <tr>
+            <td>Feedback de estados</td>
+            <td>
+              <div class="score-bar">
+                <div class="score-dots">
+                  <div class="score-dot before filled"></div>
+                  <div class="score-dot before filled"></div>
+                  <div class="score-dot before filled"></div>
+                  <div class="score-dot"></div>
+                  <div class="score-dot"></div>
+                </div>
+                <span class="score-num score-before">3</span>
+              </div>
+            </td>
+            <td>
+              <div class="score-bar">
+                <div class="score-dots">
+                  <div class="score-dot after filled" style="background:var(--ok)"></div>
+                  <div class="score-dot after filled" style="background:var(--ok)"></div>
+                  <div class="score-dot after filled" style="background:var(--ok)"></div>
+                  <div class="score-dot after filled" style="background:var(--ok)"></div>
+                  <div class="score-dot"></div>
+                </div>
+                <span class="score-num score-after">4</span>
+              </div>
+            </td>
+            <td><span class="tag-issue">focus-visible ausente · sem focus ring em inputs</span></td>
+          </tr>
+          <tr>
+            <td>Animação e transição ⚡</td>
+            <td>
+              <div class="score-bar">
+                <div class="score-dots">
+                  <div class="score-dot before filled"></div>
+                  <div class="score-dot before filled"></div>
+                  <div class="score-dot"></div>
+                  <div class="score-dot"></div>
+                  <div class="score-dot"></div>
+                </div>
+                <span class="score-num score-before">2</span>
+              </div>
+            </td>
+            <td>
+              <div class="score-bar">
+                <div class="score-dots">
+                  <div class="score-dot after filled" style="background:var(--ok)"></div>
+                  <div class="score-dot after filled" style="background:var(--ok)"></div>
+                  <div class="score-dot after filled" style="background:var(--ok)"></div>
+                  <div class="score-dot after filled" style="background:var(--ok)"></div>
+                  <div class="score-dot after filled" style="background:var(--ok)"></div>
+                </div>
+                <span class="score-num score-after">5</span>
+              </div>
+            </td>
+            <td><span class="tag-issue">tudo usa ease genérico · submenu sem animação · sem page transition</span></td>
+          </tr>
+          <tr>
+            <td>Polimento</td>
+            <td>
+              <div class="score-bar">
+                <div class="score-dots">
+                  <div class="score-dot before filled"></div>
+                  <div class="score-dot before filled"></div>
+                  <div class="score-dot before filled"></div>
+                  <div class="score-dot"></div>
+                  <div class="score-dot"></div>
+                </div>
+                <span class="score-num score-before">3</span>
+              </div>
+            </td>
+            <td>
+              <div class="score-bar">
+                <div class="score-dots">
+                  <div class="score-dot after filled" style="background:var(--ok)"></div>
+                  <div class="score-dot after filled" style="background:var(--ok)"></div>
+                  <div class="score-dot after filled" style="background:var(--ok)"></div>
+                  <div class="score-dot after filled" style="background:var(--ok)"></div>
+                  <div class="score-dot"></div>
+                </div>
+                <span class="score-num score-after">4</span>
+              </div>
+            </td>
+            <td><span class="tag-issue">sombras nos tokens mas não usadas nos cards · glow ausente</span></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="total-score">
+        <div>
+          <div class="big-num">3.3</div>
+          <div class="meta">média atual</div>
+        </div>
+        <div style="font-size:28px; color:#334155; font-weight:300">→</div>
+        <div>
+          <div class="big-num after-score">4.6</div>
+          <div class="meta">com as 10 melhorias</div>
+        </div>
+        <div style="flex:1; padding-left:24px; border-left: 1px solid #334155;">
+          <p style="font-size:13px; color:#94a3b8; line-height:1.7;">
+            O sistema já tem uma <strong style="color:#f1f5f9">base sólida</strong>: tokens bem definidos, paleta semântica, DM Sans como fonte, estrutura de layout consistente e o scan-line do topbar é um toque premium.<br><br>
+            O maior gap está em <strong style="color:#f59e0b">animações e transições</strong> — tudo usa <code style="font-family:monospace; color:#93c5fd">ease</code> genérico, o submenu aparece instantaneamente, não há entrada de página. Com cubic-bezier e stagger, o sistema salta do "funcional" para o "premium".
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider"/>
+
+  <!-- ══════════════ ANTES / DEPOIS: KPICARDS ══════════════ -->
+  <div class="section">
+    <h2>2 — Antes vs Depois</h2>
+
+    <h3 style="margin-bottom:16px">KPI Cards</h3>
+    <div class="compare-grid">
+      <div>
+        <div class="compare-label before">Antes — rounded-sm (4px), sem hover, sem sombra</div>
+        <div class="mock-shell">
+          <div class="mock-topbar">
+            <div class="mock-dot red"></div>
+            <div class="mock-dot yellow"></div>
+            <div class="mock-dot green"></div>
+          </div>
+          <div class="mock-body">
+            <div class="mock-sidebar">
+              <div class="mock-nav-dot"></div>
+              <div class="mock-nav-dot active"></div>
+              <div class="mock-nav-dot"></div>
+            </div>
+            <div class="mock-content">
+              <div class="mock-kpi-row">
+                <div class="mock-kpi-before c-blue">
+                  <div class="mock-kpi-label">Conformidade</div>
+                  <div class="mock-kpi-val c-blue" style="font-size:13px">88%</div>
+                </div>
+                <div class="mock-kpi-before c-green">
+                  <div class="mock-kpi-label">Inspeções</div>
+                  <div class="mock-kpi-val c-green" style="font-size:13px">142</div>
+                </div>
+                <div class="mock-kpi-before c-red">
+                  <div class="mock-kpi-label">NCs</div>
+                  <div class="mock-kpi-val c-red" style="font-size:13px">17</div>
+                </div>
+                <div class="mock-kpi-before c-amber">
+                  <div class="mock-kpi-label">Pendentes</div>
+                  <div class="mock-kpi-val c-amber" style="font-size:13px">8</div>
+                </div>
+              </div>
+              <div class="mock-chart-before" style="display:flex; align-items:center; justify-content:center; color:#475569; font-family:monospace; font-size:9px;">CHART</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="compare-label after">Depois — rounded-md (6px), hover lift, sombra, stagger</div>
+        <div class="mock-shell">
+          <div class="mock-topbar">
+            <div class="mock-dot red"></div>
+            <div class="mock-dot yellow"></div>
+            <div class="mock-dot green"></div>
+          </div>
+          <div class="mock-body">
+            <div class="mock-sidebar">
+              <div class="mock-nav-dot"></div>
+              <div class="mock-nav-dot active"></div>
+              <div class="mock-nav-dot"></div>
+            </div>
+            <div class="mock-content">
+              <div class="mock-kpi-row">
+                <div class="mock-kpi-after c-blue">
+                  <div class="mock-kpi-label">Conformidade</div>
+                  <div class="mock-kpi-val" style="font-size:14px; color:#3b82f6; letter-spacing:-1px">88%</div>
+                </div>
+                <div class="mock-kpi-after c-green">
+                  <div class="mock-kpi-label">Inspeções</div>
+                  <div class="mock-kpi-val" style="font-size:14px; color:#22c55e; letter-spacing:-1px">142</div>
+                </div>
+                <div class="mock-kpi-after c-red">
+                  <div class="mock-kpi-label">NCs</div>
+                  <div class="mock-kpi-val" style="font-size:14px; color:#ef4444; letter-spacing:-1px">17</div>
+                </div>
+                <div class="mock-kpi-after c-amber">
+                  <div class="mock-kpi-label">Pendentes</div>
+                  <div class="mock-kpi-val" style="font-size:14px; color:#f59e0b; letter-spacing:-1px">8</div>
+                </div>
+              </div>
+              <div class="mock-chart-after" style="display:flex; align-items:center; justify-content:center; color:#475569; font-family:monospace; font-size:9px;">CHART</div>
+            </div>
+          </div>
+        </div>
+        <p style="font-size:11px; color:var(--text-dim); margin-top:6px; font-family:var(--mono)">↑ passe o mouse sobre os cards para sentir o hover lift</p>
+      </div>
+    </div>
+
+    <!-- ── Sidebar submenus ── -->
+    <h3 style="margin-top:40px; margin-bottom:16px">Submenu da sidebar</h3>
+    <div class="compare-grid">
+      <div>
+        <div class="compare-label before">Antes — aparece instantaneamente (sem transição)</div>
+        <div class="sidebar-mock">
+          <div class="sidebar-section-label">Qualidade</div>
+          <div class="nav-item-before active">
+            <div class="icon-square accent"></div>
+            Fichas de Inspeção
+          </div>
+          <div class="submenu-before">
+            <div class="sub-item active">Inspeções</div>
+            <div class="sub-item">Templates</div>
+          </div>
+          <div class="nav-item-before">
+            <div class="icon-square"></div>
+            Dashboard FVS
+          </div>
+          <div class="nav-item-before">
+            <div class="icon-square"></div>
+            Não conformidades
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="compare-label after">Depois — stagger suave com cubic-bezier (clique para demo)</div>
+        <div class="sidebar-mock">
+          <div class="sidebar-section-label">Qualidade</div>
+          <div class="nav-item-after active" onclick="toggleSubmenu()" style="cursor:pointer">
+            <div class="icon-square accent"></div>
+            Fichas de Inspeção
+            <span style="margin-left:auto; font-size:10px; color:#64748b" id="chevron">▲</span>
+          </div>
+          <div class="submenu-after open" id="submenu-demo">
+            <div class="sub-item active">Inspeções</div>
+            <div class="sub-item">Templates</div>
+            <div class="sub-item">Relatórios</div>
+          </div>
+          <div class="nav-item-after">
+            <div class="icon-square"></div>
+            Dashboard FVS
+          </div>
+          <div class="nav-item-after">
+            <div class="icon-square"></div>
+            Não conformidades
+          </div>
+        </div>
+        <p style="font-size:11px; color:var(--text-dim); margin-top:6px; font-family:var(--mono)">↑ clique em "Fichas de Inspeção" para animar</p>
+      </div>
+    </div>
+
+    <!-- ── Botões ── -->
+    <h3 style="margin-top:40px; margin-bottom:8px">Botões</h3>
+    <div class="compare-grid">
+      <div>
+        <div class="compare-label before">Antes — cor sólida, 4px radius, ease genérico</div>
+        <div class="btn-demos">
+          <button class="btn-before">Nova Inspeção</button>
+          <button class="btn-before" style="background:transparent; border:1px solid #334155; color:#94a3b8">Cancelar</button>
+        </div>
+      </div>
+      <div>
+        <div class="compare-label after">Depois — gradiente, glow, spring bounce, 6px radius</div>
+        <div class="btn-demos">
+          <button class="btn-after btn-focus-demo">Nova Inspeção</button>
+          <button class="btn-ghost-after btn-focus-demo">Cancelar</button>
+        </div>
+        <p style="font-size:11px; color:var(--text-dim); margin-top:8px; font-family:var(--mono)">↑ hover · Tab para ver focus-visible ring</p>
+      </div>
+    </div>
+
+    <!-- ── Page transition ── -->
+    <h3 style="margin-top:40px; margin-bottom:8px">Transição de página</h3>
+    <div class="compare-grid">
+      <div>
+        <div class="compare-label before">Antes — troca instantânea, sem animação</div>
+        <div class="page-demo" id="page-before" onclick="triggerPageBefore()" style="cursor:pointer">
+          <div class="page-slide before" id="slide-b1">DASHBOARD FVS</div>
+          <div class="page-slide before" id="slide-b2" style="display:none; background:#263447">PLANOS DE AÇÃO</div>
+        </div>
+        <p class="page-hint">clique para trocar de tela</p>
+      </div>
+      <div>
+        <div class="compare-label after">Depois — fade + slide-up 320ms ease-out-expo</div>
+        <div class="page-demo" id="page-after" onclick="triggerPageAfter()" style="cursor:pointer">
+          <div class="page-slide after visible" id="slide-a1">DASHBOARD FVS</div>
+          <div class="page-slide after" id="slide-a2" style="color:#22c55e">PLANOS DE AÇÃO</div>
+        </div>
+        <p class="page-hint">clique para sentir a transição</p>
+      </div>
+    </div>
+
+    <!-- ── Stagger KpiGrid ── -->
+    <h3 style="margin-top:40px; margin-bottom:8px">Stagger na entrada dos KPI cards</h3>
+    <div style="margin-bottom:10px">
+      <button onclick="triggerStagger()" class="btn-after" style="padding:6px 16px; font-size:12px">▶ Demo stagger</button>
+    </div>
+    <div class="stagger-row" id="stagger-row">
+      <div class="stagger-card c-blue">
+        <div class="sl">Conformidade</div>
+        <div class="sv">88%</div>
+      </div>
+      <div class="stagger-card c-green">
+        <div class="sl">Inspeções</div>
+        <div class="sv">142</div>
+      </div>
+      <div class="stagger-card c-red">
+        <div class="sl">NCs Abertas</div>
+        <div class="sv">17</div>
+      </div>
+      <div class="stagger-card c-amber">
+        <div class="sl">Pendentes</div>
+        <div class="sv">8</div>
+      </div>
+    </div>
+
+    <!-- ── Focus / Inputs ── -->
+    <h3 style="margin-top:40px; margin-bottom:8px">Focus ring em inputs</h3>
+    <div class="compare-grid">
+      <div>
+        <div class="compare-label before">Antes — apenas borda, sem ring</div>
+        <div class="focus-demos">
+          <input class="input-before" placeholder="Descrição da NC…"/>
+          <select class="select-before"><option>Alvenaria</option><option>Estrutura</option></select>
+        </div>
+      </div>
+      <div>
+        <div class="compare-label after">Depois — ring azul com blur</div>
+        <div class="focus-demos">
+          <input class="input-after" placeholder="Descrição da NC…"/>
+          <select class="select-after"><option>Alvenaria</option><option>Estrutura</option></select>
+        </div>
+        <p style="font-size:11px; color:var(--text-dim); margin-top:8px; font-family:var(--mono)">↑ clique para sentir o focus ring</p>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider"/>
+
+  <!-- ══════════════ LISTA DE MELHORIAS ══════════════ -->
+  <div class="section">
+    <h2>3 — 10 Melhorias propostas</h2>
+    <p style="color:var(--text-lo); margin-bottom:20px; font-size:13px">Marque as que quer aplicar — ou diga <strong style="color:var(--text-hi)">"todas"</strong> para o pacote completo.</p>
+
+    <div class="improvements">
+
+      <div class="improvement-item" id="item-1">
+        <div class="improvement-num">1</div>
+        <div class="improvement-body">
+          <div class="improvement-title">Easing curves premium (cubic-bezier) nos tokens</div>
+          <div class="improvement-desc">Adiciona <code style="font-family:monospace;color:#93c5fd">--ease-out-expo</code>, <code style="font-family:monospace;color:#93c5fd">--ease-spring</code>, <code style="font-family:monospace;color:#93c5fd">--ease-in-out-quart</code> no tokens.css + substitui <code style="font-family:monospace;color:#f87171">ease</code> genérico nas variáveis de transição. Base para todas as outras melhorias.</div>
+        </div>
+        <span class="chip chip-visual-high">visual ALTO</span>
+        <span class="chip chip-effort-low">esforço BAIXO</span>
+      </div>
+
+      <div class="improvement-item" id="item-2">
+        <div class="improvement-num">2</div>
+        <div class="improvement-body">
+          <div class="improvement-title">Animação de entrada de página (fadeSlideIn)</div>
+          <div class="improvement-desc">Keyframe <code style="font-family:monospace;color:#93c5fd">opacity 0→1 + translateY 10px→0</code> de 320ms aplicado no <code style="font-family:monospace;color:#93c5fd">&lt;main&gt;</code> do AppShell sempre que a rota muda. Elimina o corte brusco ao navegar entre módulos.</div>
+        </div>
+        <span class="chip chip-visual-high">visual ALTO</span>
+        <span class="chip chip-effort-low">esforço BAIXO</span>
+      </div>
+
+      <div class="improvement-item" id="item-3">
+        <div class="improvement-num">3</div>
+        <div class="improvement-body">
+          <div class="improvement-title">Submenu sidebar com stagger (slide+fade por item)</div>
+          <div class="improvement-desc">NavItemGroup abre/fecha com <code style="font-family:monospace;color:#93c5fd">max-height transition + opacity + translateY</code> por item com delay de 40ms entre eles. Actualmente aparece/desaparece instantaneamente.</div>
+        </div>
+        <span class="chip chip-visual-high">visual ALTO</span>
+        <span class="chip chip-effort-mid">esforço MÉDIO</span>
+      </div>
+
+      <div class="improvement-item" id="item-4">
+        <div class="improvement-num">4</div>
+        <div class="improvement-body">
+          <div class="improvement-title">KpiCard hover lift + sombra elevada</div>
+          <div class="improvement-desc">Adiciona <code style="font-family:monospace;color:#93c5fd">translateY(-3px)</code> + <code style="font-family:monospace;color:#93c5fd">shadow-md</code> no hover do KpiCard. Atualmente o card não reage ao mouse de forma alguma.</div>
+        </div>
+        <span class="chip chip-visual-high">visual ALTO</span>
+        <span class="chip chip-effort-low">esforço BAIXO</span>
+      </div>
+
+      <div class="improvement-item" id="item-5">
+        <div class="improvement-num">5</div>
+        <div class="improvement-body">
+          <div class="improvement-title">Botão primary com gradiente + spring bounce no hover</div>
+          <div class="improvement-desc">Substitui a cor sólida por <code style="font-family:monospace;color:#93c5fd">linear-gradient(135deg, #3b82f6, #2563eb)</code> e adiciona <code style="font-family:monospace;color:#93c5fd">translateY(-2px) + box-shadow glow</code> no hover com <code style="font-family:monospace;color:#93c5fd">ease-spring</code>.</div>
+        </div>
+        <span class="chip chip-visual-high">visual ALTO</span>
+        <span class="chip chip-effort-low">esforço BAIXO</span>
+      </div>
+
+      <div class="improvement-item" id="item-6">
+        <div class="improvement-num">6</div>
+        <div class="improvement-body">
+          <div class="improvement-title">Focus-visible ring em todos inputs, selects, buttons</div>
+          <div class="improvement-desc">Adiciona <code style="font-family:monospace;color:#93c5fd">:focus-visible { box-shadow: 0 0 0 3px rgba(59,130,246,.25) }</code> no globals.css para inputs e <code style="font-family:monospace;color:#93c5fd">outline: 2px solid var(--accent)</code> em buttons. Acessibilidade + polimento.</div>
+        </div>
+        <span class="chip chip-visual-mid">visual MÉDIO</span>
+        <span class="chip chip-effort-low">esforço BAIXO</span>
+      </div>
+
+      <div class="improvement-item" id="item-7">
+        <div class="improvement-num">7</div>
+        <div class="improvement-body">
+          <div class="improvement-title">Radius upgrade: rounded-sm → rounded-md em cards</div>
+          <div class="improvement-desc">KpiCard, cards de módulo e modais sobem de <code style="font-family:monospace;color:#93c5fd">border-radius: 4px</code> para <code style="font-family:monospace;color:#93c5fd">6-8px</code>. Sidebar e botões ficam em 4px (mais sharp = intencional). Diferencia hierarquia visual de container vs controle.</div>
+        </div>
+        <span class="chip chip-visual-mid">visual MÉDIO</span>
+        <span class="chip chip-effort-low">esforço BAIXO</span>
+      </div>
+
+      <div class="improvement-item" id="item-8">
+        <div class="improvement-num">8</div>
+        <div class="improvement-body">
+          <div class="improvement-title">Stagger de entrada no KpiGrid</div>
+          <div class="improvement-desc">Cada card do KpiGrid entra com delay de 60ms em cascata via <code style="font-family:monospace;color:#93c5fd">animation-delay: calc(var(--i) * 60ms)</code>. Dá a sensação de que os dados "chegam" na tela, não "já estavam lá".</div>
+        </div>
+        <span class="chip chip-visual-high">visual ALTO</span>
+        <span class="chip chip-effort-mid">esforço MÉDIO</span>
+      </div>
+
+      <div class="improvement-item" id="item-9">
+        <div class="improvement-num">9</div>
+        <div class="improvement-body">
+          <div class="improvement-title">Sidebar active item: inner glow sutil</div>
+          <div class="improvement-desc">Item ativo ganha <code style="font-family:monospace;color:#93c5fd">box-shadow: inset 0 1px 0 rgba(59,130,246,.15), inset 0 -1px 0 rgba(59,130,246,.08)</code>. Reforça visualmente que aquele item está "afundado/selecionado" sem adicionar ruído.</div>
+        </div>
+        <span class="chip chip-visual-mid">visual MÉDIO</span>
+        <span class="chip chip-effort-low">esforço BAIXO</span>
+      </div>
+
+      <div class="improvement-item" id="item-10">
+        <div class="improvement-num">10</div>
+        <div class="improvement-body">
+          <div class="improvement-title">Scrollbar custom + prefers-reduced-motion global</div>
+          <div class="improvement-desc">Scrollbar fina (6px) com thumb <code style="font-family:monospace;color:#93c5fd">#334155</code> e hover <code style="font-family:monospace;color:#93c5fd">#475569</code>. Bloco <code style="font-family:monospace;color:#93c5fd">@media (prefers-reduced-motion: reduce)</code> desativando todas as animações. Toque de acabamento e acessibilidade obrigatória.</div>
+        </div>
+        <span class="chip chip-visual-mid">visual MÉDIO</span>
+        <span class="chip chip-effort-low">esforço BAIXO</span>
+      </div>
+
+    </div>
+
+    <!-- Arquivos que serão tocados -->
+    <div class="card" style="margin-top:24px; padding:20px">
+      <h3 style="margin-bottom:12px">Arquivos que serão modificados</h3>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; font-size:12px; font-family:var(--mono);">
+        <div style="padding:8px 12px; background:#0f172a; border-radius:4px; border:1px solid #334155; color:#93c5fd">frontend-web/src/styles/tokens.css</div>
+        <div style="padding:8px 12px; background:#0f172a; border-radius:4px; border:1px solid #334155; color:#93c5fd">frontend-web/src/index.css <span style="color:#475569">(ou globals)</span></div>
+        <div style="padding:8px 12px; background:#0f172a; border-radius:4px; border:1px solid #334155; color:#93c5fd">frontend-web/src/components/ui/Button.tsx</div>
+        <div style="padding:8px 12px; background:#0f172a; border-radius:4px; border:1px solid #334155; color:#93c5fd">frontend-web/src/components/ui/KpiCard.tsx</div>
+        <div style="padding:8px 12px; background:#0f172a; border-radius:4px; border:1px solid #334155; color:#93c5fd">frontend-web/src/components/layout/NavItem.tsx</div>
+        <div style="padding:8px 12px; background:#0f172a; border-radius:4px; border:1px solid #334155; color:#93c5fd">frontend-web/src/components/layout/AppShell.tsx</div>
+      </div>
+      <p style="color:var(--text-dim); font-size:12px; margin-top:12px; font-family:var(--mono);">⚠ Nenhuma lógica, endpoint ou data-attribute será alterado. Apenas estilo e animações.</p>
+    </div>
+  </div>
+
+  <hr class="divider"/>
+
+  <!-- CTA -->
+  <div class="cta-box">
+    <h2>Qual dessas melhorias você quer aplicar?</h2>
+    <p>Liste os números (ex: <strong>1, 2, 4, 5</strong>), diga <strong>"todas"</strong> para o pacote completo,<br/>ou <strong>"1 a 5"</strong> para só as de alto impacto visual.</p>
+    <p style="font-size:12px; color:var(--text-dim); font-family:var(--mono); margin-top:-12px; margin-bottom:20px;">Nenhum arquivo será alterado antes da sua aprovação explícita.</p>
+    <div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
+      <button class="cta-btn" onclick="selectAll()">Todas (1–10)</button>
+      <button class="cta-btn" style="background:linear-gradient(135deg,#22c55e,#16a34a); box-shadow:0 4px 16px rgba(34,197,94,.3)" onclick="selectHighImpact()">Alto impacto (1,2,3,4,5,8)</button>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<script>
+  /* ── Submenu toggle ── */
+  function toggleSubmenu() {
+    const sub = document.getElementById('submenu-demo');
+    const chev = document.getElementById('chevron');
+    if (sub.classList.contains('open')) {
+      sub.classList.remove('open');
+      chev.textContent = '▼';
+    } else {
+      sub.classList.add('open');
+      chev.textContent = '▲';
+    }
+  }
+
+  /* ── Page transitions ── */
+  let pageBefore = 1;
+  function triggerPageBefore() {
+    const s1 = document.getElementById('slide-b1');
+    const s2 = document.getElementById('slide-b2');
+    if (pageBefore === 1) {
+      s1.style.display = 'none';
+      s2.style.display = 'flex';
+      pageBefore = 2;
+    } else {
+      s1.style.display = 'flex';
+      s2.style.display = 'none';
+      pageBefore = 1;
+    }
+  }
+
+  let pageAfter = 1;
+  function triggerPageAfter() {
+    const s1 = document.getElementById('slide-a1');
+    const s2 = document.getElementById('slide-a2');
+    if (pageAfter === 1) {
+      s1.style.opacity = '0';
+      s1.style.transform = 'translateY(-10px)';
+      setTimeout(() => {
+        s1.style.display = 'none';
+        s2.style.display = 'flex';
+        requestAnimationFrame(() => {
+          s2.classList.add('visible');
+        });
+      }, 200);
+      pageAfter = 2;
+    } else {
+      s2.style.opacity = '0';
+      s2.style.transform = 'translateY(-10px)';
+      setTimeout(() => {
+        s2.style.display = 'none';
+        s2.classList.remove('visible');
+        s1.style.display = 'flex';
+        s1.style.opacity = '0';
+        s1.style.transform = 'translateY(10px)';
+        requestAnimationFrame(() => {
+          s1.style.transition = 'opacity 320ms cubic-bezier(0.16,1,0.3,1), transform 320ms cubic-bezier(0.16,1,0.3,1)';
+          s1.style.opacity = '1';
+          s1.style.transform = 'translateY(0)';
+        });
+      }, 200);
+      pageAfter = 1;
+    }
+  }
+
+  /* ── Stagger ── */
+  function triggerStagger() {
+    const cards = document.querySelectorAll('#stagger-row .stagger-card');
+    cards.forEach(c => {
+      c.classList.remove('animating');
+      c.style.opacity = '0';
+    });
+    requestAnimationFrame(() => {
+      cards.forEach(c => c.classList.add('animating'));
+    });
+  }
+
+  /* ── Select improvements ── */
+  function selectAll() {
+    for (let i = 1; i <= 10; i++) {
+      document.getElementById('item-' + i).classList.add('selected');
+    }
+  }
+  function selectHighImpact() {
+    [1,2,3,4,5,8].forEach(i => {
+      document.getElementById('item-' + i).classList.add('selected');
+    });
+  }
+</script>
+</body>
+</html>
