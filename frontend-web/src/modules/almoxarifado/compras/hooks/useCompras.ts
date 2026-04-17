@@ -4,13 +4,13 @@ import { almoxarifadoService } from '../../_service/almoxarifado.service'
 import type { CreateOcPayload, ReceberOcItemPayload } from '../../_service/almoxarifado.service'
 
 export function useOcs(
-  obraId: number,
+  _obraId?: number,
   params?: { status?: string; limit?: number; offset?: number },
 ) {
   return useQuery({
-    queryKey: ['alm-ocs', obraId, params?.status],
-    queryFn:  () => almoxarifadoService.getOcs(obraId, params),
-    enabled:  obraId > 0,
+    queryKey: ['alm-ocs', _obraId, params?.status],
+    queryFn:  () => almoxarifadoService.getOcs(params),
+    enabled:  true,
   })
 }
 
@@ -22,63 +22,62 @@ export function useOc(id: number) {
   })
 }
 
-export function useCriarOc(obraId: number) {
+export function useCriarOc(_obraId?: number) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (payload: CreateOcPayload) =>
-      almoxarifadoService.criarOc(obraId, payload),
+    mutationFn: (payload: CreateOcPayload) => almoxarifadoService.criarOc(payload),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['alm-ocs', obraId] })
-      qc.invalidateQueries({ queryKey: ['alm-dashboard', obraId] })
+      qc.invalidateQueries({ queryKey: ['alm-ocs'] })
+      qc.invalidateQueries({ queryKey: ['alm-dashboard'] })
     },
   })
 }
 
-export function useConfirmarOc(obraId: number, ocId: number) {
+export function useConfirmarOc(_obraId: number | undefined, ocId: number) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: () => almoxarifadoService.confirmarOc(ocId),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['alm-ocs', obraId] })
+      qc.invalidateQueries({ queryKey: ['alm-ocs'] })
       qc.invalidateQueries({ queryKey: ['alm-oc', ocId] })
     },
   })
 }
 
-export function useEmitirOc(obraId: number, ocId: number) {
+export function useEmitirOc(_obraId: number | undefined, ocId: number) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: () => almoxarifadoService.emitirOc(ocId),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['alm-ocs', obraId] })
+      qc.invalidateQueries({ queryKey: ['alm-ocs'] })
       qc.invalidateQueries({ queryKey: ['alm-oc', ocId] })
     },
   })
 }
 
-export function useReceberOcItens(obraId: number, ocId: number) {
+export function useReceberOcItens(_obraId: number | undefined, ocId: number) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (itens: ReceberOcItemPayload[]) =>
-      almoxarifadoService.receberOcItens(obraId, ocId, itens),
+      almoxarifadoService.receberOcItens(ocId, itens),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['alm-ocs', obraId] })
+      qc.invalidateQueries({ queryKey: ['alm-ocs'] })
       qc.invalidateQueries({ queryKey: ['alm-oc', ocId] })
-      qc.invalidateQueries({ queryKey: ['alm-estoque', obraId] })
-      qc.invalidateQueries({ queryKey: ['alm-movimentos', obraId] })
-      qc.invalidateQueries({ queryKey: ['alm-dashboard', obraId] })
+      qc.invalidateQueries({ queryKey: ['alm-estoque'] })
+      qc.invalidateQueries({ queryKey: ['alm-movimentos'] })
+      qc.invalidateQueries({ queryKey: ['alm-dashboard'] })
     },
   })
 }
 
-export function useCancelarOc(obraId: number, ocId: number) {
+export function useCancelarOc(_obraId: number | undefined, ocId: number) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: () => almoxarifadoService.cancelarOc(ocId),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['alm-ocs', obraId] })
+      qc.invalidateQueries({ queryKey: ['alm-ocs'] })
       qc.invalidateQueries({ queryKey: ['alm-oc', ocId] })
-      qc.invalidateQueries({ queryKey: ['alm-dashboard', obraId] })
+      qc.invalidateQueries({ queryKey: ['alm-dashboard'] })
     },
   })
 }

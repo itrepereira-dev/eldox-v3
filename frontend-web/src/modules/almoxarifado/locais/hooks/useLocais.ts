@@ -1,6 +1,6 @@
 // frontend-web/src/modules/almoxarifado/locais/hooks/useLocais.ts
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { almoxarifadoService, type AlmLocal, type AlmLocalTipo, type CreateLocalPayload } from '../../_service/almoxarifado.service';
+import { almoxarifadoService, type AlmLocalTipo, type CreateLocalPayload } from '../../_service/almoxarifado.service';
 
 export function useLocais(filters?: { tipo?: AlmLocalTipo; ativo?: boolean; obra_id?: number }) {
   return useQuery({

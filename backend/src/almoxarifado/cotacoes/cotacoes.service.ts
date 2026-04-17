@@ -559,25 +559,26 @@ export class CotacoesService {
       });
     }
 
-    // Busca obra_id da solicitação
-    const solRow = await this.prisma.$queryRawUnsafe<{ obra_id: number }[]>(
-      `SELECT obra_id FROM alm_solicitacoes WHERE id = $1 AND tenant_id = $2`,
+    // Busca local_destino_id da solicitação
+    const solRow = await this.prisma.$queryRawUnsafe<{ local_destino_id: number }[]>(
+      `SELECT local_destino_id FROM alm_solicitacoes WHERE id = $1 AND tenant_id = $2`,
       solicitacaoId, tenantId,
     );
     if (!solRow.length) throw new NotFoundException('Solicitação não encontrada');
-    const obraId = solRow[0].obra_id;
+    const localDestinoId = solRow[0].local_destino_id;
 
     // Cria uma OC por fornecedor
     const idsOcs: number[] = [];
 
     for (const grupo of porFornecedor.values()) {
-      const oc = await this.compras.criar(tenantId, obraId, usuarioId, {
-        fornecedor_id: grupo.fornecedorId,
-        solicitacao_id: solicitacaoId,
-        prazo_entrega: grupo.prazoEntrega ?? undefined,
-        condicao_pgto: grupo.condicaoPgto ?? undefined,
-        local_entrega: dto.local_entrega,
-        itens: grupo.itens,
+      const oc = await this.compras.criar(tenantId, usuarioId, {
+        fornecedor_id:    grupo.fornecedorId,
+        local_destino_id: localDestinoId,
+        solicitacao_id:   solicitacaoId,
+        prazo_entrega:    grupo.prazoEntrega ?? undefined,
+        condicao_pgto:    grupo.condicaoPgto ?? undefined,
+        local_entrega:    dto.local_entrega,
+        itens:            grupo.itens,
       });
 
       // Vincula cotacao_id na OC para rastreabilidade

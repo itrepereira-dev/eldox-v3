@@ -5,6 +5,7 @@ import { Search, Plus, Trash2, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useCriarSolicitacao } from '../hooks/useSolicitacao'
 import { useSubmeterSolicitacao } from '../hooks/useSolicitacao'
+import { useLocais } from '../../locais/hooks/useLocais'
 import { api } from '@/services/api'
 import type { CreateSolicitacaoItemPayload } from '../../_service/almoxarifado.service'
 
@@ -23,6 +24,9 @@ export function NovaSolicitacaoPage() {
   const { obraId } = useParams<{ obraId: string }>()
   const navigate    = useNavigate()
   const id          = Number(obraId)
+
+  const { data: locais = [] } = useLocais({ ativo: true })
+  const [localDestinoId, setLocalDestinoId] = useState<number | ''>('')
 
   // Form state
   const [descricao,        setDescricao]        = useState('')
@@ -92,6 +96,7 @@ export function NovaSolicitacaoPage() {
     if (!descricao.trim() || !itens.length) return
     const sol = await criar.mutateAsync({
       descricao:        descricao.trim(),
+      local_destino_id: Number(localDestinoId) || 0,
       urgente,
       data_necessidade: dataNecessidade || undefined,
       servico_ref:      servicoRef.trim() || undefined,
@@ -106,6 +111,7 @@ export function NovaSolicitacaoPage() {
     if (!descricao.trim() || !itens.length) return
     const sol = await criar.mutateAsync({
       descricao:        descricao.trim(),
+      local_destino_id: Number(localDestinoId) || 0,
       urgente,
       data_necessidade: dataNecessidade || undefined,
       servico_ref:      servicoRef.trim() || undefined,
@@ -136,6 +142,23 @@ export function NovaSolicitacaoPage() {
       {/* Dados gerais */}
       <div className="bg-[var(--bg-surface)] border border-[var(--border-dim)] rounded-md p-5 mb-5 space-y-4">
         <h2 className="text-[13px] font-semibold text-[var(--text-high)]">Dados Gerais</h2>
+
+        <div>
+          <label className="block text-[12px] font-medium text-[var(--text-low)] mb-1">
+            Local de destino <span className="text-[var(--nc)]">*</span>
+          </label>
+          <select
+            value={localDestinoId}
+            onChange={(e) => setLocalDestinoId(e.target.value === '' ? '' : Number(e.target.value))}
+            className={cn(
+              'w-full h-9 px-3 bg-[var(--bg-raised)] border border-[var(--border-dim)] rounded-sm',
+              'text-[13px] text-[var(--text-high)] outline-none focus:border-[var(--accent)]',
+            )}
+          >
+            <option value="">Selecionar local...</option>
+            {locais.map((l) => <option key={l.id} value={l.id}>{l.nome} ({l.tipo})</option>)}
+          </select>
+        </div>
 
         <div>
           <label className="block text-[12px] font-medium text-[var(--text-low)] mb-1">

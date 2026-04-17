@@ -100,8 +100,8 @@ export class EstoqueController {
   @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO')
   marcarTodosLidos(
     @TenantId() tenantId: number,
-    @Query('local_id') localId?: string,
     @Req() req: any,
+    @Query('local_id') localId?: string,
   ) {
     const usuarioId: number = req.user?.sub ?? req.user?.id;
     return this.estoque.marcarTodosLidos(

@@ -4,6 +4,7 @@ import { useParams, Link } from 'react-router-dom'
 import { ChevronRight, CheckCircle, XCircle, Link2, Zap, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useNfe, useAceitarNfe, useRejeitarNfe, useVincularOcNfe, useConfirmarMatchItem } from '../hooks/useNfe'
+import { useLocais } from '../../locais/hooks/useLocais'
 import type { AlmNfeItem, AlmMatchStatus } from '../../_service/almoxarifado.service'
 
 // ── Match badge ────────────────────────────────────────────────────────────────
@@ -236,10 +237,13 @@ export function NfeDetalhePage() {
   const oId = Number(obraId)
   const nId = Number(nfeId)
 
-  const [showVincular, setShowVincular] = useState(false)
-  const [showRejeitar, setShowRejeitar] = useState(false)
+  const [showVincular,  setShowVincular]  = useState(false)
+  const [showRejeitar,  setShowRejeitar]  = useState(false)
+  const [showAceitar,   setShowAceitar]   = useState(false)
+  const [localAceitarId, setLocalAceitarId] = useState<number | ''>('')
 
   const { data: nfe, isLoading } = useNfe(nId)
+  const { data: locais = [] }    = useLocais({ ativo: true })
   const aceitar         = useAceitarNfe(oId, nId)
   const rejeitar        = useRejeitarNfe(oId, nId)
   const vincularOc      = useVincularOcNfe(nId)
@@ -269,6 +273,45 @@ export function NfeDetalhePage() {
 
   return (
     <div className="p-6 max-w-[1000px]">
+      {showAceitar && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-[var(--bg-surface)] border border-[var(--border-dim)] rounded-md p-5 w-[360px] shadow-xl">
+            <p className="text-[14px] font-semibold text-[var(--text-high)] mb-3">Aceitar NF-e</p>
+            <p className="text-[12px] text-[var(--text-low)] mb-4">Selecione o local de destino para entrada dos materiais.</p>
+            <select
+              value={localAceitarId}
+              onChange={(e) => setLocalAceitarId(e.target.value === '' ? '' : Number(e.target.value))}
+              className="w-full h-9 px-3 bg-[var(--bg-raised)] border border-[var(--border-dim)] rounded-sm text-[13px] text-[var(--text-high)] outline-none mb-4"
+            >
+              <option value="">Selecionar local...</option>
+              {locais.map((l) => (
+                <option key={l.id} value={l.id}>{l.nome} ({l.tipo})</option>
+              ))}
+            </select>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => { setShowAceitar(false); setLocalAceitarId('') }}
+                className="px-3 h-8 text-[12px] border border-[var(--border-dim)] rounded-sm text-[var(--text-low)] hover:text-[var(--text-high)]"
+              >
+                Cancelar
+              </button>
+              <button
+                disabled={!localAceitarId || aceitar.isPending}
+                onClick={() => {
+                  if (!localAceitarId) return
+                  aceitar.mutate(
+                    { local_id: localAceitarId as number },
+                    { onSuccess: () => { setShowAceitar(false); setLocalAceitarId('') } },
+                  )
+                }}
+                className="px-3 h-8 text-[12px] font-semibold bg-[var(--ok)] text-white rounded-sm hover:opacity-90 disabled:opacity-50"
+              >
+                Confirmar aceite
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {showVincular && (
         <VincularOcModal
           onClose={() => setShowVincular(false)}
@@ -351,7 +394,7 @@ export function NfeDetalhePage() {
                     <XCircle size={12} /> Rejeitar
                   </button>
                   <button
-                    onClick={() => aceitar.mutate(undefined)}
+                    onClick={() => setShowAceitar(true)}
                     disabled={aceitar.isPending}
                     className={cn(
                       'flex items-center gap-1.5 px-3 h-8 text-[12px] font-semibold rounded-sm',

@@ -7,13 +7,13 @@ import type {
 } from '../../_service/almoxarifado.service'
 
 export function useSolicitacoes(
-  obraId: number,
+  _obraId?: number,
   params?: { status?: string; limit?: number; offset?: number },
 ) {
   return useQuery({
-    queryKey: ['alm-solicitacoes', obraId, params?.status],
-    queryFn:  () => almoxarifadoService.getSolicitacoes(obraId, params),
-    enabled:  obraId > 0,
+    queryKey: ['alm-solicitacoes', _obraId, params?.status],
+    queryFn:  () => almoxarifadoService.getSolicitacoes(params),
+    enabled:  true,
   })
 }
 
@@ -25,51 +25,51 @@ export function useSolicitacao(id: number) {
   })
 }
 
-export function useCriarSolicitacao(obraId: number) {
+export function useCriarSolicitacao(_obraId?: number) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (payload: CreateSolicitacaoPayload) =>
-      almoxarifadoService.criarSolicitacao(obraId, payload),
+      almoxarifadoService.criarSolicitacao(payload),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['alm-solicitacoes', obraId] })
-      qc.invalidateQueries({ queryKey: ['alm-dashboard', obraId] })
+      qc.invalidateQueries({ queryKey: ['alm-solicitacoes'] })
+      qc.invalidateQueries({ queryKey: ['alm-dashboard'] })
     },
   })
 }
 
-export function useSubmeterSolicitacao(obraId: number) {
+export function useSubmeterSolicitacao(_obraId?: number) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => almoxarifadoService.submeterSolicitacao(id),
     onSuccess: (_data, id) => {
-      qc.invalidateQueries({ queryKey: ['alm-solicitacoes', obraId] })
+      qc.invalidateQueries({ queryKey: ['alm-solicitacoes'] })
       qc.invalidateQueries({ queryKey: ['alm-solicitacao', id] })
-      qc.invalidateQueries({ queryKey: ['alm-dashboard', obraId] })
+      qc.invalidateQueries({ queryKey: ['alm-dashboard'] })
     },
   })
 }
 
-export function useAprovarSolicitacao(obraId: number, solicitacaoId: number) {
+export function useAprovarSolicitacao(_obraId: number | undefined, solicitacaoId: number) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (payload: AprovarSolicitacaoPayload) =>
       almoxarifadoService.aprovarSolicitacao(solicitacaoId, payload),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['alm-solicitacoes', obraId] })
+      qc.invalidateQueries({ queryKey: ['alm-solicitacoes'] })
       qc.invalidateQueries({ queryKey: ['alm-solicitacao', solicitacaoId] })
-      qc.invalidateQueries({ queryKey: ['alm-dashboard', obraId] })
+      qc.invalidateQueries({ queryKey: ['alm-dashboard'] })
     },
   })
 }
 
-export function useCancelarSolicitacao(obraId: number, solicitacaoId: number) {
+export function useCancelarSolicitacao(_obraId: number | undefined, solicitacaoId: number) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: () => almoxarifadoService.cancelarSolicitacao(solicitacaoId),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['alm-solicitacoes', obraId] })
+      qc.invalidateQueries({ queryKey: ['alm-solicitacoes'] })
       qc.invalidateQueries({ queryKey: ['alm-solicitacao', solicitacaoId] })
-      qc.invalidateQueries({ queryKey: ['alm-dashboard', obraId] })
+      qc.invalidateQueries({ queryKey: ['alm-dashboard'] })
     },
   })
 }

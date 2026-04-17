@@ -1,5 +1,4 @@
 // frontend-web/src/modules/almoxarifado/transferencias/pages/TransferenciaDetalhePage.tsx
-import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTransferencia, useAprovarTransferencia, useExecutarTransferencia, useCancelarTransferencia } from '../hooks/useTransferencias';
 import type { AlmTransferenciaStatus } from '../../_service/almoxarifado.service';

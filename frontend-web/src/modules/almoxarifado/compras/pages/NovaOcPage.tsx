@@ -4,6 +4,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { Search, Plus, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useCriarOc } from '../hooks/useCompras'
+import { useLocais } from '../../locais/hooks/useLocais'
 import { api } from '@/services/api'
 import type { CreateOcItemPayload } from '../../_service/almoxarifado.service'
 
@@ -15,6 +16,9 @@ export function NovaOcPage() {
   const { obraId } = useParams<{ obraId: string }>()
   const navigate    = useNavigate()
   const id          = Number(obraId)
+
+  const { data: locais = [] } = useLocais({ ativo: true })
+  const [localDestinoId, setLocalDestinoId] = useState<number | ''>('')
 
   // Fornecedor
   const [fornQuery,     setFornQuery]     = useState('')
@@ -104,12 +108,13 @@ export function NovaOcPage() {
   async function handleCriar() {
     if (!fornSel || !itens.length) return
     const oc = await criar.mutateAsync({
-      fornecedor_id: fornSel.id,
-      solicitacao_id: solicitacaoId ? Number(solicitacaoId) : undefined,
-      prazo_entrega: prazoEntrega || undefined,
-      condicao_pgto: condicaoPgto.trim() || undefined,
-      local_entrega: localEntrega.trim() || undefined,
-      observacoes:   observacoes.trim() || undefined,
+      fornecedor_id:    fornSel.id,
+      local_destino_id: Number(localDestinoId) || 0,
+      solicitacao_id:   solicitacaoId ? Number(solicitacaoId) : undefined,
+      prazo_entrega:    prazoEntrega || undefined,
+      condicao_pgto:    condicaoPgto.trim() || undefined,
+      local_entrega:    localEntrega.trim() || undefined,
+      observacoes:      observacoes.trim() || undefined,
       itens: itens.map(({ catalogo_id, quantidade, unidade, preco_unitario }) => ({
         catalogo_id, quantidade, unidade, preco_unitario,
       })),
@@ -135,6 +140,21 @@ export function NovaOcPage() {
       {/* Fornecedor + Dados */}
       <div className="bg-[var(--bg-surface)] border border-[var(--border-dim)] rounded-md p-5 mb-5 space-y-4">
         <h2 className="text-[13px] font-semibold text-[var(--text-high)]">Fornecedor e Condições</h2>
+
+        {/* Local destino */}
+        <div>
+          <label className="block text-[12px] font-medium text-[var(--text-low)] mb-1">
+            Local de destino <span className="text-[var(--nc)]">*</span>
+          </label>
+          <select
+            value={localDestinoId}
+            onChange={(e) => setLocalDestinoId(e.target.value === '' ? '' : Number(e.target.value))}
+            className="w-full h-9 px-3 bg-[var(--bg-raised)] border border-[var(--border-dim)] rounded-sm text-[13px] text-[var(--text-high)] outline-none"
+          >
+            <option value="">Selecionar local...</option>
+            {locais.map((l) => <option key={l.id} value={l.id}>{l.nome} ({l.tipo})</option>)}
+          </select>
+        </div>
 
         {/* Fornecedor search */}
         <div>

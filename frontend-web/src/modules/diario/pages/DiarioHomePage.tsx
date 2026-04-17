@@ -3,7 +3,17 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { obrasService, type Obra } from '../../../services/obras.service';
 import { rdoService } from '../../../services/rdo.service';
-import { Search, BookOpenCheck, MapPin, ChevronRight, Plus, X, FilePlus2 } from 'lucide-react';
+import { Search, BookOpenCheck, MapPin, ChevronRight, Plus, X, FilePlus2, Clock } from 'lucide-react';
+
+// Sub-toggles de cópia por seção (backend já aceita `copiar_campos: string[]`)
+const COPY_FIELDS = [
+  { key: 'clima',        label: 'Clima',        defaultOn: true  },
+  { key: 'equipe',       label: 'Mão de obra',  defaultOn: true  },
+  { key: 'equipamentos', label: 'Equipamentos', defaultOn: false },
+  { key: 'atividades',   label: 'Atividades',   defaultOn: true  },
+  { key: 'checklist',    label: 'Comentários',  defaultOn: false },
+] as const;
+type CopyKey = typeof COPY_FIELDS[number]['key'];
 
 const STATUS_LABEL: Record<string, string> = {
   PLANEJAMENTO: 'Planejamento',
@@ -45,13 +55,28 @@ function NovoRdoRapidoModal({ obras, obraIdInicial, onClose, onCreated }: NovoRd
   const [obraId, setObraId] = useState<number | ''>(obraIdInicial ?? (obras.length === 1 ? obras[0].id : ''));
   const [data, setData] = useState(todayISO());
   const [copiarUltimo, setCopiarUltimo] = useState(true);
+  const [camposSelecionados, setCamposSelecionados] = useState<Record<CopyKey, boolean>>(
+    Object.fromEntries(COPY_FIELDS.map(f => [f.key, f.defaultOn])) as Record<CopyKey, boolean>,
+  );
   const [err, setErr] = useState('');
+
+  // Banner "Último RDO: dd/mm/yyyy nº N"
+  const { data: ultimoRdoResp } = useQuery({
+    queryKey: ['rdo-ultimo', obraId],
+    queryFn: () => rdoService.listar({ obra_id: Number(obraId), page: 1, limit: 1 }),
+    enabled: !!obraId,
+    staleTime: 30_000,
+  });
+  const ultimoRdo = ultimoRdoResp?.data?.[0];
 
   const { mutate: criar, isPending } = useMutation({
     mutationFn: () => rdoService.criar({
       obra_id: Number(obraId),
       data,
       copiar_ultimo: copiarUltimo,
+      copiar_campos: copiarUltimo
+        ? (Object.entries(camposSelecionados).filter(([, v]) => v).map(([k]) => k))
+        : undefined,
     }),
     onSuccess: (res) => onCreated(Number(obraId), res.rdo_id),
     onError: (e: unknown) => {
@@ -59,6 +84,16 @@ function NovoRdoRapidoModal({ obras, obraIdInicial, onClose, onCreated }: NovoRd
       setErr(msg ?? 'Erro ao criar RDO. Tente novamente.');
     },
   });
+
+  function toggleCampo(key: CopyKey) {
+    setCamposSelecionados(prev => ({ ...prev, [key]: !prev[key] }));
+  }
+
+  function fmtDataCurta(iso: string | undefined): string {
+    if (!iso) return '';
+    const [y, m, d] = iso.split('T')[0].split('-');
+    return `${d}/${m}/${y}`;
+  }
 
   const obraSelecionada = obras.find(o => o.id === Number(obraId));
 
@@ -160,6 +195,25 @@ function NovoRdoRapidoModal({ obras, obraIdInicial, onClose, onCreated }: NovoRd
           />
         </div>
 
+        {/* Banner "Último RDO" — QW1 */}
+        {ultimoRdo && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '8px 12px', borderRadius: 'var(--r-sm)',
+            background: 'var(--bg-raised)', border: '1px solid var(--border-dim)',
+            fontSize: 12, color: 'var(--text-low)',
+          }}>
+            <Clock size={13} color="var(--text-faint)" />
+            <span>
+              Último RDO: <strong style={{ color: 'var(--text-high)' }}>{fmtDataCurta(ultimoRdo.data)}</strong>
+              {' · '}
+              nº <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-high)' }}>
+                {String(ultimoRdo.numero).padStart(4, '0')}
+              </span>
+            </span>
+          </div>
+        )}
+
         {/* Toggle "copiar último" */}
         <label
           style={{
@@ -181,10 +235,50 @@ function NovoRdoRapidoModal({ obras, obraIdInicial, onClose, onCreated }: NovoRd
               Copiar último RDO
             </p>
             <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--text-low)' }}>
-              Reaproveita clima, efetivo e atividades do diário anterior.
+              Escolha quais seções reaproveitar do diário anterior.
             </p>
           </div>
         </label>
+
+        {/* Sub-toggles granulares por seção — G6 + QW9 */}
+        {copiarUltimo && (
+          <div style={{
+            display: 'flex', flexWrap: 'wrap', gap: 8,
+            padding: '10px 12px', borderRadius: 'var(--r-sm)',
+            background: 'var(--bg-raised)', border: '1px solid var(--border-dim)',
+          }}>
+            {COPY_FIELDS.map(f => {
+              const active = camposSelecionados[f.key];
+              return (
+                <button
+                  key={f.key}
+                  type="button"
+                  onClick={() => toggleCampo(f.key)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '5px 12px', borderRadius: 16, fontSize: 12, fontWeight: 600,
+                    border: `1px solid ${active ? 'var(--accent)' : 'var(--border-dim)'}`,
+                    background: active ? 'var(--accent-dim)' : 'transparent',
+                    color: active ? 'var(--accent)' : 'var(--text-low)',
+                    cursor: 'pointer',
+                    transition: 'all .15s',
+                  }}
+                >
+                  <span style={{
+                    width: 12, height: 12, borderRadius: 3,
+                    border: `1.5px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+                    background: active ? 'var(--accent)' : 'transparent',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: '#fff', fontSize: 9, lineHeight: 1,
+                  }}>
+                    {active && '✓'}
+                  </span>
+                  {f.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Erro */}
         {err && (

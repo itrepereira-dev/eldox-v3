@@ -212,7 +212,7 @@ export function EstoquePage() {
           )}
         >
           <option>Todos os locais</option>
-          {locais.map((l) => <option key={l.id}>{l.nome}</option>)}
+          {locais.map((l: { id: number; nome: string }) => <option key={l.id}>{l.nome}</option>)}
         </select>
       </div>
 

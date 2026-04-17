@@ -1,15 +1,14 @@
 // frontend-web/src/modules/almoxarifado/nfe/hooks/useNfe.ts
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { almoxarifadoService } from '../../_service/almoxarifado.service'
-
 export function useNfes(
-  obraId: number,
+  _obraId?: number,
   params?: { status?: string; limit?: number; offset?: number },
 ) {
   return useQuery({
-    queryKey: ['alm-nfes', obraId, params?.status],
-    queryFn:  () => almoxarifadoService.getNfes(obraId, params),
-    enabled:  obraId > 0,
+    queryKey: ['alm-nfes', _obraId, params?.status],
+    queryFn:  () => almoxarifadoService.getNfes(params),
+    enabled:  true,
   })
 }
 
@@ -21,27 +20,27 @@ export function useNfe(id: number) {
   })
 }
 
-export function useAceitarNfe(obraId: number, nfeId: number) {
+export function useAceitarNfe(_obraId: number | undefined, nfeId: number) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (payload?: { oc_id?: number }) =>
+    mutationFn: (payload: { local_id: number; oc_id?: number; observacao?: string }) =>
       almoxarifadoService.aceitarNfe(nfeId, payload),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['alm-nfes', obraId] })
+      qc.invalidateQueries({ queryKey: ['alm-nfes'] })
       qc.invalidateQueries({ queryKey: ['alm-nfe', nfeId] })
-      qc.invalidateQueries({ queryKey: ['alm-dashboard', obraId] })
+      qc.invalidateQueries({ queryKey: ['alm-dashboard'] })
     },
   })
 }
 
-export function useRejeitarNfe(obraId: number, nfeId: number) {
+export function useRejeitarNfe(_obraId: number | undefined, nfeId: number) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (motivo: string) => almoxarifadoService.rejeitarNfe(nfeId, motivo),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['alm-nfes', obraId] })
+      qc.invalidateQueries({ queryKey: ['alm-nfes'] })
       qc.invalidateQueries({ queryKey: ['alm-nfe', nfeId] })
-      qc.invalidateQueries({ queryKey: ['alm-dashboard', obraId] })
+      qc.invalidateQueries({ queryKey: ['alm-dashboard'] })
     },
   })
 }

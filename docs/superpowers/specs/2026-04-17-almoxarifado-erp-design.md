@@ -171,7 +171,8 @@ CREATE TABLE alm_locais (
   CONSTRAINT chk_alm_locais_obra_required
     CHECK (tipo != 'OBRA' OR obra_id IS NOT NULL),   -- OBRA type must have obra_id
   CONSTRAINT chk_alm_locais_obra_forbidden
-    CHECK (tipo = 'OBRA' OR obra_id IS NULL)          -- non-OBRA must not have obra_id
+    CHECK (tipo = 'OBRA' OR obra_id IS NULL),        -- non-OBRA must not have obra_id
+  UNIQUE (tenant_id, nome)
 );
 
 CREATE INDEX idx_alm_locais_tenant ON alm_locais(tenant_id);
@@ -318,6 +319,21 @@ Error envelope format (all 4xx/5xx):
 
 ---
 
+#### `GET /almoxarifado/locais/:id`
+
+**Auth:** `TECNICO+`
+
+**Response 200:** Full AlmLocal object
+
+**Response 404:**
+```json
+{ "status": "error", "message": "Local não encontrado" }
+```
+
+**Response 403:** tenant isolation violation
+
+---
+
 #### `POST /almoxarifado/locais`
 
 **Auth:** `ADMIN_TENANT`
@@ -362,7 +378,7 @@ Error envelope format (all 4xx/5xx):
 
 **Auth:** `ADMIN_TENANT`
 
-**Request body:** Same fields as POST. All fields optional (partial update). `tipo` cannot be changed after creation if any stock movements exist.
+**Request body:** Same fields as POST. All fields optional (partial update). `tipo` can only be changed if no stock movements reference this local (service enforces this — returns 409 TIPO_COM_MOVIMENTOS if violated).
 
 **Response 200:**
 ```json
@@ -447,6 +463,22 @@ Soft-delete: sets `ativo = false`. Does not physically delete the record.
 
 **Error cases:**
 - `403` — role does not meet `TECNICO` minimum
+
+---
+
+#### `GET /almoxarifado/transferencias/:id`
+
+**Auth:** `TECNICO+`
+
+**Response 200:**
+Full AlmTransferencia object including itens[] array
+
+**Response 404:**
+```json
+{ "status": "error", "message": "Transferência não encontrada" }
+```
+
+**Response 403:** tenant isolation violation
 
 ---
 
@@ -784,8 +816,7 @@ If any step fails, the entire transaction rolls back. No partial state is persis
 
 ### 4.2 Partial Execution
 
-- A transfer can be executed in multiple calls if needed, as long as it remains in `aprovada` status (which is maintained until fully or partially executed, at which point status moves to `executada`).
-- Actually, once `executar` is called for the first time, status becomes `executada` regardless of whether all items were executed.
+- Once `executar` is called for the first time, status becomes `executada` regardless of whether all items were executed.
 - `executada_parcial = true` signals that not all requested quantities were fulfilled.
 - Items where `qtd_executada = quantidade` are considered fully executed.
 - Items where `qtd_executada < quantidade` are considered partially executed.
@@ -899,8 +930,8 @@ export type CreateAlmLocalDto = {
   responsavelNome?: string | null;
 };
 
-export type UpdateAlmLocalDto = Partial<Omit<CreateAlmLocalDto, 'tipo'>>;
-// Note: 'tipo' is intentionally excluded from updates when movements exist
+export type UpdateAlmLocalDto = Partial<CreateAlmLocalDto>;
+// Note: The service layer enforces that 'tipo' cannot be changed if any alm_movimentos reference this local_id
 
 // ============================================================
 // Transferências (alm_transferencias)
