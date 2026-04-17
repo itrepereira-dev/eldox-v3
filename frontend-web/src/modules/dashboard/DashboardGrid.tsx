@@ -1,7 +1,6 @@
 // src/modules/dashboard/DashboardGrid.tsx
 import { useCallback } from 'react'
 import { Responsive, WidthProvider } from 'react-grid-layout/legacy'
-import type { Layout, Layouts } from 'react-grid-layout/legacy'
 import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
 import { widgetRegistry } from './registry'
@@ -9,6 +8,19 @@ import { WidgetWrapper } from './WidgetWrapper'
 import type { WidgetInstance } from './registry/types'
 
 const ResponsiveGrid = WidthProvider(Responsive)
+
+// Shape de cada item de layout que react-grid-layout passa no callback.
+// Declaramos localmente porque os tipos exportados pela lib (Layout/Layouts)
+// divergem entre versões e as propriedades i/x/y/w/h ficam como "readonly
+// Layout" que não cobre iteração simples.
+interface GridLayoutItem {
+  i: string
+  x: number
+  y: number
+  w: number
+  h: number
+}
+type GridLayouts = Partial<Record<string, GridLayoutItem[]>>
 
 interface DashboardGridProps {
   layout: WidgetInstance[]
@@ -18,9 +30,9 @@ interface DashboardGridProps {
 
 export function DashboardGrid({ layout, editMode, onLayoutChange }: DashboardGridProps) {
   const handleLayoutChange = useCallback(
-    (_currentLayout: Layout[], allLayouts: Layouts) => {
+    (currentLayout: GridLayoutItem[], allLayouts: GridLayouts) => {
       // Use the lg layout to preserve 12-column positions regardless of active breakpoint
-      const source = allLayouts.lg ?? _currentLayout
+      const source: GridLayoutItem[] = allLayouts.lg ?? currentLayout
       const updated: WidgetInstance[] = source.map((item) => {
         const existing = layout.find((w) => w.instanceId === item.i)
         return {
@@ -76,7 +88,12 @@ export function DashboardGrid({ layout, editMode, onLayoutChange }: DashboardGri
       isDraggable={editMode}
       isResizable={editMode}
       draggableHandle=".drag-handle"
-      onLayoutChange={handleLayoutChange}
+      // Cast: tipos exportados por react-grid-layout/legacy divergem entre
+      // versões (readonly Layout × Layout[]). handleLayoutChange consome o
+      // shape real via GridLayoutItem local. Cast para any só na passagem
+      // pro componente — runtime é correto.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      onLayoutChange={handleLayoutChange as any}
       useCSSTransforms
     >
       {layout.map((instance) => {
