@@ -51,6 +51,18 @@ import { PlanejamentoController } from './planejamento/planejamento.controller';
 // Conversão de unidades
 import { ConversaoService } from './conversao/conversao.service';
 
+// Locais (NEW)
+import { LocaisService } from './locais/locais.service';
+import { LocaisController } from './locais/locais.controller';
+
+// Transferências (NEW)
+import { TransferenciasService } from './transferencias/transferencias.service';
+import { TransferenciasController } from './transferencias/transferencias.controller';
+
+// Config de Transferência (NEW)
+import { ConfigTransferenciaService } from './config-transferencia/config-transferencia.service';
+import { ConfigTransferenciaController } from './config-transferencia/config-transferencia.controller';
+
 // Jobs Bull
 import { AlmoxarifadoProcessor } from './jobs/almoxarifado.processor';
 
@@ -92,6 +104,9 @@ import { AlmoxarifadoProcessor } from './jobs/almoxarifado.processor';
     SinapiController,
     CotacoesController,
     PortalFornecedorController,
+    LocaisController,
+    TransferenciasController,
+    ConfigTransferenciaController,
   ],
   providers: [
     EstoqueService,
@@ -108,12 +123,16 @@ import { AlmoxarifadoProcessor } from './jobs/almoxarifado.processor';
     CotacoesService,
     PlanejamentoService,
     AlmoxarifadoProcessor,
+    LocaisService,
+    TransferenciasService,
+    ConfigTransferenciaService,
   ],
   exports: [
     EstoqueService,
     OrcamentoService,
     ConversaoService,
     AgenteCatalogoService,
+    LocaisService,
   ],
 })
 export class AlmoxarifadoModule {}
