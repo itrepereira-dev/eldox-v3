@@ -20,9 +20,55 @@ interface RdoRow {
   data: string;
   status: string;
   numero_sequencial?: number;
+  numero?: number;
   resumo_ia?: string;
   pdf_path?: string;
   obra_nome?: string;
+  obra_relatorio_config?: unknown; // JSONB vindo de "Obra"."relatorio_config"
+}
+
+// ─── Config do relatório (G8) ────────────────────────────────────────────────
+interface RelatorioConfig {
+  logo_cliente_url: string | null;
+  titulo: string | null;
+  secoes: {
+    clima: boolean;
+    mao_obra: boolean;
+    equipamentos: boolean;
+    atividades: boolean;
+    ocorrencias: boolean;
+    checklist: boolean;
+    fotos: boolean;
+    assinaturas: boolean;
+  };
+}
+
+const RELATORIO_CONFIG_DEFAULT: RelatorioConfig = {
+  logo_cliente_url: null,
+  titulo: null,
+  secoes: {
+    clima: true,
+    mao_obra: true,
+    equipamentos: true,
+    atividades: true,
+    ocorrencias: true,
+    checklist: true,
+    fotos: true,
+    assinaturas: true,
+  },
+};
+
+/** Mescla a config persistida na Obra com os defaults. */
+function rdoConfig(rdo: RdoRow): RelatorioConfig {
+  const raw = rdo.obra_relatorio_config;
+  if (!raw || typeof raw !== 'object') return RELATORIO_CONFIG_DEFAULT;
+  const obj = raw as Record<string, unknown>;
+  const secoesRaw = (obj.secoes as Record<string, boolean> | undefined) ?? {};
+  return {
+    logo_cliente_url: (obj.logo_cliente_url as string | null | undefined) ?? null,
+    titulo: (obj.titulo as string | null | undefined) ?? null,
+    secoes: { ...RELATORIO_CONFIG_DEFAULT.secoes, ...secoesRaw },
+  };
 }
 
 interface ClimaRow {
@@ -78,11 +124,11 @@ export class RdoPdfService {
   // ─── Geração do PDF ───────────────────────────────────────────────────────
 
   async gerarPdf(rdoId: number, tenantId: number, incluirFotos = false): Promise<Buffer> {
-    // 1. Carregar dados em paralelo
+    // 1. Carregar dados em paralelo — incluindo config de personalização
     const [rdoRows, climaRows, maoObraRows, equipamentosRows, atividadesRows, ocorrenciasRows, checklistRows, assinaturasRows, fotosRows] =
       await Promise.all([
         this.prisma.$queryRawUnsafe<RdoRow[]>(
-          `SELECT r.*, o.nome AS obra_nome
+          `SELECT r.*, o.nome AS obra_nome, o.relatorio_config AS obra_relatorio_config
            FROM rdos r
            LEFT JOIN "Obra" o ON o.id = r.obra_id
            WHERE r.id = $1 AND r.tenant_id = $2`,
@@ -203,7 +249,8 @@ export class RdoPdfService {
       doc.text('ELDOX', margin + 12, margin + 14);
 
       doc.font('Helvetica-Bold').fontSize(14).fillColor(COR_HEADER_TEXT);
-      doc.text('DIÁRIO DE OBRA', margin + contentWidth / 2, margin + 14, { width: contentWidth / 2, align: 'right' });
+      const titulo = rdoConfig(rdo).titulo ?? 'DIÁRIO DE OBRA';
+      doc.text(titulo, margin + contentWidth / 2, margin + 14, { width: contentWidth / 2, align: 'right' });
 
       doc.font('Helvetica').fontSize(10).fillColor(COR_HEADER_TEXT);
       const obraNome = rdo.obra_nome ?? `Obra #${rdo.obra_id}`;
@@ -221,90 +268,102 @@ export class RdoPdfService {
 
       let y = margin + 80;
 
-      // ── Seção Clima ─────────────────────────────────────────────────────
-      y = this.renderSectionHeader(doc, 'CONDIÇÕES CLIMÁTICAS', margin, y, contentWidth);
+      // G8 — configuração de personalização do relatório vinda da Obra
+      const cfgPre = rdoConfig(rdo);
 
-      if (clima.length === 0) {
-        y = this.renderEmptyRow(doc, margin, y, contentWidth);
-      } else {
-        const periodoLabels: Record<string, string> = { manha: 'Manhã', tarde: 'Tarde', noite: 'Noite' };
-        for (const c of clima) {
-          const label = periodoLabels[c.periodo] ?? c.periodo;
-          const praticavelLabel = c.praticavel ? 'Sim' : 'Não';
-          const chuvaLabel = c.chuva_mm != null ? ` | Chuva: ${c.chuva_mm} mm` : '';
-          const texto = `${label}: ${c.condicao.replace(/_/g, ' ')} | Praticável: ${praticavelLabel}${chuvaLabel}`;
-          y = this.renderTextRow(doc, texto, margin, y, contentWidth);
+      // ── Seção Clima ─────────────────────────────────────────────────────
+      if (cfgPre.secoes.clima) {
+        y = this.renderSectionHeader(doc, 'CONDIÇÕES CLIMÁTICAS', margin, y, contentWidth);
+        if (clima.length === 0) {
+          y = this.renderEmptyRow(doc, margin, y, contentWidth);
+        } else {
+          const periodoLabels: Record<string, string> = { manha: 'Manhã', tarde: 'Tarde', noite: 'Noite' };
+          for (const c of clima) {
+            const label = periodoLabels[c.periodo] ?? c.periodo;
+            const praticavelLabel = c.praticavel ? 'Sim' : 'Não';
+            const chuvaLabel = c.chuva_mm != null ? ` | Chuva: ${c.chuva_mm} mm` : '';
+            const texto = `${label}: ${c.condicao.replace(/_/g, ' ')} | Praticável: ${praticavelLabel}${chuvaLabel}`;
+            y = this.renderTextRow(doc, texto, margin, y, contentWidth);
+          }
         }
       }
 
-      // ── Seção Mão de Obra ───────────────────────────────────────────────
-      y = this.renderSectionHeader(doc, 'MÃO DE OBRA', margin, y, contentWidth);
+      // Reutiliza cfgPre (declarado logo após o header)
+      const cfg = cfgPre;
 
-      if (maoObra.length === 0) {
-        y = this.renderEmptyRow(doc, margin, y, contentWidth);
-      } else {
-        y = this.renderTableHeader(doc, ['Função', 'Qtd', 'Tipo'], [contentWidth * 0.6, 60, contentWidth * 0.4 - 60], margin, y, contentWidth);
-        for (const m of maoObra) {
-          y = this.renderTableRow(doc, [m.funcao, String(m.quantidade), m.tipo], [contentWidth * 0.6, 60, contentWidth * 0.4 - 60], margin, y, contentWidth);
+      // ── Seção Mão de Obra ───────────────────────────────────────────────
+      if (cfg.secoes.mao_obra) {
+        y = this.renderSectionHeader(doc, 'MÃO DE OBRA', margin, y, contentWidth);
+        if (maoObra.length === 0) {
+          y = this.renderEmptyRow(doc, margin, y, contentWidth);
+        } else {
+          y = this.renderTableHeader(doc, ['Função', 'Qtd', 'Tipo'], [contentWidth * 0.6, 60, contentWidth * 0.4 - 60], margin, y, contentWidth);
+          for (const m of maoObra) {
+            y = this.renderTableRow(doc, [m.funcao, String(m.quantidade), m.tipo], [contentWidth * 0.6, 60, contentWidth * 0.4 - 60], margin, y, contentWidth);
+          }
         }
       }
 
       // ── Seção Equipamentos ──────────────────────────────────────────────
-      y = this.renderSectionHeader(doc, 'EQUIPAMENTOS', margin, y, contentWidth);
-
-      if (equipamentos.length === 0) {
-        y = this.renderEmptyRow(doc, margin, y, contentWidth);
-      } else {
-        y = this.renderTableHeader(doc, ['Nome', 'Qtd', 'Unidade'], [contentWidth * 0.6, 60, contentWidth * 0.4 - 60], margin, y, contentWidth);
-        for (const e of equipamentos) {
-          y = this.renderTableRow(doc, [e.descricao, String(e.quantidade), e.unidade ?? '-'], [contentWidth * 0.6, 60, contentWidth * 0.4 - 60], margin, y, contentWidth);
+      if (cfg.secoes.equipamentos) {
+        y = this.renderSectionHeader(doc, 'EQUIPAMENTOS', margin, y, contentWidth);
+        if (equipamentos.length === 0) {
+          y = this.renderEmptyRow(doc, margin, y, contentWidth);
+        } else {
+          y = this.renderTableHeader(doc, ['Nome', 'Qtd', 'Unidade'], [contentWidth * 0.6, 60, contentWidth * 0.4 - 60], margin, y, contentWidth);
+          for (const e of equipamentos) {
+            y = this.renderTableRow(doc, [e.descricao, String(e.quantidade), e.unidade ?? '-'], [contentWidth * 0.6, 60, contentWidth * 0.4 - 60], margin, y, contentWidth);
+          }
         }
       }
 
       // ── Seção Atividades ────────────────────────────────────────────────
-      y = this.renderSectionHeader(doc, 'ATIVIDADES', margin, y, contentWidth);
-
-      if (atividades.length === 0) {
-        y = this.renderEmptyRow(doc, margin, y, contentWidth);
-      } else {
-        for (const a of atividades) {
-          const pct = a.percentual_executado != null ? `${a.percentual_executado}%` : '-';
-          const extra = [a.pavimento, a.servico].filter(Boolean).join(' / ');
-          const desc = extra ? `${a.descricao} (${extra})` : a.descricao;
-          y = this.renderProgressRow(doc, desc, pct, margin, y, contentWidth);
+      if (cfg.secoes.atividades) {
+        y = this.renderSectionHeader(doc, 'ATIVIDADES', margin, y, contentWidth);
+        if (atividades.length === 0) {
+          y = this.renderEmptyRow(doc, margin, y, contentWidth);
+        } else {
+          for (const a of atividades) {
+            const pct = a.percentual_executado != null ? `${a.percentual_executado}%` : '-';
+            const extra = [a.pavimento, a.servico].filter(Boolean).join(' / ');
+            const desc = extra ? `${a.descricao} (${extra})` : a.descricao;
+            y = this.renderProgressRow(doc, desc, pct, margin, y, contentWidth);
+          }
         }
       }
 
       // ── Seção Ocorrências ───────────────────────────────────────────────
-      y = this.renderSectionHeader(doc, 'OCORRÊNCIAS', margin, y, contentWidth);
-
-      if (ocorrencias.length === 0) {
-        y = this.renderEmptyRow(doc, margin, y, contentWidth);
-      } else {
-        for (const o of ocorrencias) {
-          const impacto = o.grau_impacto ? ` [${o.grau_impacto.toUpperCase()}]` : '';
-          const acao = o.acao_tomada ? ` → ${o.acao_tomada}` : '';
-          const texto = `• [${o.tipo.replace(/_/g, ' ')}]${impacto} ${o.descricao}${acao}`;
-          y = this.renderTextRow(doc, texto, margin, y, contentWidth);
+      if (cfg.secoes.ocorrencias) {
+        y = this.renderSectionHeader(doc, 'OCORRÊNCIAS', margin, y, contentWidth);
+        if (ocorrencias.length === 0) {
+          y = this.renderEmptyRow(doc, margin, y, contentWidth);
+        } else {
+          for (const o of ocorrencias) {
+            const impacto = o.grau_impacto ? ` [${o.grau_impacto.toUpperCase()}]` : '';
+            const acao = o.acao_tomada ? ` → ${o.acao_tomada}` : '';
+            const texto = `• [${o.tipo.replace(/_/g, ' ')}]${impacto} ${o.descricao}${acao}`;
+            y = this.renderTextRow(doc, texto, margin, y, contentWidth);
+          }
         }
       }
 
       // ── Seção Checklist ─────────────────────────────────────────────────
-      y = this.renderSectionHeader(doc, 'CHECKLIST', margin, y, contentWidth);
-
-      if (checklist.length === 0) {
-        y = this.renderEmptyRow(doc, margin, y, contentWidth);
-      } else {
-        for (const c of checklist) {
-          const icone = c.resposta ? '✓' : '○';
-          const obs = c.observacao ? ` — ${c.observacao}` : '';
-          const texto = `${icone} ${c.item}${obs}`;
-          y = this.renderTextRow(doc, texto, margin, y, contentWidth);
+      if (cfg.secoes.checklist) {
+        y = this.renderSectionHeader(doc, 'CHECKLIST', margin, y, contentWidth);
+        if (checklist.length === 0) {
+          y = this.renderEmptyRow(doc, margin, y, contentWidth);
+        } else {
+          for (const c of checklist) {
+            const icone = c.resposta ? '✓' : '○';
+            const obs = c.observacao ? ` — ${c.observacao}` : '';
+            const texto = `${icone} ${c.item}${obs}`;
+            y = this.renderTextRow(doc, texto, margin, y, contentWidth);
+          }
         }
       }
 
       // ── Seção Fotos ─────────────────────────────────────────────────────
-      if (fotos.length > 0) {
+      if (cfg.secoes.fotos && fotos.length > 0) {
         y = this.renderSectionHeader(doc, `REGISTRO FOTOGRÁFICO (${fotos.length} foto${fotos.length !== 1 ? 's' : ''})`, margin, y, contentWidth);
         for (const foto of fotos) {
           const legenda = foto.legenda ? ` — ${foto.legenda}` : '';
@@ -320,15 +379,16 @@ export class RdoPdfService {
       }
 
       // ── Seção Assinaturas ───────────────────────────────────────────────
-      y = this.renderSectionHeader(doc, 'ASSINATURAS', margin, y, contentWidth);
-
-      if (assinaturas.length === 0) {
-        y = this.renderEmptyRow(doc, margin, y, contentWidth);
-      } else {
-        for (const a of assinaturas) {
-          const dataAssinatura = this.formatarDataHora(a.criado_em);
-          const texto = `${a.tipo.toUpperCase()} — Assinado em: ${dataAssinatura}`;
-          y = this.renderTextRow(doc, texto, margin, y, contentWidth);
+      if (cfg.secoes.assinaturas) {
+        y = this.renderSectionHeader(doc, 'ASSINATURAS', margin, y, contentWidth);
+        if (assinaturas.length === 0) {
+          y = this.renderEmptyRow(doc, margin, y, contentWidth);
+        } else {
+          for (const a of assinaturas) {
+            const dataAssinatura = this.formatarDataHora(a.criado_em);
+            const texto = `${a.tipo.toUpperCase()} — Assinado em: ${dataAssinatura}`;
+            y = this.renderTextRow(doc, texto, margin, y, contentWidth);
+          }
         }
       }
 

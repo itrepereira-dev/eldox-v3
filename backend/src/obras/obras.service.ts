@@ -356,6 +356,71 @@ export class ObrasService {
   }
 
   // ─────────────────────────────────────────
+  // RELATÓRIO CONFIG (G8 — personalização do PDF por obra)
+  // ─────────────────────────────────────────
+
+  /** Defaults aplicados quando `relatorio_config` é NULL. */
+  private readonly RELATORIO_CONFIG_DEFAULT = {
+    logo_cliente_url: null as string | null,
+    titulo: null as string | null,
+    secoes: {
+      clima: true,
+      mao_obra: true,
+      equipamentos: true,
+      atividades: true,
+      ocorrencias: true,
+      checklist: true,
+      fotos: true,
+      assinaturas: true,
+    },
+  };
+
+  async getRelatorioConfig(tenantId: number, id: number) {
+    const obra = await this.findOne(tenantId, id);
+    const raw = (obra as { relatorioConfig?: unknown }).relatorioConfig;
+    if (!raw || typeof raw !== 'object') {
+      return this.RELATORIO_CONFIG_DEFAULT;
+    }
+    const merged = raw as Record<string, unknown>;
+    return {
+      logo_cliente_url:
+        (merged.logo_cliente_url as string | null | undefined) ?? null,
+      titulo: (merged.titulo as string | null | undefined) ?? null,
+      secoes: {
+        ...this.RELATORIO_CONFIG_DEFAULT.secoes,
+        ...((merged.secoes as Record<string, boolean> | undefined) ?? {}),
+      },
+    };
+  }
+
+  async patchRelatorioConfig(
+    tenantId: number,
+    id: number,
+    dto: {
+      logo_cliente_url?: string | null;
+      titulo?: string | null;
+      secoes?: Record<string, boolean>;
+    },
+  ) {
+    const atual = await this.getRelatorioConfig(tenantId, id);
+    const next = {
+      logo_cliente_url:
+        dto.logo_cliente_url !== undefined
+          ? dto.logo_cliente_url
+          : atual.logo_cliente_url,
+      titulo: dto.titulo !== undefined ? dto.titulo : atual.titulo,
+      secoes: { ...atual.secoes, ...(dto.secoes ?? {}) },
+    };
+
+    await this.prisma.obra.update({
+      where: { id },
+      data: { relatorioConfig: next as unknown as Prisma.InputJsonValue },
+    });
+
+    return next;
+  }
+
+  // ─────────────────────────────────────────
   // OBRA NÍVEIS CONFIG
   // ─────────────────────────────────────────
 

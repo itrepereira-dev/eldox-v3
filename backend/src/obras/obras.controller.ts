@@ -130,6 +130,32 @@ export class ObrasController {
   }
 
   // ─────────────────────────────────────────
+  // PERSONALIZAÇÃO DO RELATÓRIO PDF (G8)
+  // ─────────────────────────────────────────
+
+  @Get('obras/:id/relatorio-config')
+  getRelatorioConfig(
+    @TenantId() tenantId: number,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.obrasService.getRelatorioConfig(tenantId, id);
+  }
+
+  @Patch('obras/:id/relatorio-config')
+  @Roles('ADMIN_TENANT' as any, 'ENGENHEIRO' as any)
+  patchRelatorioConfig(
+    @TenantId() tenantId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: {
+      logo_cliente_url?: string | null;
+      titulo?: string | null;
+      secoes?: Record<string, boolean>;
+    },
+  ) {
+    return this.obrasService.patchRelatorioConfig(tenantId, id, body);
+  }
+
+  // ─────────────────────────────────────────
   // OBRA NÍVEIS CONFIG
   // ─────────────────────────────────────────
 
