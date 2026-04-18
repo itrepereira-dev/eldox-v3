@@ -28,6 +28,7 @@ import {
   TestTubes,
   Gauge,
   ListChecks,
+  LogOut,
 } from 'lucide-react'
 
 /* ── larguras ────────────────────────────────────────── */
@@ -99,6 +100,7 @@ function SidebarFooter() {
   const { collapsed } = useAppShell()
   const { theme, toggleTheme } = useTheme()
   const user = useAuthStore((s) => s.user)
+  const logout = useAuthStore((s) => s.logout)
 
   const initials = user?.nome
     ? user.nome.split(' ').slice(0, 2).map((n) => n[0]).join('').toUpperCase()
@@ -171,6 +173,19 @@ function SidebarFooter() {
           )}
         >
           <Settings size={14} />
+        </button>
+
+        <button
+          onClick={logout}
+          title="Sair"
+          aria-label="Encerrar sessão"
+          className={cn(
+            'w-7 h-7 rounded-sm flex items-center justify-center',
+            'text-[var(--text-faint)] hover:text-red-400',
+            'hover:bg-[var(--bg-hover)] transition-colors duration-[150ms]',
+          )}
+        >
+          <LogOut size={14} />
         </button>
       </div>
     </div>
