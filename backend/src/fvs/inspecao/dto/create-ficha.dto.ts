@@ -31,6 +31,12 @@ export class CreateFichaDto {
   @IsNumber()
   modeloId?: number;
 
+  // Locais para todos os serviços do template (usado quando modeloId está presente)
+  @IsOptional()
+  @IsArray()
+  @IsNumber({}, { each: true })
+  localIds?: number[];
+
   // Obrigatório apenas quando modeloId não fornecido
   @ValidateIf((o) => !o.modeloId)
   @IsEnum(['pbqph', 'norma_tecnica', 'livre'])

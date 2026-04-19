@@ -47,12 +47,13 @@ export function AbrirFichaWizard({ obras: obrasProp = [], locaisPorObra = {} }: 
   const obras: { id: number; nome: string }[] =
     obrasProp.length > 0 ? obrasProp : ((obrasData as any)?.items ?? obrasData ?? []);
 
-  const [step, setStep]         = useState(1);
-  const [obraId, setObraId]     = useState<number | null>(null);
-  const [regime, setRegime]     = useState<RegimeFicha>('livre');
-  const [modeloId, setModeloId] = useState<number | null>(null);
+  const [step, setStep]           = useState(1);
+  const [obraId, setObraId]       = useState<number | null>(null);
+  const [regime, setRegime]       = useState<RegimeFicha>('livre');
+  const [modeloId, setModeloId]   = useState<number | null>(null);
+  const [localIdsSelecionados, setLocalIdsSelecionados] = useState<number[]>([]);
   const [servicosSelecionados, setServicosSelecionados] = useState<ServicoComLocais[]>([]);
-  const [error, setError]       = useState('');
+  const [error, setError]         = useState('');
 
   const { data: modelosDisponiveis = [] } = useModelosByObra(obraId ?? 0);
 
@@ -93,6 +94,13 @@ export function AbrirFichaWizard({ obras: obrasProp = [], locaisPorObra = {} }: 
   function handleSelecionarModelo(mId: number | null) {
     setModeloId(mId);
     if (!mId) setServicosSelecionados([]);
+    setLocalIdsSelecionados([]);
+  }
+
+  function toggleLocalTemplate(localId: number) {
+    setLocalIdsSelecionados(prev =>
+      prev.includes(localId) ? prev.filter(id => id !== localId) : [...prev, localId],
+    );
   }
 
   async function handleConfirmar() {
@@ -102,8 +110,12 @@ export function AbrirFichaWizard({ obras: obrasProp = [], locaisPorObra = {} }: 
     const nome = codigoGerado;
 
     if (modeloId) {
+      if (!localIdsSelecionados.length) {
+        setError('Selecione ao menos um local para inspecionar.');
+        return;
+      }
       try {
-        const ficha = await createFicha.mutateAsync({ obraId, nome, modeloId });
+        const ficha = await createFicha.mutateAsync({ obraId, nome, modeloId, localIds: localIdsSelecionados });
         navigate(`/fvs/fichas/${ficha.id}`);
       } catch (e: any) {
         setError(e?.response?.data?.message ?? 'Erro ao criar inspeção');
@@ -223,11 +235,10 @@ export function AbrirFichaWizard({ obras: obrasProp = [], locaisPorObra = {} }: 
             ← Voltar
           </button>
           <button
-            onClick={() => { if (modeloId) { handleConfirmar(); } else setStep(3); }}
-            disabled={createFicha.isPending}
-            className="px-5 py-2 rounded-md bg-[var(--accent)] text-white text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-40"
+            onClick={() => setStep(3)}
+            className="px-5 py-2 rounded-md bg-[var(--accent)] text-white text-sm font-medium hover:opacity-90 transition-opacity"
           >
-            {createFicha.isPending ? 'Criando...' : modeloId ? 'Criar Inspeção' : 'Próximo →'}
+            Próximo →
           </button>
         </div>
         {error && (
@@ -239,8 +250,96 @@ export function AbrirFichaWizard({ obras: obrasProp = [], locaisPorObra = {} }: 
     );
   }
 
-  // ── Step 3: Serviços e Locais ─────────────────────────────────────────────────
-  if (step === 3) {
+  // ── Step 3 com template: selecionar locais ────────────────────────────────────
+  if (step === 3 && modeloId) {
+    const modeloNome = modelosDisponiveis.find(m => m.modelo_id === modeloId)?.modelo_nome ?? 'Template';
+    return (
+      <div className="p-6 max-w-xl">
+        <h2 className="text-lg font-semibold text-[var(--text-high)] mb-1">Selecionar Locais</h2>
+        <p className="text-sm text-[var(--text-faint)] mb-4">
+          Template: <span className="font-medium text-[var(--text-high)]">{modeloNome}</span>
+          {' — '}os locais abaixo serão inspecionados para todos os serviços do template.
+        </p>
+
+        {codigoGerado && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-[var(--bg-raised)] border border-[var(--border-dim)] mb-4">
+            <Hash size={13} className="text-[var(--text-faint)] flex-shrink-0" />
+            <span className="text-xs text-[var(--text-faint)]">Código gerado:</span>
+            <span className="text-xs font-mono font-semibold text-[var(--accent)]">{codigoGerado}</span>
+          </div>
+        )}
+
+        <div className="mb-1 flex items-center justify-between">
+          <p className="text-xs font-semibold text-[var(--text-faint)] uppercase tracking-wide">Locais da obra:</p>
+          <label className="flex items-center gap-1.5 text-xs text-[var(--accent)] cursor-pointer font-medium">
+            <input
+              type="checkbox"
+              checked={locais.length > 0 && localIdsSelecionados.length === locais.length}
+              onChange={() => {
+                const allSel = localIdsSelecionados.length === locais.length;
+                setLocalIdsSelecionados(allSel ? [] : locais.map(l => l.id));
+              }}
+              className="accent-[var(--accent)] w-3.5 h-3.5"
+            />
+            Todos ({locais.length})
+          </label>
+        </div>
+
+        {locais.length === 0 ? (
+          <p className="text-sm text-[var(--text-faint)] py-4 text-center border border-dashed border-[var(--border-dim)] rounded-lg">
+            Nenhum local cadastrado nesta obra. Cadastre locais na obra antes de criar a inspeção.
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-2 mb-5 max-h-60 overflow-y-auto pr-1 py-2">
+            {locais.map(local => (
+              <label
+                key={local.id}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-md border cursor-pointer text-sm transition-colors',
+                  localIdsSelecionados.includes(local.id)
+                    ? 'border-[var(--accent)] bg-[var(--accent-subtle,#eff6ff)] text-[var(--accent)]'
+                    : 'border-[var(--border-dim)] bg-[var(--bg-raised)] text-[var(--text-mid)] hover:bg-[var(--bg-hover)]',
+                )}
+              >
+                <input
+                  type="checkbox"
+                  checked={localIdsSelecionados.includes(local.id)}
+                  onChange={() => toggleLocalTemplate(local.id)}
+                  className="accent-[var(--accent)] w-3.5 h-3.5"
+                />
+                {local.nome}
+              </label>
+            ))}
+          </div>
+        )}
+
+        {error && (
+          <p className="text-sm text-[var(--nc-text)] px-3 py-2 rounded-md bg-[var(--nc-bg)] border border-[var(--nc-border)] mb-4">
+            {error}
+          </p>
+        )}
+
+        <div className="flex gap-2">
+          <button
+            onClick={() => setStep(2)}
+            className="px-4 py-2 rounded-md text-sm border border-[var(--border-dim)] text-[var(--text-mid)] hover:bg-[var(--bg-hover)] transition-colors"
+          >
+            ← Voltar
+          </button>
+          <button
+            onClick={handleConfirmar}
+            disabled={createFicha.isPending || localIdsSelecionados.length === 0}
+            className="px-5 py-2 rounded-md bg-[var(--accent)] text-white text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-40"
+          >
+            {createFicha.isPending ? 'Criando...' : `Criar Inspeção (${localIdsSelecionados.length} local${localIdsSelecionados.length !== 1 ? 'is' : ''})`}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Step 3 manual: Serviços e Locais ─────────────────────────────────────────
+  if (step === 3 && !modeloId) {
     return (
       <div className="p-6 max-w-xl">
         <h2 className="text-lg font-semibold text-[var(--text-high)] mb-1">Selecionar Serviços e Locais</h2>

@@ -360,6 +360,7 @@ export interface CreateFichaPayload {
   obraId: number;
   nome: string;
   modeloId?: number;
+  localIds?: number[];  // locais para todos os serviços do template
   regime?: 'pbqph' | 'norma_tecnica' | 'livre';
   servicos?: { servicoId: number; localIds: number[]; itensExcluidos?: number[] }[];
 }

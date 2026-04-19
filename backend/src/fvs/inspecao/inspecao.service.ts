@@ -228,14 +228,24 @@ export class InspecaoService {
 
       // Serviços do template
       for (const svc of servicosDoTemplate) {
-        await tx.$queryRawUnsafe<{ id: number }[]>(
+        const fichaServicos = await tx.$queryRawUnsafe<{ id: number }[]>(
           `INSERT INTO fvs_ficha_servicos (tenant_id, ficha_id, servico_id, itens_excluidos)
            VALUES ($1, $2, $3, $4)
            RETURNING id`,
           tenantId, ficha.id, svc.servico_id,
           svc.itens_excluidos?.length ? svc.itens_excluidos : null,
         );
-        // Nota: locais não são copiados do template — usuário adiciona manualmente
+        // Inserir locais selecionados pelo usuário no wizard para cada serviço do template
+        if (dto.localIds?.length) {
+          const fichaServicoId = fichaServicos[0].id;
+          for (const localId of dto.localIds) {
+            await tx.$executeRawUnsafe(
+              `INSERT INTO fvs_ficha_servico_locais (tenant_id, ficha_servico_id, obra_local_id)
+               VALUES ($1, $2, $3)`,
+              tenantId, fichaServicoId, localId,
+            );
+          }
+        }
       }
 
       // Serviços manuais (sem template)
