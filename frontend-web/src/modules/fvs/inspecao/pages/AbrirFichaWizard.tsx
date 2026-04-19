@@ -59,11 +59,13 @@ export function AbrirFichaWizard({ obras: obrasProp = [], locaisPorObra = {} }: 
 
   const { data: locaisData = [] } = useQuery({
     queryKey: ['obra-locais-wizard', obraId],
-    queryFn: () => obrasService.getLocais(obraId!, { nivel: 2 }),
+    queryFn: () => obrasService.getLocais(obraId!),
     enabled: !!obraId && Object.keys(locaisPorObra).length === 0,
   });
+  // Mostra apenas locais-folha (sem filhos) — unidades/apartamentos independente do nível
+  const locaisFolha = locaisData.filter(l => l.totalFilhos === 0);
   const locais = obraId
-    ? (locaisPorObra[obraId] ?? locaisData.map(l => ({ id: l.id, nome: l.nomeCompleto })))
+    ? (locaisPorObra[obraId] ?? locaisFolha.map(l => ({ id: l.id, nome: l.nomeCompleto })))
     : [];
 
   const obraSelecionada  = obras.find(o => o.id === obraId);
