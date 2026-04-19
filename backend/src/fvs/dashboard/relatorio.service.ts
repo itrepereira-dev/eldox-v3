@@ -51,7 +51,7 @@ export class RelatorioService {
   ): Promise<RelatorioConformidadeResponse> {
     // Resolve obra nome
     const obraRows = await this.prisma.$queryRawUnsafe<{ nome: string }[]>(
-      `SELECT nome FROM obras WHERE id = $1 AND tenant_id = $2`,
+      `SELECT nome FROM "Obra" WHERE id = $1 AND "tenantId" = $2 AND "deletadoEm" IS NULL`,
       obraId, tenantId,
     );
     const obra_nome = obraRows[0]?.nome ?? '';
@@ -60,7 +60,7 @@ export class RelatorioService {
     let servico_nome: string | null = null;
     if (servicoId) {
       const sRows = await this.prisma.$queryRawUnsafe<{ nome: string }[]>(
-        `SELECT nome FROM fvs_servicos WHERE id = $1 AND tenant_id = $2`,
+        `SELECT nome FROM fvs_catalogo_servicos WHERE id = $1 AND tenant_id = $2`,
         servicoId, tenantId,
       );
       servico_nome = sRows[0]?.nome ?? null;
@@ -91,11 +91,11 @@ export class RelatorioService {
         COUNT(*) FILTER (WHERE r.status IN ('conforme','conforme_apos_reinspecao','liberado_com_concessao')) AS itens_ok,
         COUNT(*) FILTER (WHERE r.status IN ('nao_conforme','nc_apos_reinspecao','retrabalho')) AS itens_nc
       FROM fvs_fichas f
-      JOIN fvs_fichas_servicos fs ON fs.ficha_id = f.id
+      JOIN fvs_ficha_servicos fs ON fs.ficha_id = f.id
       JOIN fvs_registros r ON r.ficha_id = f.id AND r.servico_id = fs.servico_id
-      LEFT JOIN fvs_fichas_servicos_locais fsl ON fsl.ficha_servico_id = fs.id
+      LEFT JOIN fvs_ficha_servico_locais fsl ON fsl.ficha_servico_id = fs.id
       LEFT JOIN obra_locais ol ON ol.id = fsl.obra_local_id
-      LEFT JOIN users u ON u.id = f.criado_por
+      LEFT JOIN "Usuario" u ON u.id = f.criado_por
       WHERE f.obra_id = $1
         AND f.tenant_id = $2
         AND f.deleted_at IS NULL
@@ -135,7 +135,7 @@ export class RelatorioService {
         COUNT(*) FILTER (WHERE r.status IN ('conforme','conforme_apos_reinspecao','liberado_com_concessao')) AS aprovadas
       FROM fvs_registros r
       JOIN fvs_fichas f ON f.id = r.ficha_id
-      JOIN fvs_fichas_servicos fs ON fs.ficha_id = f.id AND fs.servico_id = r.servico_id
+      JOIN fvs_ficha_servicos fs ON fs.ficha_id = f.id AND fs.servico_id = r.servico_id
       WHERE f.obra_id = $1
         AND f.tenant_id = $2
         AND f.deleted_at IS NULL
@@ -176,8 +176,8 @@ export class RelatorioService {
         COUNT(*) FILTER (WHERE r.status IN ('nao_conforme','nc_apos_reinspecao','retrabalho')) AS itens_nc
       FROM fvs_registros r
       JOIN fvs_fichas f ON f.id = r.ficha_id
-      JOIN fvs_fichas_servicos fs ON fs.ficha_id = f.id AND fs.servico_id = r.servico_id
-      LEFT JOIN fvs_fichas_servicos_locais fsl ON fsl.ficha_servico_id = fs.id
+      JOIN fvs_ficha_servicos fs ON fs.ficha_id = f.id AND fs.servico_id = r.servico_id
+      LEFT JOIN fvs_ficha_servico_locais fsl ON fsl.ficha_servico_id = fs.id
       LEFT JOIN obra_locais ol ON ol.id = r.obra_local_id
       WHERE f.obra_id = $1
         AND f.tenant_id = $2
@@ -211,8 +211,8 @@ export class RelatorioService {
         COUNT(*) AS total
       FROM fvs_registros r
       JOIN fvs_fichas f ON f.id = r.ficha_id
-      JOIN fvs_fichas_servicos fs ON fs.ficha_id = f.id AND fs.servico_id = r.servico_id
-      JOIN fvs_itens i ON i.id = r.item_id
+      JOIN fvs_ficha_servicos fs ON fs.ficha_id = f.id AND fs.servico_id = r.servico_id
+      JOIN fvs_catalogo_itens i ON i.id = r.item_id AND i.tenant_id IN (0, $2)
       WHERE f.obra_id = $1
         AND f.tenant_id = $2
         AND f.deleted_at IS NULL
@@ -252,7 +252,7 @@ export class RelatorioService {
   ) {
     // Resolve obra nome
     const obraRows = await this.prisma.$queryRawUnsafe<{ nome: string }[]>(
-      `SELECT nome FROM obras WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+      `SELECT nome FROM "Obra" WHERE id = $1 AND "tenantId" = $2 AND "deletadoEm" IS NULL`,
       obraId, tenantId,
     );
     if (!obraRows[0]) throw new Error('Obra não encontrada');
@@ -274,8 +274,8 @@ export class RelatorioService {
         COUNT(r.id) FILTER (WHERE r.status IN ('conforme','conforme_apos_reinspecao','liberado_com_concessao')) AS registros_ok,
         COUNT(r.id) FILTER (WHERE r.status IN ('nao_conforme','nc_apos_reinspecao','retrabalho')) AS registros_nc
       FROM fvs_fichas f
-      JOIN fvs_fichas_servicos fs ON fs.ficha_id = f.id
-      JOIN fvs_servicos s ON s.id = fs.servico_id
+      JOIN fvs_ficha_servicos fs ON fs.ficha_id = f.id
+      JOIN fvs_catalogo_servicos s ON s.id = fs.servico_id AND s.tenant_id IN (0, $2)
       LEFT JOIN fvs_registros r ON r.ficha_id = f.id AND r.servico_id = fs.servico_id
       WHERE f.obra_id = $1
         AND f.tenant_id = $2
@@ -315,7 +315,7 @@ export class RelatorioService {
         COUNT(*) AS total_fichas,
         COUNT(*) FILTER (WHERE f.status IN ('concluida','aprovada')) AS fichas_concluidas
       FROM fvs_fichas f
-      LEFT JOIN users u ON u.id = f.criado_por
+      LEFT JOIN "Usuario" u ON u.id = f.criado_por
       WHERE f.obra_id = $1
         AND f.tenant_id = $2
         AND f.deleted_at IS NULL
