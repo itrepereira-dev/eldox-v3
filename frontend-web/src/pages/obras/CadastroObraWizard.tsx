@@ -96,7 +96,7 @@ export function CadastroObraWizard() {
     quantidade: 1,
   });
 
-  const { data: tipos = [] } = useQuery<ObraTipo[]>({
+  const { data: tipos = [], isLoading: tiposLoading, isError: tiposError, refetch: tiposRefetch } = useQuery<ObraTipo[]>({
     queryKey: ['obra-tipos'],
     queryFn: () => obrasService.getTipos(),
   });
@@ -300,16 +300,39 @@ export function CadastroObraWizard() {
             </Campo>
 
             <Campo label="Tipo de Obra *">
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                {tipos.map((tipo) => (
-                  <TipoCard
-                    key={tipo.id}
-                    tipo={tipo}
-                    selecionado={state.obraTipoId === tipo.id}
-                    onSelecionar={() => set('obraTipoId', tipo.id)}
-                  />
-                ))}
-              </div>
+              {tiposLoading && (
+                <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-60)', fontSize: '14px' }}>
+                  Carregando tipos de obra…
+                </div>
+              )}
+              {tiposError && (
+                <div style={{ padding: '12px 16px', background: 'rgba(255,61,87,0.1)', border: '1px solid var(--status-error)', borderRadius: 'var(--radius-md)', color: 'var(--status-error)', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                  <span>Erro ao carregar tipos de obra. Verifique sua conexão.</span>
+                  <button
+                    onClick={() => tiposRefetch()}
+                    style={{ background: 'none', border: '1px solid var(--status-error)', borderRadius: 'var(--radius-sm)', color: 'var(--status-error)', padding: '4px 10px', cursor: 'pointer', fontSize: '12px', whiteSpace: 'nowrap' }}
+                  >
+                    Tentar novamente
+                  </button>
+                </div>
+              )}
+              {!tiposLoading && !tiposError && tipos.length === 0 && (
+                <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-60)', fontSize: '13px', border: '1px dashed var(--bg-border)', borderRadius: 'var(--radius-md)' }}>
+                  Nenhum tipo de obra cadastrado. Entre em contato com o suporte.
+                </div>
+              )}
+              {!tiposLoading && tipos.length > 0 && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  {tipos.map((tipo) => (
+                    <TipoCard
+                      key={tipo.id}
+                      tipo={tipo}
+                      selecionado={state.obraTipoId === tipo.id}
+                      onSelecionar={() => set('obraTipoId', tipo.id)}
+                    />
+                  ))}
+                </div>
+              )}
             </Campo>
 
             <Campo label="Modo de Qualidade">
@@ -338,6 +361,16 @@ export function CadastroObraWizard() {
               </div>
             </Campo>
 
+            {!podeAvancarEtapa0 && (state.nome.trim().length > 0 || state.obraTipoId !== null) && (
+              <div style={{ fontSize: '13px', color: 'var(--text-60)', marginBottom: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {state.nome.trim().length < 2 && (
+                  <span>• Informe o nome da obra (mínimo 2 caracteres)</span>
+                )}
+                {state.obraTipoId === null && (
+                  <span>• Selecione um tipo de obra acima</span>
+                )}
+              </div>
+            )}
             <BotoesWizard
               onAvancar={handleAvancarEtapa0}
               podeAvancar={podeAvancarEtapa0}
