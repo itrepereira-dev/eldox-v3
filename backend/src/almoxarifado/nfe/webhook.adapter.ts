@@ -152,13 +152,25 @@ export function extractTenantIdFromPayload(
 // ─── Helpers privados ────────────────────────────────────────────────────────
 
 function extractChave(raw: Record<string, unknown>): string | null {
+  // Atributo `Id` do elemento <infNFe> vem com prefixo "NFe" (ex: "NFe35260512...")
+  // e é onde a chave fica em XML NF-e ainda não autorizado pelo SEFAZ (emissões
+  // em teste, uploads manuais antes da transmissão). O fast-xml-parser expõe
+  // atributos com prefixo "@_".
+  const infNFeId =
+    (raw['nfeProc'] as any)?.['NFe']?.['infNFe']?.['@_Id'] ??
+    (raw['NFe'] as any)?.['infNFe']?.['@_Id'] ??
+    (raw['infNFe'] as any)?.['@_Id'];
+
   // Tenta vários campos onde a chave pode estar
   const candidates = [
     raw['chave_nfe'],
     raw['chNFe'],
     raw['chave'],
+    // Em NF-e autorizada, a chave aparece sem prefixo dentro do protocolo
     (raw['nfeProc'] as any)?.['protNFe']?.['infProt']?.['chNFe'],
     (raw['protNFe'] as any)?.['infProt']?.['chNFe'],
+    // Fallback: Id do infNFe (sempre presente, mesmo em NF-e não autorizada)
+    infNFeId ? String(infNFeId).replace(/^NFe/i, '') : null,
   ];
 
   for (const c of candidates) {
