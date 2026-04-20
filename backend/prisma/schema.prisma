@@ -37,6 +37,7 @@ model Tenant {
   obras               Obra[]
   workflowTemplates   WorkflowTemplate[]
   aprovacaoInstancias AprovacaoInstancia[]
+  perfisAcesso        PerfilAcesso[]
 }
 
 // ─────────────────────────────────────────
@@ -60,18 +61,31 @@ model Usuario {
   email      String
   senhaHash  String
   role       Role      @default(TECNICO)
+  status     StatusUsuario @default(ATIVO)
   ativo      Boolean   @default(true)
   criadoEm  DateTime  @default(now())
   deletadoEm      DateTime?
   dashboardLayout Json?     @map("dashboard_layout")
 
-  rdosCriados      Rdo[]           @relation("RdoCriadoPor")
-  rdosAprovados    Rdo[]           @relation("RdoAprovadoPor")
-  rdoAssinaturas   RdoAssinatura[] @relation("RdoAssinaturas")
-  rdoLogEdicoes    RdoLogEdicao[]  @relation("RdoLogEdicoes")
+  // Convite / reset de senha: token raw nunca armazenado (apenas sha256)
+  tokenHash  String?   @map("token_hash") @db.Char(64)
+  tokenExp   DateTime? @map("token_exp")
+
+  // Perfil de acesso (nullable — ADMIN_TENANT e SUPER_ADMIN não precisam)
+  perfilAcessoId Int?          @map("perfil_acesso_id")
+  perfilAcesso   PerfilAcesso? @relation(fields: [perfilAcessoId], references: [id], onDelete: SetNull)
+
+  rdosCriados          Rdo[]                      @relation("RdoCriadoPor")
+  rdosAprovados        Rdo[]                      @relation("RdoAprovadoPor")
+  rdoAssinaturas       RdoAssinatura[]            @relation("RdoAssinaturas")
+  rdoLogEdicoes        RdoLogEdicao[]             @relation("RdoLogEdicoes")
+  obrasLiberadas       UsuarioObra[]
+  overrides            UsuarioPermissaoOverride[] @relation("OverridesDoUsuario")
+  overridesConcedidos  UsuarioPermissaoOverride[] @relation("OverridesConcedidosPor")
 
   @@unique([tenantId, email])
   @@index([tenantId])
+  @@index([tokenHash])
 }
 
 // ─────────────────────────────────────────
@@ -186,10 +200,11 @@ model Obra {
   atualizadoEm DateTime  @updatedAt
   deletadoEm  DateTime?
 
-  locais        ObraLocal[]
-  niveisConfig  ObraNivelConfig[]
-  qualityConfig ObraQualityConfig?
-  rdos          Rdo[]
+  locais              ObraLocal[]
+  niveisConfig        ObraNivelConfig[]
+  qualityConfig       ObraQualityConfig?
+  rdos                Rdo[]
+  usuariosAutorizados UsuarioObra[]
 
   @@index([tenantId])
   @@index([tenantId, deletadoEm])
@@ -879,4 +894,103 @@ model ItemEfetivo {
   @@index([registroEfetivoId])
   @@index([tenantId])
   @@map("itens_efetivo")
+}
+
+// ─────────────────────────────────────────
+// GESTÃO DE USUÁRIOS — PERFIS DE ACESSO E PERMISSÕES
+// ─────────────────────────────────────────
+// Spec: docs/superpowers/specs/2026-04-16-gestao-usuarios-permissoes-design.md
+// Resolução de permissão:
+//   1. ADMIN_TENANT / SUPER_ADMIN → passa sempre
+//   2. UsuarioPermissaoOverride por módulo (grant/deny explícito)
+//   3. PerfilPermissao via perfil_acesso_id (nível hierárquico ≥ requerido)
+//   4. Nenhum → 403
+
+enum StatusUsuario {
+  PENDENTE   // convite enviado, aguardando finalização
+  ATIVO
+  INATIVO
+}
+
+enum PermissaoModulo {
+  CONCRETAGEM
+  NC
+  RO
+  LAUDOS
+  OBRAS
+  USUARIOS
+  RELATORIOS
+}
+
+enum NivelPermissao {
+  VISUALIZAR    // 1
+  OPERAR        // 2
+  APROVAR       // 3
+  ADMINISTRAR   // 4
+}
+
+model PerfilAcesso {
+  id           Int       @id @default(autoincrement())
+  tenantId     Int       @map("tenant_id")
+  nome         String    @db.VarChar(100)
+  descricao    String?   @db.Text
+  ativo        Boolean   @default(true)
+  criadoEm     DateTime  @default(now()) @map("created_at")
+  atualizadoEm DateTime  @updatedAt @map("updated_at")
+  deletadoEm   DateTime? @map("deleted_at")
+
+  tenant     Tenant            @relation(fields: [tenantId], references: [id])
+  permissoes PerfilPermissao[]
+  usuarios   Usuario[]
+
+  @@unique([tenantId, nome])
+  @@index([tenantId])
+  @@map("perfis_acesso")
+}
+
+model PerfilPermissao {
+  id             Int             @id @default(autoincrement())
+  perfilAcessoId Int             @map("perfil_acesso_id")
+  modulo         PermissaoModulo
+  nivel          NivelPermissao
+
+  perfil PerfilAcesso @relation(fields: [perfilAcessoId], references: [id], onDelete: Cascade)
+
+  @@unique([perfilAcessoId, modulo])
+  @@index([perfilAcessoId])
+  @@map("perfil_permissoes")
+}
+
+model UsuarioObra {
+  id        Int      @id @default(autoincrement())
+  tenantId  Int      @map("tenant_id")
+  usuarioId Int      @map("usuario_id")
+  obraId    Int      @map("obra_id")
+  criadoEm  DateTime @default(now()) @map("created_at")
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  obra    Obra    @relation(fields: [obraId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, obraId])
+  @@index([tenantId, usuarioId])
+  @@index([tenantId, obraId])
+  @@map("usuario_obras")
+}
+
+model UsuarioPermissaoOverride {
+  id             Int             @id @default(autoincrement())
+  tenantId       Int             @map("tenant_id")
+  usuarioId      Int             @map("usuario_id")
+  modulo         PermissaoModulo
+  nivel          NivelPermissao
+  concedido      Boolean         // true=grant, false=deny
+  concedidoPorId Int             @map("concedido_por_id")
+  criadoEm       DateTime        @default(now()) @map("created_at")
+
+  usuario      Usuario @relation("OverridesDoUsuario",       fields: [usuarioId],      references: [id], onDelete: Cascade)
+  concedidoPor Usuario @relation("OverridesConcedidosPor",   fields: [concedidoPorId], references: [id])
+
+  @@unique([usuarioId, modulo])
+  @@index([tenantId, usuarioId])
+  @@map("usuario_permissao_overrides")
 }

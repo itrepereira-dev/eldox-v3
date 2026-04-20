@@ -232,3 +232,41 @@ DROP POLICY IF EXISTS tenant_isolation ON ia_memoria;
 CREATE POLICY tenant_isolation ON ia_memoria
   AS PERMISSIVE FOR ALL TO PUBLIC
   USING (current_setting('app.tenant_id', true)::int = tenant_id);
+
+
+-- =============================================================================
+-- 6. Gestão de Usuários / Permissões — Row Level Security
+--    Aplicar após: 20260420000000_gestao_usuarios_permissoes/migration.sql
+-- =============================================================================
+
+-- perfis_acesso: isolamento por tenant
+ALTER TABLE perfis_acesso ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON perfis_acesso;
+CREATE POLICY tenant_isolation ON perfis_acesso
+  AS PERMISSIVE FOR ALL TO PUBLIC
+  USING (current_setting('app.tenant_id', true)::int = tenant_id);
+
+-- perfil_permissoes: sem coluna tenant_id direta → joina via perfil_acesso
+ALTER TABLE perfil_permissoes ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON perfil_permissoes;
+CREATE POLICY tenant_isolation ON perfil_permissoes
+  AS PERMISSIVE FOR ALL TO PUBLIC
+  USING (EXISTS (
+    SELECT 1 FROM perfis_acesso p
+    WHERE p.id = perfil_permissoes.perfil_acesso_id
+      AND current_setting('app.tenant_id', true)::int = p.tenant_id
+  ));
+
+-- usuario_obras: isolamento por tenant
+ALTER TABLE usuario_obras ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON usuario_obras;
+CREATE POLICY tenant_isolation ON usuario_obras
+  AS PERMISSIVE FOR ALL TO PUBLIC
+  USING (current_setting('app.tenant_id', true)::int = tenant_id);
+
+-- usuario_permissao_overrides: isolamento por tenant
+ALTER TABLE usuario_permissao_overrides ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON usuario_permissao_overrides;
+CREATE POLICY tenant_isolation ON usuario_permissao_overrides
+  AS PERMISSIVE FOR ALL TO PUBLIC
+  USING (current_setting('app.tenant_id', true)::int = tenant_id);
