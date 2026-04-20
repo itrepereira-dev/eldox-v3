@@ -10,6 +10,7 @@ import { AuditLogModule } from './common/services/audit-log.service';
 import { AuthModule } from './auth/auth.module';
 import { UsuariosModule } from './usuarios/usuarios.module';
 import { PerfisAcessoModule } from './perfis-acesso/perfis-acesso.module';
+import { PlatformModule } from './platform/platform.module';
 import { ObrasModule } from './obras/obras.module';
 import { GedModule } from './ged/ged.module';
 import { FvsModule } from './fvs/fvs.module';
@@ -54,6 +55,7 @@ import { PlanosAcaoModule } from './planos-acao/planos-acao.module';
     AuthModule,
     UsuariosModule,
     PerfisAcessoModule,
+    PlatformModule,
     ObrasModule,
     GedModule,
     FvsModule,
