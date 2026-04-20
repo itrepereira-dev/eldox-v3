@@ -1,7 +1,6 @@
 // backend/src/almoxarifado/jobs/almoxarifado.processor.ts
-import { Processor, Process } from '@nestjs/bull';
+import { Processor, Process, InjectQueue } from '@nestjs/bull';
 import { Logger, OnModuleInit } from '@nestjs/common';
-import { InjectQueue } from '@nestjs/bull';
 import type { Job, Queue } from 'bull';
 import { NfeService } from '../nfe/nfe.service';
 import { NfeMatchService } from '../nfe/nfe-match.service';
@@ -10,6 +9,19 @@ import { AgenteAnomaliaService } from '../ia/agente-anomalia.service';
 import { EstoqueService } from '../estoque/estoque.service';
 import { InsightsService } from '../ia/insights.service';
 
+/**
+ * Processor da fila BullMQ "almoxarifado".
+ *
+ * IMPORTANTE — Bull v4 / @nestjs/bull:
+ *   • @Process() sem argumento só consome jobs ADICIONADOS SEM NOME
+ *     (ex: queue.add(data) — sem string como 1º argumento).
+ *   • Jobs nomeados (queue.add('meu-job', data)) precisam de
+ *     @Process('meu-job') específico, senão falham com
+ *     "Missing process handler for job type meu-job".
+ *
+ * Cada handler abaixo é registrado com seu nome exato — espelha os nomes
+ * usados em queue.add() pelos services.
+ */
 @Processor('almoxarifado')
 export class AlmoxarifadoProcessor implements OnModuleInit {
   private readonly logger = new Logger(AlmoxarifadoProcessor.name);
@@ -49,136 +61,116 @@ export class AlmoxarifadoProcessor implements OnModuleInit {
     this.logger.log('Job cron "gerar-insights" registrado (0 */6 * * *)');
   }
 
-  @Process()
-  async process(job: Job<any>): Promise<any> {
-    const start = Date.now();
+  // ─── Wrapper de logs/telemetria ──────────────────────────────────────────
 
+  private async withLog<T>(job: Job, fn: () => Promise<T>): Promise<T> {
+    const start = Date.now();
     this.logger.log(JSON.stringify({
       action: `alm.job.${job.name}`,
       job_id: job.id,
       attempt: job.attemptsMade,
     }));
-
     try {
-      let result: any;
-
-      switch (job.name) {
-        case 'processar-nfe':
-          result = await this.handleProcessarNfe(job.data);
-          break;
-
-        case 'match-nfe-itens':
-          result = await this.handleMatchNfeItens(job.data);
-          break;
-
-        case 'verificar-estoque-min':
-          result = await this.handleVerificarEstoqueMin(job.data);
-          break;
-
-        case 'previsao-reposicao':
-          result = await this.handlePrevisaoReposicao(job.data);
-          break;
-
-        case 'detectar-anomalias':
-          result = await this.handleDetectarAnomalias(job.data);
-          break;
-
-        case 'gerar-insights':
-          result = await this.handleGerarInsights(job.data);
-          break;
-
-        case 'gerar-pdf-oc':
-          result = await this.handleGerarPdfOc(job.data);
-          break;
-
-        case 'notificar-fornecedor':
-          result = await this.handleNotificarFornecedor(job.data);
-          break;
-
-        default:
-          this.logger.warn(`Job desconhecido: ${job.name}`);
-          return;
-      }
-
+      const result = await fn();
       this.logger.log(JSON.stringify({
         action: `alm.job.${job.name}.done`,
         job_id: job.id,
         duration_ms: Date.now() - start,
       }));
-
       return result;
-
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
       this.logger.error(JSON.stringify({
         action: `alm.job.${job.name}.error`,
         job_id: job.id,
-        error: err?.message,
+        error: message,
         duration_ms: Date.now() - start,
       }));
       throw err;
     }
   }
 
-  // ── Sprint 4: NF-e ────────────────────────────────────────────────────────
+  // ─── Handlers por nome de job ────────────────────────────────────────────
 
-  private async handleProcessarNfe(data: { webhookId: number }) {
-    await this.nfeService.processarWebhook(data.webhookId);
+  @Process('processar-nfe')
+  async processarNfe(job: Job<{ webhookId: number }>) {
+    return this.withLog(job, async () => {
+      await this.nfeService.processarWebhook(job.data.webhookId);
+    });
   }
 
-  private async handleMatchNfeItens(data: { nfeId: number; tenantId: number }) {
-    await this.nfeMatchService.matchItens(data.nfeId, data.tenantId);
+  @Process('match-nfe-itens')
+  async matchNfeItens(job: Job<{ nfeId: number; tenantId: number }>) {
+    return this.withLog(job, async () => {
+      await this.nfeMatchService.matchItens(job.data.nfeId, job.data.tenantId);
+    });
   }
 
-  // ── Sprint 5: pendente ────────────────────────────────────────────────────
-
-  private async handleVerificarEstoqueMin(data: { tenantId: number; obraId: number }) {
-    // Verifica alertas de estoque mínimo via query direta (sem IA)
-    const alertas = await this.estoqueService.getAlertas(data.tenantId, data.obraId);
-    this.logger.log(JSON.stringify({
-      action:   'alm.verificar-estoque-min.done',
-      tenantId: data.tenantId,
-      obraId:   data.obraId,
-      alertas:  alertas.length,
-    }));
+  @Process('verificar-estoque-min')
+  async verificarEstoqueMin(job: Job<{ tenantId: number; obraId: number }>) {
+    return this.withLog(job, async () => {
+      const alertas = await this.estoqueService.getAlertas(job.data.tenantId, job.data.obraId);
+      this.logger.log(JSON.stringify({
+        action:   'alm.verificar-estoque-min.done',
+        tenantId: job.data.tenantId,
+        obraId:   job.data.obraId,
+        alertas:  alertas.length,
+      }));
+    });
   }
 
-  private async handlePrevisaoReposicao(data: { tenantId: number; localId: number }) {
-    const predictions = await this.reorderService.executar(data.tenantId, data.localId);
-    this.logger.log(JSON.stringify({
-      action:   'alm.reorder.done',
-      tenantId: data.tenantId,
-      localId:  data.localId,
-      itens:    predictions.length,
-    }));
+  @Process('previsao-reposicao')
+  async previsaoReposicao(job: Job<{ tenantId: number; localId: number }>) {
+    return this.withLog(job, async () => {
+      const predictions = await this.reorderService.executar(job.data.tenantId, job.data.localId);
+      this.logger.log(JSON.stringify({
+        action:   'alm.reorder.done',
+        tenantId: job.data.tenantId,
+        localId:  job.data.localId,
+        itens:    predictions.length,
+      }));
+    });
   }
 
-  private async handleDetectarAnomalias(data: { tenantId: number; localId: number }) {
-    const anomalias = await this.anomaliaService.executar(data.tenantId, data.localId);
-    this.logger.log(JSON.stringify({
-      action:   'alm.anomalia.done',
-      tenantId: data.tenantId,
-      localId:  data.localId,
-      itens:    anomalias.length,
-    }));
+  @Process('detectar-anomalias')
+  async detectarAnomalias(job: Job<{ tenantId: number; localId: number }>) {
+    return this.withLog(job, async () => {
+      const anomalias = await this.anomaliaService.executar(job.data.tenantId, job.data.localId);
+      this.logger.log(JSON.stringify({
+        action:   'alm.anomalia.done',
+        tenantId: job.data.tenantId,
+        localId:  job.data.localId,
+        itens:    anomalias.length,
+      }));
+    });
   }
 
-  private async handleGerarPdfOc(data: any) {
-    // TODO — OcPdfService.gerar(data.ocId)
-    this.logger.log(`[gerar-pdf-oc] ocId=${data.ocId} — pendente`);
+  @Process('gerar-insights')
+  async gerarInsights(job: Job<{ tenantId?: number }>) {
+    return this.withLog(job, async () => {
+      if (job.data.tenantId) {
+        // Acionado via reanalisar (tenant específico)
+        await this.insightsService.executarParaTenant(job.data.tenantId);
+      } else {
+        // Acionado via cron (todos os tenants)
+        await this.insightsService.executarParaTodos();
+      }
+    });
   }
 
-  private async handleNotificarFornecedor(data: any) {
-    // TODO — EmailService.notificarFornecedor(data.ocId)
-    this.logger.log(`[notificar-fornecedor] ocId=${data.ocId} — pendente`);
+  @Process('gerar-pdf-oc')
+  async gerarPdfOc(job: Job<{ ocId: number }>) {
+    return this.withLog(job, async () => {
+      // TODO — OcPdfService.gerar(job.data.ocId)
+      this.logger.log(`[gerar-pdf-oc] ocId=${job.data.ocId} — pendente`);
+    });
   }
 
-  private async handleGerarInsights(data: { tenantId?: number }) {
-    if (data.tenantId) {
-      // Acionado via reanalisar (tenant específico)
-      await this.insightsService.executarParaTenant(data.tenantId);
-    } else {
-      // Acionado via cron (todos os tenants)
-      await this.insightsService.executarParaTodos();
-    }
+  @Process('notificar-fornecedor')
+  async notificarFornecedor(job: Job<{ ocId: number }>) {
+    return this.withLog(job, async () => {
+      // TODO — EmailService.notificarFornecedor(job.data.ocId)
+      this.logger.log(`[notificar-fornecedor] ocId=${job.data.ocId} — pendente`);
+    });
   }
 }
