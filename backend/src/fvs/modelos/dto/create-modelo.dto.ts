@@ -1,7 +1,7 @@
 // backend/src/fvs/modelos/dto/create-modelo.dto.ts
 import {
   IsString, IsNotEmpty, IsOptional, IsEnum, IsBoolean,
-  IsNumber, MaxLength, ValidateIf, IsArray,
+  IsInt, IsPositive, MaxLength, ValidateIf, IsArray,
 } from 'class-validator';
 
 export class CreateModeloDto {
@@ -12,13 +12,15 @@ export class CreateModeloDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(2000)
   descricao?: string;
 
   @IsEnum(['empresa', 'obra'])
   escopo: 'empresa' | 'obra';
 
   @ValidateIf((o) => o.escopo === 'obra')
-  @IsNumber()
+  @IsInt()
+  @IsPositive()
   obraId?: number;
 
   @IsEnum(['livre', 'pbqph'])
@@ -42,5 +44,7 @@ export class CreateModeloDto {
 
   @IsOptional()
   @IsArray()
+  @IsInt({ each: true })
+  @IsPositive({ each: true })
   fotosItensIds?: number[] | null;
 }
