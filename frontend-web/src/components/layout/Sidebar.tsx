@@ -267,6 +267,7 @@ function AlmoxarifadoNavGroup({ onClick }: { onClick?: () => void }) {
         { to: `${base}/ocs`,               label: 'Compras (OC)' },
         { to: `${base}/nfes`,              label: 'NF-e' },
         { to: `${base}/locais`,            label: 'Locais' },
+        { to: `${base}/conversoes`,        label: 'Conversões UM' },
         { to: `${base}/planejamento`,      label: 'Planejamento' },
         { to: `${base}/insights`,          label: 'Insights IA' },
       ]}

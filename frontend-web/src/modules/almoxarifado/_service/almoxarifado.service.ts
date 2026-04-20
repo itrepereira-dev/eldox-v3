@@ -764,7 +764,65 @@ export const almoxarifadoService = {
 
   upsertConfigTransferencia: (dto: { valor_limite_direto: number; roles_aprovadores: string[] }): Promise<AlmConfigTransferencia> =>
     api.put(`${BASE}/config-transferencia`, dto).then((r: any) => r.data?.data ?? r.data),
+
+  // Conversões de Unidade
+  listarConversoes: (): Promise<AlmConversao[]> =>
+    api.get(`${BASE}/conversoes`).then((r: any) => r.data?.data ?? r.data),
+
+  upsertConversao: (dto: UpsertConversaoPayload): Promise<{ id: number }> =>
+    api.post(`${BASE}/conversoes`, dto).then((r: any) => r.data?.data ?? r.data),
+
+  converterUm: (dto: ConverterPayload): Promise<{ quantidade: number; fator: number }> =>
+    api.post(`${BASE}/conversoes/converter`, dto).then((r: any) => r.data?.data ?? r.data),
+
+  calcularCompra: (dto: CalcularCompraPayload): Promise<CalcularCompraResult> =>
+    api.post(`${BASE}/conversoes/calcular-compra`, dto).then((r: any) => r.data?.data ?? r.data),
 };
+
+// ─── Tipos Conversão ──────────────────────────────────────────────────────────
+
+export interface AlmConversao {
+  id: number;
+  tenant_id: number;
+  catalogo_id: number | null;
+  catalogo_nome: string | null;
+  unidade_origem: string;
+  unidade_destino: string;
+  fator: number;
+  descricao: string | null;
+  ativo: boolean;
+  created_at: string;
+}
+
+export interface UpsertConversaoPayload {
+  catalogoId?: number | null;
+  unidadeOrigem: string;
+  unidadeDestino: string;
+  fator: number;
+  descricao?: string | null;
+}
+
+export interface ConverterPayload {
+  catalogoId?: number | null;
+  quantidade: number;
+  unidadeOrigem: string;
+  unidadeDestino: string;
+}
+
+export interface CalcularCompraPayload {
+  catalogoId?: number | null;
+  necessidade: number;
+  unidadeNecessidade: string;
+  unidadeCompra: string;
+  quebraPct?: number;
+}
+
+export interface CalcularCompraResult {
+  quantidadeCompra: number;
+  quantidadeNominal: number;
+  fatorAplicado: number;
+  quebraAplicada: number;
+}
 
 // ─── Tipos Cotações ───────────────────────────────────────────────────────────
 
