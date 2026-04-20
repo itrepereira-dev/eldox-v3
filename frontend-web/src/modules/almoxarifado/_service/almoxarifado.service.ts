@@ -768,6 +768,13 @@ export const almoxarifadoService = {
   upsertConfigTransferencia: (dto: { valor_limite_direto: number; roles_aprovadores: string[] }): Promise<AlmConfigTransferencia> =>
     api.put(`${BASE}/config-transferencia`, dto).then((r: any) => r.data?.data ?? r.data),
 
+  // Upload manual de XML de NF-e
+  uploadNfeXml: (file: File): Promise<{ status: 'aceito' | 'duplicado'; chave_nfe: string; nfeId?: number }> => {
+    const form = new FormData();
+    form.append('file', file);
+    return api.postForm(`${BASE}/nfes/upload-xml`, form).then((r: any) => r.data?.data ?? r.data);
+  },
+
   // Conversões de Unidade
   listarConversoes: (): Promise<AlmConversao[]> =>
     api.get(`${BASE}/conversoes`).then((r: any) => r.data?.data ?? r.data),

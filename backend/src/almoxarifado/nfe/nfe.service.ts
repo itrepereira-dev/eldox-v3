@@ -12,6 +12,7 @@ import {
   parseWebhookPayload,
   extractTenantIdFromPayload,
 } from './webhook.adapter';
+import { parseNfeXmlToJson } from './xml-parser.util';
 import type { AlmNotaFiscal, AlmNfeItem } from '../types/alm.types';
 import type {
   AceitarNfeDto,
@@ -28,6 +29,95 @@ export class NfeService {
     private readonly prisma: PrismaService,
     @InjectQueue('almoxarifado') private readonly queue: Queue,
   ) {}
+
+  // ── Upload manual de XML NF-e ─────────────────────────────────────────────
+
+  /**
+   * Recebe o conteúdo de um arquivo XML NF-e enviado manualmente pelo
+   * usuário (via endpoint autenticado) e persiste no mesmo fluxo do webhook.
+   *
+   * Diferença relevante: o tenantId vem do JWT do usuário logado,
+   * NÃO do payload do XML (que não possui referência a tenant Eldox).
+   *
+   * Idempotente por chave_nfe: se a NF já foi importada, retorna
+   * { status: 'duplicado', nfeId } apontando para o registro existente,
+   * para o frontend poder redirecionar para a tela de detalhe.
+   */
+  async importarXml(
+    tenantId: number,
+    xmlContent: string,
+  ): Promise<{ status: 'aceito' | 'duplicado'; chave_nfe: string; nfeId?: number }> {
+    // 1. Parse XML -> JSON
+    let raw: Record<string, unknown>;
+    try {
+      raw = parseNfeXmlToJson(xmlContent);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new BadRequestException(msg);
+    }
+
+    // 2. Extrair chave NF-e + validar payload
+    let chave_nfe: string;
+    try {
+      const parsed = parseWebhookPayload(raw);
+      chave_nfe = parsed.chave_nfe;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new BadRequestException(`NF-e inválida: ${msg}`);
+    }
+
+    // 3. Idempotência — se já foi importada, devolve referência
+    const existingNfe = await this.prisma.$queryRawUnsafe<{ id: number }[]>(
+      `SELECT id FROM alm_notas_fiscais WHERE tenant_id = $1 AND chave_nfe = $2`,
+      tenantId,
+      chave_nfe,
+    );
+    if (existingNfe.length) {
+      this.logger.log(`Upload XML duplicado: chave=${chave_nfe} nfeId=${existingNfe[0].id}`);
+      return { status: 'duplicado', chave_nfe, nfeId: existingNfe[0].id };
+    }
+
+    // 4. Reutiliza fluxo do webhook: grava em alm_nfe_webhooks e enfileira.
+    //    Vantagem: o job `processar-nfe` já cuida do INSERT em notas_fiscais
+    //    + itens + match IA. Mantemos um único caminho para processar NF-e.
+    const whRows = await this.prisma.$queryRawUnsafe<{ id: number }[]>(
+      `INSERT INTO alm_nfe_webhooks (tenant_id, chave_nfe, payload_raw, status)
+       VALUES ($1, $2, $3::jsonb, 'pendente')
+       ON CONFLICT (chave_nfe) DO NOTHING
+       RETURNING id`,
+      tenantId,
+      chave_nfe,
+      JSON.stringify(raw),
+    );
+
+    // Se não retornou id, outro request concorrente já gravou — busca o id existente
+    if (!whRows.length) {
+      const retry = await this.prisma.$queryRawUnsafe<{ id: number }[]>(
+        `SELECT id FROM alm_nfe_webhooks WHERE chave_nfe = $1`,
+        chave_nfe,
+      );
+      return { status: 'duplicado', chave_nfe, nfeId: undefined };
+    }
+
+    const webhookId = whRows[0].id;
+
+    await this.queue.add(
+      'processar-nfe',
+      { webhookId },
+      { attempts: 5, backoff: { type: 'exponential', delay: 15_000 } },
+    );
+
+    this.logger.log(
+      JSON.stringify({
+        action: 'alm.nfe.xml.importado',
+        chave_nfe,
+        webhookId,
+        tenantId,
+      }),
+    );
+
+    return { status: 'aceito', chave_nfe };
+  }
 
   // ── Webhook receiver ──────────────────────────────────────────────────────
 
