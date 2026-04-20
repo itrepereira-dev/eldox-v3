@@ -887,11 +887,19 @@ export interface AlmComparativoItem {
     prazo_dias: number | null;
     disponivel: boolean;
     total_item: number | null;
+    // VPL
+    condicao_pgto: string | null;
+    valor_presente: number | null;
     melhor_preco: boolean;
+    melhor_preco_vp: boolean;
   }[];
   menor_preco: number | null;
   melhor_cotacao_id: number | null;
   economia_pct: number | null;
+  // VPL agregado
+  menor_preco_vp: number | null;
+  melhor_cotacao_vp_id: number | null;
+  economia_vp_pct: number | null;
 }
 
 export interface AlmCurvaAbcItem {

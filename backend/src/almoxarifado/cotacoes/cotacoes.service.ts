@@ -9,6 +9,7 @@ import {
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ComprasService } from '../compras/compras.service';
+import { calcularVpl, VPL_TAXA_MENSAL_DEFAULT } from './vpl.util';
 
 // ── Tipos locais ──────────────────────────────────────────────────────────────
 
@@ -58,11 +59,19 @@ export interface ComparativoItem {
     prazo_dias: number | null;
     disponivel: boolean;
     total_item: number | null;
-    melhor_preco: boolean;
+    // ── VPL (Valor Presente Líquido) ───────────────────────────────────────
+    condicao_pgto: string | null;
+    valor_presente: number | null;      // VP total do item descontado
+    melhor_preco: boolean;              // melhor por preço nominal
+    melhor_preco_vp: boolean;           // melhor por valor presente
   }[];
   menor_preco: number | null;
   melhor_cotacao_id: number | null;
-  economia_pct: number | null; // % de economia vs. maior preço
+  economia_pct: number | null; // % de economia vs. maior preço (nominal)
+  // ── Agregados de VP ───────────────────────────────────────────────────────
+  menor_preco_vp: number | null;        // menor VP total entre as cotações
+  melhor_cotacao_vp_id: number | null;  // ID da cotação com menor VP
+  economia_vp_pct: number | null;       // % de economia por VP vs. maior VP
 }
 
 export interface CurvaAbcItem {
@@ -358,11 +367,17 @@ export class CotacoesService {
   // ── Comparativo de preços por item ───────────────────────────────────────────
 
   async getComparativo(tenantId: number, solicitacaoId: number): Promise<ComparativoItem[]> {
-    // Itens com propostas de todos os fornecedores (só cotações respondidas)
+    // TODO(sprint-futuro): ler taxa mensal de `tenant_config.vpl_taxa_mensal`.
+    // Hoje usamos 1,5% a.m. hardcoded (VPL_TAXA_MENSAL_DEFAULT).
+    const taxaMensal = VPL_TAXA_MENSAL_DEFAULT;
+
+    // Itens com propostas de todos os fornecedores (só cotações respondidas).
+    // Carregamos também `condicao_pgto` e `frete` da cotação — necessários para o VP.
     const rows = await this.prisma.$queryRawUnsafe<{
       catalogo_id: number; catalogo_nome: string; unidade: string; quantidade: number;
       cotacao_id: number; fornecedor_id: number; fornecedor_nome: string;
       preco_unitario: number | null; prazo_dias: number | null; disponivel: boolean;
+      condicao_pgto: string | null; cotacao_frete: number | null; cotacao_subtotal: number | null;
     }[]>(
       `SELECT
          si.catalogo_id,
@@ -374,7 +389,10 @@ export class CotacoesService {
          f.nome_fantasia     AS fornecedor_nome,
          ci.preco_unitario,
          ci.prazo_dias,
-         COALESCE(ci.disponivel, true) AS disponivel
+         COALESCE(ci.disponivel, true) AS disponivel,
+         c.condicao_pgto     AS condicao_pgto,
+         c.frete             AS cotacao_frete,
+         c.subtotal          AS cotacao_subtotal
        FROM alm_solicitacao_itens si
        JOIN fvm_catalogo_materiais m ON m.id = si.catalogo_id
        JOIN alm_cotacoes c ON c.solicitacao_id = si.solicitacao_id
@@ -401,23 +419,48 @@ export class CotacoesService {
           menor_preco: null,
           melhor_cotacao_id: null,
           economia_pct: null,
+          menor_preco_vp: null,
+          melhor_cotacao_vp_id: null,
+          economia_vp_pct: null,
         });
       }
       const entry = map.get(r.catalogo_id)!;
+
+      const precoUnit = r.preco_unitario !== null ? Number(r.preco_unitario) : null;
+      const qtd = Number(r.quantidade);
+      const totalItem = precoUnit !== null ? precoUnit * qtd : null;
+
+      // VP do item: descontamos o valor nominal deste item pela condição de
+      // pagamento da cotação. Frete da cotação NÃO é rateado por item aqui —
+      // ele impacta o VP total da OC, não linha-a-linha do comparativo.
+      const valorPresente =
+        totalItem !== null
+          ? calcularVpl({
+              valorNominal: totalItem,
+              condicaoPgto: r.condicao_pgto,
+              taxaMensal,
+              // frete deliberadamente omitido: é do cabeçalho da cotação, não do item
+            })
+          : null;
+
       entry.propostas.push({
         cotacao_id: r.cotacao_id,
         fornecedor_id: r.fornecedor_id,
         fornecedor_nome: r.fornecedor_nome,
-        preco_unitario: r.preco_unitario !== null ? Number(r.preco_unitario) : null,
+        preco_unitario: precoUnit,
         prazo_dias: r.prazo_dias !== null ? Number(r.prazo_dias) : null,
         disponivel: r.disponivel,
-        total_item: r.preco_unitario !== null ? Number(r.preco_unitario) * Number(r.quantidade) : null,
+        total_item: totalItem,
+        condicao_pgto: r.condicao_pgto ?? null,
+        valor_presente: valorPresente,
         melhor_preco: false,
+        melhor_preco_vp: false,
       });
     }
 
-    // Calcula melhor preço por item
+    // Calcula melhor preço (nominal) e melhor VP por item
     for (const item of map.values()) {
+      // ── Melhor por preço nominal ─────────────────────────────────────────
       const precos = item.propostas
         .filter((p) => p.preco_unitario !== null && p.disponivel)
         .sort((a, b) => a.preco_unitario! - b.preco_unitario!);
@@ -426,15 +469,34 @@ export class CotacoesService {
         item.menor_preco = precos[0].preco_unitario;
         item.melhor_cotacao_id = precos[0].cotacao_id;
 
-        // Marca o melhor
         item.propostas.forEach((p) => {
           p.melhor_preco = p.cotacao_id === item.melhor_cotacao_id && p.preco_unitario === item.menor_preco;
         });
 
-        // Economia vs. maior preço
         const maior = precos[precos.length - 1].preco_unitario!;
         if (maior > 0 && item.menor_preco! < maior) {
           item.economia_pct = Math.round(((maior - item.menor_preco!) / maior) * 100);
+        }
+      }
+
+      // ── Melhor por Valor Presente (VP) ───────────────────────────────────
+      const vps = item.propostas
+        .filter((p) => p.valor_presente !== null && p.disponivel)
+        .sort((a, b) => a.valor_presente! - b.valor_presente!);
+
+      if (vps.length) {
+        item.menor_preco_vp = vps[0].valor_presente;
+        item.melhor_cotacao_vp_id = vps[0].cotacao_id;
+
+        item.propostas.forEach((p) => {
+          p.melhor_preco_vp =
+            p.cotacao_id === item.melhor_cotacao_vp_id &&
+            p.valor_presente === item.menor_preco_vp;
+        });
+
+        const maiorVp = vps[vps.length - 1].valor_presente!;
+        if (maiorVp > 0 && item.menor_preco_vp! < maiorVp) {
+          item.economia_vp_pct = Math.round(((maiorVp - item.menor_preco_vp!) / maiorVp) * 100);
         }
       }
     }
