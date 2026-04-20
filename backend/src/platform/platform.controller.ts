@@ -26,14 +26,28 @@ export class PlatformController {
   constructor(private readonly platform: PlatformService) {}
 
   @Get('tenants')
-  listarTenants() {
-    return this.platform.listarTenants();
+  listarTenants(
+    @CurrentUser()
+    user: {
+      id: number;
+      tenantId: number;
+      originalTenantId?: number;
+      role: string;
+    },
+  ) {
+    return this.platform.listarTenants(user);
   }
 
   @Post('impersonate')
   @HttpCode(HttpStatus.OK)
   impersonate(
-    @CurrentUser() user: { id: number; tenantId: number; role: string },
+    @CurrentUser()
+    user: {
+      id: number;
+      tenantId: number;
+      originalTenantId?: number;
+      role: string;
+    },
     @Body() dto: ImpersonateDto,
   ) {
     return this.platform.impersonate(user, dto.tenantId);

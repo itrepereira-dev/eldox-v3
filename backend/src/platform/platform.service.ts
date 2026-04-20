@@ -8,7 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditLogService } from '../common/services/audit-log.service';
 
-const PLATFORM_TENANT_SLUG = 'platform';
+export const PLATFORM_TENANT_SLUG = 'platform';
 const IMPERSONATE_TTL = '1h';
 
 /**
@@ -34,7 +34,35 @@ export class PlatformService {
     private readonly audit: AuditLogService,
   ) {}
 
-  async listarTenants() {
+  /**
+   * Garante que o chamador pertence ao tenant sentinel `platform`.
+   * Role SUPER_ADMIN em outros tenants NÃO é suficiente — estes podem
+   * administrar o próprio tenant mas não operar cross-tenant.
+   */
+  private async exigirTenantPlatform(user: {
+    id: number;
+    originalTenantId?: number;
+    tenantId: number;
+  }) {
+    // Quando impersonando, tenantId é o alvo e originalTenantId é platform.
+    const realTenantId = user.originalTenantId ?? user.tenantId;
+    const t = await this.prisma.tenant.findUnique({
+      where: { id: realTenantId },
+      select: { slug: true },
+    });
+    if (t?.slug !== PLATFORM_TENANT_SLUG) {
+      throw new ForbiddenException(
+        'Acesso restrito ao tenant platform',
+      );
+    }
+  }
+
+  async listarTenants(user: {
+    id: number;
+    originalTenantId?: number;
+    tenantId: number;
+  }) {
+    await this.exigirTenantPlatform(user);
     // Exclui o tenant "platform" da lista — ele é sentinel interno.
     return this.prisma.tenant.findMany({
       where: {
@@ -55,11 +83,22 @@ export class PlatformService {
   }
 
   async impersonate(
-    masterUser: { id: number; tenantId: number; role: string },
+    masterUser: {
+      id: number;
+      tenantId: number;
+      originalTenantId?: number;
+      role: string;
+    },
     tenantAlvoId: number,
   ) {
+    await this.exigirTenantPlatform(masterUser);
     if (masterUser.role !== 'SUPER_ADMIN') {
       throw new ForbiddenException('Apenas SUPER_ADMIN pode impersonar');
+    }
+    if (masterUser.originalTenantId !== undefined) {
+      throw new ForbiddenException(
+        'Não é permitido impersonar durante uma sessão de impersonation ativa',
+      );
     }
     const tenantAlvo = await this.prisma.tenant.findFirst({
       where: { id: tenantAlvoId, deletadoEm: null },
@@ -74,10 +113,12 @@ export class PlatformService {
     });
     if (!usuario) throw new NotFoundException('Usuário master não encontrado');
 
+    const masterTenantId =
+      masterUser.originalTenantId ?? masterUser.tenantId;
     const payload = {
       sub: masterUser.id,
       tenantId: tenantAlvo.id, // << @TenantId() vai retornar esse
-      originalTenantId: masterUser.tenantId, // << JwtStrategy valida com esse
+      originalTenantId: masterTenantId, // << JwtStrategy valida com esse
       role: 'SUPER_ADMIN' as const,
       plano: tenantAlvo.plano.nome,
       v: usuario.tokenVersion,
@@ -95,7 +136,7 @@ export class PlatformService {
       entidadeId: tenantAlvo.id,
       detalhes: {
         tenantAlvo: { id: tenantAlvo.id, slug: tenantAlvo.slug },
-        fromTenantId: masterUser.tenantId,
+        fromTenantId: masterTenantId,
         ttl: IMPERSONATE_TTL,
       },
     });
