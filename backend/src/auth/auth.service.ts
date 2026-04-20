@@ -8,11 +8,13 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
+import { AuditLogService } from '../common/services/audit-log.service';
 import { RegisterTenantDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { AceitarConviteDto } from './dto/aceitar-convite.dto';
 import { EsqueciSenhaDto } from './dto/esqueci-senha.dto';
 import { ResetSenhaDto } from './dto/reset-senha.dto';
+import { normalizarEmail } from '../common/decorators/senha-forte.decorator';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 
@@ -33,6 +35,7 @@ export class AuthService {
     private jwt: JwtService,
     private config: ConfigService,
     private mail: MailService,
+    private audit: AuditLogService,
   ) {}
 
   async register(dto: RegisterTenantDto) {
@@ -41,8 +44,9 @@ export class AuthService {
     });
     if (slugExiste) throw new ConflictException('Slug já está em uso');
 
+    const email = normalizarEmail(dto.adminEmail);
     const emailExiste = await this.prisma.usuario.findFirst({
-      where: { email: dto.adminEmail },
+      where: { email: { equals: email, mode: 'insensitive' } },
     });
     if (emailExiste) throw new ConflictException('E-mail já está em uso');
 
@@ -63,7 +67,7 @@ export class AuthService {
         usuarios: {
           create: {
             nome: dto.adminNome,
-            email: dto.adminEmail,
+            email,
             senhaHash,
             role: 'ADMIN_TENANT',
           },
@@ -78,8 +82,21 @@ export class AuthService {
       tenant.id,
       usuario.role,
       plano.nome,
+      usuario.tokenVersion,
     );
-    const refreshToken = this.gerarRefreshToken(usuario.id, tenant.id);
+    const refreshToken = this.gerarRefreshToken(
+      usuario.id,
+      tenant.id,
+      usuario.tokenVersion,
+    );
+
+    await this.audit.log({
+      tenantId: tenant.id,
+      usuarioId: usuario.id,
+      acao: 'REGISTER',
+      entidade: 'tenant',
+      entidadeId: tenant.id,
+    });
 
     return {
       token,
@@ -102,10 +119,11 @@ export class AuthService {
     if (!tenant || !tenant.ativo)
       throw new UnauthorizedException('Tenant não encontrado ou inativo');
 
+    const emailNorm = normalizarEmail(dto.email);
     const usuario = await this.prisma.usuario.findFirst({
       where: {
         tenantId: tenant.id,
-        email: dto.email,
+        email: { equals: emailNorm, mode: 'insensitive' },
         ativo: true,
         deletadoEm: null,
       },
@@ -128,8 +146,21 @@ export class AuthService {
       tenant.id,
       usuario.role,
       tenant.plano.nome,
+      usuario.tokenVersion,
     );
-    const refreshToken = this.gerarRefreshToken(usuario.id, tenant.id);
+    const refreshToken = this.gerarRefreshToken(
+      usuario.id,
+      tenant.id,
+      usuario.tokenVersion,
+    );
+
+    await this.audit.log({
+      tenantId: tenant.id,
+      usuarioId: usuario.id,
+      acao: 'LOGIN',
+      entidade: 'auth',
+      entidadeId: usuario.id,
+    });
 
     return {
       token,
@@ -163,15 +194,25 @@ export class AuthService {
       });
       if (!usuario) throw new UnauthorizedException('Usuário não encontrado');
 
+      // Valida versão do refresh token (se presente no payload)
+      if (
+        payload.v !== undefined &&
+        payload.v !== usuario.tokenVersion
+      ) {
+        throw new UnauthorizedException('Refresh token revogado');
+      }
+
       const token = this.gerarToken(
         usuario.id,
         usuario.tenantId,
         usuario.role,
         usuario.tenant.plano.nome,
+        usuario.tokenVersion,
       );
       const novoRefreshToken = this.gerarRefreshToken(
         usuario.id,
         usuario.tenantId,
+        usuario.tokenVersion,
       );
 
       return { token, refreshToken: novoRefreshToken };
@@ -205,6 +246,13 @@ export class AuthService {
         tokenExp: null,
       },
     });
+    await this.audit.log({
+      tenantId: usuario.tenantId,
+      usuarioId: usuario.id,
+      acao: 'CONVITE_ACEITO',
+      entidade: 'usuario',
+      entidadeId: usuario.id,
+    });
     return { ok: true };
   }
 
@@ -217,7 +265,7 @@ export class AuthService {
     const usuario = await this.prisma.usuario.findFirst({
       where: {
         tenantId: tenant.id,
-        email: dto.email,
+        email: { equals: normalizarEmail(dto.email), mode: 'insensitive' },
         ativo: true,
         deletadoEm: null,
         status: 'ATIVO',
@@ -234,6 +282,14 @@ export class AuthService {
       },
     });
     await this.mail.enviarResetSenha(usuario.email, raw);
+    await this.audit.log({
+      tenantId: usuario.tenantId,
+      usuarioId: usuario.id,
+      acao: 'RESET_SENHA_SOLICITADO',
+      entidade: 'usuario',
+      entidadeId: usuario.id,
+      detalhes: { origem: 'esqueci-senha' },
+    });
     return { ok: true };
   }
 
@@ -252,10 +308,17 @@ export class AuthService {
         senhaHash,
         tokenHash: null,
         tokenExp: null,
-        // Se estava PENDENTE (convite), ativa mesmo em reset
         status: 'ATIVO',
         ativo: true,
+        tokenVersion: { increment: 1 }, // revoga todos os tokens anteriores
       },
+    });
+    await this.audit.log({
+      tenantId: usuario.tenantId,
+      usuarioId: usuario.id,
+      acao: 'SENHA_REDEFINIDA',
+      entidade: 'usuario',
+      entidadeId: usuario.id,
     });
     return { ok: true };
   }
@@ -265,16 +328,21 @@ export class AuthService {
     tenantId: number,
     role: string,
     plano: string,
+    tokenVersion: number,
   ) {
     return this.jwt.sign(
-      { sub: userId, tenantId, role, plano },
+      { sub: userId, tenantId, role, plano, v: tokenVersion },
       { expiresIn: this.config.get('JWT_EXPIRES_IN', '8h') },
     );
   }
 
-  private gerarRefreshToken(userId: number, tenantId: number) {
+  private gerarRefreshToken(
+    userId: number,
+    tenantId: number,
+    tokenVersion: number,
+  ) {
     return this.jwt.sign(
-      { sub: userId, tenantId, type: 'refresh' },
+      { sub: userId, tenantId, type: 'refresh', v: tokenVersion },
       {
         secret: this.config.get('JWT_SECRET'),
         expiresIn: this.config.get('JWT_REFRESH_EXPIRES_IN', '7d'),

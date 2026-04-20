@@ -1,4 +1,5 @@
 import { IsString, Length, MinLength } from 'class-validator';
+import { SenhaForte } from '../../common/decorators/senha-forte.decorator';
 
 export class AceitarConviteDto {
   @IsString()
@@ -9,7 +10,6 @@ export class AceitarConviteDto {
   @MinLength(1)
   nome!: string;
 
-  @IsString()
-  @MinLength(8)
+  @SenhaForte()
   senha!: string;
 }

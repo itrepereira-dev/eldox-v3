@@ -1,23 +1,23 @@
 import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
+import { SenhaForte } from '../../common/decorators/senha-forte.decorator';
 
 export class RegisterTenantDto {
   @IsString()
   @IsNotEmpty()
-  tenantNome: string;
+  tenantNome!: string;
 
   @IsString()
   @IsNotEmpty()
   @MinLength(3)
-  tenantSlug: string;
+  tenantSlug!: string;
 
   @IsString()
   @IsNotEmpty()
-  adminNome: string;
+  adminNome!: string;
 
   @IsEmail()
-  adminEmail: string;
+  adminEmail!: string;
 
-  @IsString()
-  @MinLength(8)
-  adminSenha: string;
+  @SenhaForte()
+  adminSenha!: string;
 }
