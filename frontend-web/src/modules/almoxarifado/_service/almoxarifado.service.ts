@@ -185,6 +185,9 @@ export interface AlmNfeItem {
   confirmado_por: number | null;
   confirmado_at: string | null;
   catalogo_nome: string | null;
+  /** UM padrão do catálogo vinculado. Quando diferente de `unidade_nfe`,
+   *  a UI exibe preview de conversão antes do aceite. */
+  catalogo_unidade_padrao: string | null;
 }
 
 export interface AlmNotaFiscal {

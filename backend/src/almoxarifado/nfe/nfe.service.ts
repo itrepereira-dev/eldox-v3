@@ -242,7 +242,10 @@ export class NfeService {
     if (!rows.length) throw new NotFoundException(`NF-e ${id} não encontrada`);
 
     const itens = await this.prisma.$queryRawUnsafe<AlmNfeItem[]>(
-      `SELECT it.*, m.nome AS catalogo_nome
+      `SELECT
+         it.*,
+         m.nome            AS catalogo_nome,
+         m.unidade_padrao  AS catalogo_unidade_padrao
        FROM alm_nfe_itens it
        LEFT JOIN fvm_catalogo_materiais m ON m.id = it.catalogo_id
        WHERE it.nfe_id = $1
