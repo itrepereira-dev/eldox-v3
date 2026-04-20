@@ -51,6 +51,7 @@ import { PlanejamentoController } from './planejamento/planejamento.controller';
 
 // Conversão de unidades
 import { ConversaoService } from './conversao/conversao.service';
+import { ConversaoController } from './conversao/conversao.controller';
 
 // Locais (NEW)
 import { LocaisService } from './locais/locais.service';
@@ -108,6 +109,7 @@ import { AlmoxarifadoProcessor } from './jobs/almoxarifado.processor';
     LocaisController,
     TransferenciasController,
     ConfigTransferenciaController,
+    ConversaoController,
   ],
   providers: [
     EstoqueService,

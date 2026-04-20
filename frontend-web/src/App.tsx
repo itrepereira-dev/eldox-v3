@@ -60,6 +60,7 @@ const InsightsPage             = lazy(() => import('./modules/almoxarifado/ia/pa
 const TransferenciasPage       = lazy(() => import('./modules/almoxarifado/transferencias/pages/TransferenciasPage').then(m => ({ default: m.TransferenciasPage })));
 const TransferenciaDetalhePage = lazy(() => import('./modules/almoxarifado/transferencias/pages/TransferenciaDetalhePage').then(m => ({ default: m.TransferenciaDetalhePage })));
 const LocaisPage               = lazy(() => import('./modules/almoxarifado/locais/pages/LocaisPage').then(m => ({ default: m.LocaisPage })));
+const ConversoesPage           = lazy(() => import('./modules/almoxarifado/conversoes/pages/ConversoesPage').then(m => ({ default: m.ConversoesPage })));
 const NcsListPage              = lazy(() => import('./modules/ncs/pages/NcsListPage').then(m => ({ default: m.NcsListPage })));
 const NcDetalhePage            = lazy(() => import('./modules/ncs/pages/NcDetalhePage').then(m => ({ default: m.NcDetalhePage })));
 const NcsGlobalPage            = lazy(() => import('./modules/ncs/pages/NcsGlobalPage').then(m => ({ default: m.NcsGlobalPage })));
@@ -195,6 +196,7 @@ export default function App() {
                 <Route path="/almoxarifado/transferencias" element={<TransferenciasPage />} />
                 <Route path="/almoxarifado/transferencias/:id" element={<TransferenciaDetalhePage />} />
                 <Route path="/almoxarifado/locais" element={<LocaisPage />} />
+                <Route path="/almoxarifado/conversoes" element={<ConversoesPage />} />
                 <Route path="/almoxarifado/solicitacoes" element={<SolicitacoesListPage />} />
                 <Route path="/almoxarifado/solicitacoes/nova" element={<NovaSolicitacaoPage />} />
                 <Route path="/almoxarifado/solicitacoes/:solicitacaoId" element={<SolicitacaoDetalhePage />} />

@@ -88,11 +88,11 @@ export class ConversaoService {
   async upsertConversao(
     tenantId: number,
     dto: {
-      catalogoId?: number;
+      catalogoId?: number | null;
       unidadeOrigem: string;
       unidadeDestino: string;
       fator: number;
-      descricao?: string;
+      descricao?: string | null;
     },
   ) {
     const rows = await this.prisma.$queryRawUnsafe<{ id: number }[]>(
@@ -104,11 +104,70 @@ export class ConversaoService {
        RETURNING id`,
       tenantId,
       dto.catalogoId ?? null,
-      dto.unidadeOrigem,
-      dto.unidadeDestino,
+      dto.unidadeOrigem.toUpperCase(),
+      dto.unidadeDestino.toUpperCase(),
       dto.fator,
       dto.descricao ?? null,
     );
     return rows[0];
+  }
+
+  /**
+   * Cálculo reverso: "Preciso de 250 m² de porcelanato, quantas caixas compro?"
+   *
+   * Dado uma necessidade em UM de consumo e a UM de compra do fornecedor,
+   * retorna quantidade a comprar com arredondamento para cima e opcional
+   * quebra técnica (ex: 10% para cobrir perdas de corte/aplicação).
+   *
+   * Fator convencionado: 1 UM_compra = fator × UM_destino
+   * Logo, qtd_compra = necessidade / fator
+   */
+  async calcularCompra(
+    tenantId: number,
+    catalogoId: number | null,
+    necessidade: number,
+    unidadeNecessidade: string,
+    unidadeCompra: string,
+    quebraPct = 0,
+  ): Promise<{
+    quantidadeCompra: number;
+    quantidadeNominal: number;
+    fatorAplicado: number;
+    quebraAplicada: number;
+  }> {
+    const origem = unidadeCompra.toUpperCase();
+    const destino = unidadeNecessidade.toUpperCase();
+
+    // Mesmo UM: só aplica quebra + arredondamento
+    if (origem === destino) {
+      const comQuebra = necessidade * (1 + quebraPct / 100);
+      return {
+        quantidadeCompra: Math.ceil(comQuebra),
+        quantidadeNominal: necessidade,
+        fatorAplicado: 1,
+        quebraAplicada: quebraPct,
+      };
+    }
+
+    // Busca fator UM_compra -> UM_necessidade
+    // Ex: 1 CX porcelanato = 2.5 M2 → fator = 2.5
+    // Necessidade 250 M2 → 250 / 2.5 = 100 CX
+    const { fator } = await this.converter(
+      tenantId,
+      catalogoId,
+      1,
+      origem,
+      destino,
+    );
+
+    const qtdNominal = necessidade / fator;
+    const comQuebra = qtdNominal * (1 + quebraPct / 100);
+
+    return {
+      quantidadeCompra: Math.ceil(comQuebra),
+      quantidadeNominal: qtdNominal,
+      fatorAplicado: fator,
+      quebraAplicada: quebraPct,
+    };
   }
 }
