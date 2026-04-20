@@ -545,7 +545,7 @@ export const almoxarifadoService = {
     if (params?.status)  q.set('status',   params.status);
     if (params?.limit)   q.set('limit',    String(params.limit));
     if (params?.offset)  q.set('offset',   String(params.offset));
-    return api.get(`${BASE}/notas-fiscais${q.toString() ? '?' + q : ''}`).then((r: any) => r.data?.data ?? r.data);
+    return api.get(`${BASE}/nfes${q.toString() ? '?' + q : ''}`).then((r: any) => r.data?.data ?? r.data);
   },
 
   getNfe: (id: number): Promise<AlmNotaFiscal> =>
