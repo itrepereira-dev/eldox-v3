@@ -80,6 +80,9 @@ services:
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
       MINIO_BUCKET: ${MINIO_BUCKET:-eldox-ged}
       MINIO_USE_SSL: "false"
+      # CORS: origem do frontend. main.ts também aceita wildcard *.eldox.com.br,
+      # mas deixar explícito garante que mudanças de DOMAIN não quebrem o CORS.
+      FRONTEND_URL: https://${DOMAIN}
     networks:
       - eldox_v3
       - coolify
