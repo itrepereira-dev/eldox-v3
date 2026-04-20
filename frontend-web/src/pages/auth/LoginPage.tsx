@@ -2,7 +2,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { authApi } from '../../services/api';
 import { useAuthStore } from '../../store/auth.store';
 import logoPrincipal from '@/assets/logo-principal.png';
@@ -105,6 +105,13 @@ export function LoginPage() {
           >
             {mutation.isPending ? 'Entrando...' : 'Entrar'}
           </button>
+
+          <Link
+            to="/esqueci-senha"
+            className="text-center text-xs text-[var(--text-low)] hover:text-[var(--accent)] mt-1"
+          >
+            Esqueci a senha
+          </Link>
         </form>
       </div>
     </div>

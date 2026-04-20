@@ -319,6 +319,30 @@ function EfetivoNavLink({ onClick }: { onClick?: () => void }) {
   )
 }
 
+/* ── Administração (só ADMIN_TENANT / SUPER_ADMIN) ─── */
+function AdministracaoSection({ onClick }: { onClick?: () => void }) {
+  const user = useAuthStore((s) => s.user)
+  const isAdmin = user?.role === 'ADMIN_TENANT' || user?.role === 'SUPER_ADMIN'
+  if (!isAdmin) return null
+
+  return (
+    <NavSection label="Administração">
+      <NavItem
+        to="/admin/usuarios"
+        icon={<Users size={18} />}
+        label="Usuários"
+        onClick={onClick}
+      />
+      <NavItem
+        to="/admin/perfis-acesso"
+        icon={<ListChecks size={18} />}
+        label="Perfis de Acesso"
+        onClick={onClick}
+      />
+    </NavSection>
+  )
+}
+
 /* ── Sidebar Principal ───────────────────────────────── */
 interface SidebarProps {
   onNavClick?: () => void
@@ -438,15 +462,7 @@ export function Sidebar({ onNavClick, className }: SidebarProps) {
           />
         </NavSection>
 
-        <NavSection label="Configurações">
-          <NavItem
-            to="#"
-            icon={<Users size={18} />}
-            label="Gestão de Usuários"
-            disabled
-            disabledReason="Em breve"
-          />
-        </NavSection>
+        <AdministracaoSection onClick={onNavClick} />
 
       </nav>
 

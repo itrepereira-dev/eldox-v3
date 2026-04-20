@@ -79,6 +79,14 @@ const FvsRelatorioClientePage  = lazy(() => import('./modules/fvs/cliente/FvsRel
 const PlanosAcaoPage           = lazy(() => import('./modules/fvs/planos-acao/pages/PlanosAcaoPage').then(m => ({ default: m.PlanosAcaoPage })));
 const PlanoAcaoDetalhe         = lazy(() => import('./modules/fvs/planos-acao/pages/PlanoAcaoDetalhe').then(m => ({ default: m.PlanoAcaoDetalhe })));
 const ConfigPlanosAcaoPage     = lazy(() => import('./modules/fvs/planos-acao/pages/ConfigPlanosAcaoPage').then(m => ({ default: m.ConfigPlanosAcaoPage })));
+const UsuariosListPage         = lazy(() => import('./pages/admin/UsuariosListPage').then(m => ({ default: m.UsuariosListPage })));
+const UsuarioNovoPage          = lazy(() => import('./pages/admin/UsuarioNovoPage').then(m => ({ default: m.UsuarioNovoPage })));
+const UsuarioDetalhePage       = lazy(() => import('./pages/admin/UsuarioDetalhePage').then(m => ({ default: m.UsuarioDetalhePage })));
+const PerfisAcessoListPage     = lazy(() => import('./pages/admin/PerfisAcessoListPage').then(m => ({ default: m.PerfisAcessoListPage })));
+const PerfilAcessoEditorPage   = lazy(() => import('./pages/admin/PerfilAcessoEditorPage').then(m => ({ default: m.PerfilAcessoEditorPage })));
+const AceitarConvitePage       = lazy(() => import('./pages/auth/AceitarConvitePage').then(m => ({ default: m.AceitarConvitePage })));
+const EsqueciSenhaPage         = lazy(() => import('./pages/auth/EsqueciSenhaPage').then(m => ({ default: m.EsqueciSenhaPage })));
+const ResetSenhaPage           = lazy(() => import('./pages/auth/ResetSenhaPage').then(m => ({ default: m.ResetSenhaPage })));
 
 // ── QueryClient com cache agressivo ──────────────────────────────────────────
 const queryClient = new QueryClient({
@@ -110,6 +118,9 @@ export default function App() {
           <Suspense fallback={<PageSkeleton />}>
             <Routes>
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/esqueci-senha" element={<EsqueciSenhaPage />} />
+              <Route path="/aceitar-convite" element={<AceitarConvitePage />} />
+              <Route path="/reset-senha" element={<ResetSenhaPage />} />
 
               <Route element={<AppLayout />}>
                 <Route path="/dashboard" element={<DashboardPage />} />
@@ -221,6 +232,13 @@ export default function App() {
 
                 {/* Planos de Ação — configuração */}
                 <Route path="/configuracoes/planos-acao" element={<ConfigPlanosAcaoPage />} />
+
+                {/* Administração — Gestão de Usuários */}
+                <Route path="/admin/usuarios" element={<UsuariosListPage />} />
+                <Route path="/admin/usuarios/novo" element={<UsuarioNovoPage />} />
+                <Route path="/admin/usuarios/:id" element={<UsuarioDetalhePage />} />
+                <Route path="/admin/perfis-acesso" element={<PerfisAcessoListPage />} />
+                <Route path="/admin/perfis-acesso/:id" element={<PerfilAcessoEditorPage />} />
               </Route>
 
               {/* Portais públicos */}

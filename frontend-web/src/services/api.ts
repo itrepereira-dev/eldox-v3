@@ -118,4 +118,15 @@ export const authApi = {
   logout: () => api.post('/auth/logout').then((r) => r.data),
 
   me: () => api.get('/auth/me').then((r) => r.data),
+
+  mePermissoes: () => api.get('/auth/me/permissoes').then((r) => r.data),
+
+  aceitarConvite: (data: { token: string; nome: string; senha: string }) =>
+    api.post('/auth/aceitar-convite', data).then((r) => r.data),
+
+  esqueciSenha: (data: { slug: string; email: string }) =>
+    api.post('/auth/esqueci-senha', data).then((r) => r.data),
+
+  resetSenha: (data: { token: string; novaSenha: string }) =>
+    api.post('/auth/reset-senha', data).then((r) => r.data),
 };
