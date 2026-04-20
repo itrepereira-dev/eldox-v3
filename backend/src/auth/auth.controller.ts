@@ -14,8 +14,12 @@ import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { RegisterTenantDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { AceitarConviteDto } from './dto/aceitar-convite.dto';
+import { EsqueciSenhaDto } from './dto/esqueci-senha.dto';
+import { ResetSenhaDto } from './dto/reset-senha.dto';
 import { JwtAuthGuard } from '../common/guards/jwt.guard';
 import { CurrentUser } from '../common/decorators/tenant.decorator';
+import { PermissoesResolverService } from '../common/services/permissoes-resolver.service';
 
 const COOKIE_OPTS = {
   httpOnly: true,
@@ -27,7 +31,10 @@ const COOKIE_OPTS = {
 
 @Controller('api/v1/auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly permissoes: PermissoesResolverService,
+  ) {}
 
   @Post('register')
   @Throttle({
@@ -90,5 +97,41 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   me(@CurrentUser() user: any) {
     return user;
+  }
+
+  @Get('me/permissoes')
+  @UseGuards(JwtAuthGuard)
+  async mePermissoes(@CurrentUser() user: any) {
+    return this.permissoes.mapaPermissoes(user.id, user.role);
+  }
+
+  @Post('aceitar-convite')
+  @HttpCode(200)
+  @Throttle({
+    short: { limit: 10, ttl: 60_000 },
+    long: { limit: 50, ttl: 900_000 },
+  })
+  async aceitarConvite(@Body() dto: AceitarConviteDto) {
+    return this.authService.aceitarConvite(dto);
+  }
+
+  @Post('esqueci-senha')
+  @HttpCode(200)
+  @Throttle({
+    short: { limit: 3, ttl: 60_000 },
+    long: { limit: 10, ttl: 3_600_000 },
+  })
+  async esqueciSenha(@Body() dto: EsqueciSenhaDto) {
+    return this.authService.esqueciSenha(dto);
+  }
+
+  @Post('reset-senha')
+  @HttpCode(200)
+  @Throttle({
+    short: { limit: 10, ttl: 60_000 },
+    long: { limit: 50, ttl: 900_000 },
+  })
+  async resetSenha(@Body() dto: ResetSenhaDto) {
+    return this.authService.resetSenha(dto);
   }
 }

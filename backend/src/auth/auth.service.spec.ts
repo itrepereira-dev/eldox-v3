@@ -4,6 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
 import * as bcrypt from 'bcryptjs';
 
 // -------------------------------------------------------------------
@@ -115,12 +116,20 @@ describe('AuthService', () => {
         ),
     };
 
+    const mailMock: Partial<MailService> = {
+      enviarConvite: jest.fn().mockResolvedValue(undefined),
+      enviarResetSenha: jest.fn().mockResolvedValue(undefined),
+      send: jest.fn().mockResolvedValue(undefined),
+      getAppUrl: jest.fn().mockReturnValue('https://test.eldox'),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
         { provide: PrismaService, useValue: prisma },
         { provide: JwtService, useValue: jwtService },
         { provide: ConfigService, useValue: configService },
+        { provide: MailService, useValue: mailMock },
       ],
     }).compile();
 

@@ -5,6 +5,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
+import { PermissoesResolverService } from '../common/services/permissoes-resolver.service';
 import type { JwtModuleOptions } from '@nestjs/jwt';
 
 @Module({
@@ -21,7 +22,13 @@ import type { JwtModuleOptions } from '@nestjs/jwt';
       }),
     }),
   ],
-  providers: [AuthService, JwtStrategy, ConfigService],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    ConfigService,
+    PermissoesResolverService,
+  ],
   controllers: [AuthController],
+  exports: [PermissoesResolverService],
 })
 export class AuthModule {}

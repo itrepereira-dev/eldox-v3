@@ -5,7 +5,10 @@ import { BullModule } from '@nestjs/bull';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { PrismaModule } from './prisma/prisma.module';
 import { HealthModule } from './health/health.module';
+import { MailModule } from './mail/mail.module';
 import { AuthModule } from './auth/auth.module';
+import { UsuariosModule } from './usuarios/usuarios.module';
+import { PerfisAcessoModule } from './perfis-acesso/perfis-acesso.module';
 import { ObrasModule } from './obras/obras.module';
 import { GedModule } from './ged/ged.module';
 import { FvsModule } from './fvs/fvs.module';
@@ -45,7 +48,10 @@ import { PlanosAcaoModule } from './planos-acao/planos-acao.module';
 
     PrismaModule,
     HealthModule,
+    MailModule,
     AuthModule,
+    UsuariosModule,
+    PerfisAcessoModule,
     ObrasModule,
     GedModule,
     FvsModule,
