@@ -1,6 +1,6 @@
 // frontend-web/src/modules/almoxarifado/estoque/pages/MovimentosPage.tsx
 import { useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { cn } from '@/lib/cn'
 import { useMovimentos } from '../hooks/useEstoque'
 import type { AlmMovimentoTipo } from '../../_service/almoxarifado.service'
@@ -26,13 +26,10 @@ const DELTA_SIGN: Record<AlmMovimentoTipo, 1 | -1> = {
 }
 
 export function MovimentosPage() {
-  const { obraId } = useParams<{ obraId: string }>()
-  const id = Number(obraId)
-
   const [tipoFiltro, setTipoFiltro] = useState('')
   const [busca, setBusca] = useState('')
 
-  const { data: movimentos = [], isLoading } = useMovimentos(id, {
+  const { data: movimentos = [], isLoading } = useMovimentos(undefined, {
     tipo: tipoFiltro || undefined,
     limit: 100,
   })

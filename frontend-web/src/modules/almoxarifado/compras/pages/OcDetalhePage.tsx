@@ -190,17 +190,16 @@ function ItemProgress({ item }: { item: AlmOcItem }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export function OcDetalhePage() {
-  const { obraId, ocId } = useParams<{ obraId: string; ocId: string }>()
-  const oId  = Number(obraId)
+  const { ocId } = useParams<{ ocId: string }>()
   const oId2 = Number(ocId)
 
   const [showReceber, setShowReceber] = useState(false)
 
   const { data: oc, isLoading }     = useOc(oId2)
-  const confirmar  = useConfirmarOc(oId, oId2)
-  const emitir     = useEmitirOc(oId, oId2)
-  const receber    = useReceberOcItens(oId, oId2)
-  const cancelar   = useCancelarOc(oId, oId2)
+  const confirmar  = useConfirmarOc(undefined, oId2)
+  const emitir     = useEmitirOc(undefined, oId2)
+  const receber    = useReceberOcItens(undefined, oId2)
+  const cancelar   = useCancelarOc(undefined, oId2)
 
   async function handleReceber(receitas: ReceberOcItemPayload[]) {
     await receber.mutateAsync(receitas)

@@ -150,16 +150,15 @@ function AprovarModal({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export function SolicitacaoDetalhePage() {
-  const { obraId, solicitacaoId } = useParams<{ obraId: string; solicitacaoId: string }>()
-  const oId  = Number(obraId)
+  const { solicitacaoId } = useParams<{ solicitacaoId: string }>()
   const sId  = Number(solicitacaoId)
 
   const [modal, setModal] = useState<'aprovado' | 'reprovado' | null>(null)
 
   const { data: sol, isLoading } = useSolicitacao(sId)
-  const submeter  = useSubmeterSolicitacao(oId)
-  const aprovar   = useAprovarSolicitacao(oId, sId)
-  const cancelar  = useCancelarSolicitacao(oId, sId)
+  const submeter  = useSubmeterSolicitacao()
+  const aprovar   = useAprovarSolicitacao(undefined, sId)
+  const cancelar  = useCancelarSolicitacao(undefined, sId)
 
   async function handleAprovar(obs: string) {
     if (!modal) return

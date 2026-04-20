@@ -1,5 +1,5 @@
 // frontend-web/src/modules/almoxarifado/estoque/pages/AlertasPage.tsx
-import { useParams, Link } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { AlertOctagon, Clock, TrendingUp, CheckSquare } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useAlertas, useMarcarAlertaLido, useMarcarTodosLidos } from '../hooks/useEstoque'
@@ -65,12 +65,9 @@ function AlertaCard({ alerta, onLer }: { alerta: AlmAlertaEstoque; onLer: (id: n
 }
 
 export function AlertasPage() {
-  const { obraId } = useParams<{ obraId: string }>()
-  const id = Number(obraId)
-
-  const { data: alertas = [], isLoading } = useAlertas(id)
-  const marcarLido     = useMarcarAlertaLido(id)
-  const marcarTodos    = useMarcarTodosLidos(id)
+  const { data: alertas = [], isLoading } = useAlertas()
+  const marcarLido     = useMarcarAlertaLido()
+  const marcarTodos    = useMarcarTodosLidos()
 
   const criticos = alertas.filter((a) => a.nivel === 'critico')
   const atencao  = alertas.filter((a) => a.nivel === 'atencao')

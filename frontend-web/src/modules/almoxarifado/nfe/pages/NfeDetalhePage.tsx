@@ -233,8 +233,7 @@ function RejeitarModal({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export function NfeDetalhePage() {
-  const { obraId, nfeId } = useParams<{ obraId: string; nfeId: string }>()
-  const oId = Number(obraId)
+  const { nfeId } = useParams<{ nfeId: string }>()
   const nId = Number(nfeId)
 
   const [showVincular,  setShowVincular]  = useState(false)
@@ -244,8 +243,8 @@ export function NfeDetalhePage() {
 
   const { data: nfe, isLoading } = useNfe(nId)
   const { data: locais = [] }    = useLocais({ ativo: true })
-  const aceitar         = useAceitarNfe(oId, nId)
-  const rejeitar        = useRejeitarNfe(oId, nId)
+  const aceitar         = useAceitarNfe(undefined, nId)
+  const rejeitar        = useRejeitarNfe(undefined, nId)
   const vincularOc      = useVincularOcNfe(nId)
   const confirmarMatch  = useConfirmarMatchItem(nId)
 
