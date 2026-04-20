@@ -100,6 +100,20 @@ export class NfeController {
     return this.nfe.importarXml(tenantId, xmlContent);
   }
 
+  // ── Reprocessar webhooks pendentes (admin) ────────────────────────────────
+  //
+  // Chama processarWebhook sincronamente para todos os webhooks do tenant com
+  // status 'pendente' ou 'erro'. Útil quando BullMQ estiver atrasado,
+  // indisponível, ou para re-processar webhooks que falharam por bug agora
+  // corrigido (ex: XML mal parseado).
+  @Post('nfes/reprocessar-pendentes')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN_TENANT')
+  @HttpCode(HttpStatus.OK)
+  reprocessarPendentes(@TenantId() tenantId: number) {
+    return this.nfe.reprocessarWebhooksPendentes(tenantId);
+  }
+
   // ── Listagem (autenticada) ────────────────────────────────────────────────
 
   @Get('locais/:localId/nfes')

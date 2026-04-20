@@ -119,6 +119,57 @@ export class NfeService {
     return { status: 'aceito', chave_nfe };
   }
 
+  /**
+   * Processa sincronamente todos os webhooks com status 'pendente' do tenant.
+   * Útil como ferramenta admin quando BullMQ estiver indisponível/atrasado ou
+   * para re-processar webhooks que falharam.
+   *
+   * Retorna: { processados: N, falhou: M, detalhe: [{webhookId, status, erro}] }
+   */
+  async reprocessarWebhooksPendentes(tenantId: number): Promise<{
+    processados: number;
+    falhou: number;
+    detalhe: Array<{ webhookId: number; chave_nfe: string; status: string; erro?: string }>;
+  }> {
+    const pendentes = await this.prisma.$queryRawUnsafe<
+      { id: number; chave_nfe: string }[]
+    >(
+      `SELECT id, chave_nfe FROM alm_nfe_webhooks
+       WHERE tenant_id = $1 AND status IN ('pendente', 'erro')
+       ORDER BY created_at ASC
+       LIMIT 50`,
+      tenantId,
+    );
+
+    const detalhe: Array<{ webhookId: number; chave_nfe: string; status: string; erro?: string }> = [];
+    let processados = 0;
+    let falhou = 0;
+
+    for (const w of pendentes) {
+      try {
+        await this.processarWebhook(w.id);
+        processados++;
+        detalhe.push({ webhookId: w.id, chave_nfe: w.chave_nfe, status: 'processado' });
+      } catch (err: unknown) {
+        falhou++;
+        const msg = err instanceof Error ? err.message : String(err);
+        detalhe.push({ webhookId: w.id, chave_nfe: w.chave_nfe, status: 'erro', erro: msg });
+      }
+    }
+
+    this.logger.log(
+      JSON.stringify({
+        action: 'alm.nfe.reprocessar_pendentes',
+        tenantId,
+        total: pendentes.length,
+        processados,
+        falhou,
+      }),
+    );
+
+    return { processados, falhou, detalhe };
+  }
+
   // ── Webhook receiver ──────────────────────────────────────────────────────
 
   /**
