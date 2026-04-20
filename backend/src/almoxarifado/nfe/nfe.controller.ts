@@ -100,6 +100,18 @@ export class NfeController {
     return this.nfe.importarXml(tenantId, xmlContent);
   }
 
+  // ── Diagnóstico da fila BullMQ (admin) ────────────────────────────────────
+  //
+  // Retorna ping do Redis, contagens por estado da queue 'almoxarifado' e os
+  // últimos jobs failed/waiting. Útil para entender por que jobs assíncronos
+  // não estão rodando (Redis down, processor travado, failedReason específico).
+  @Get('nfes/diagnostico-fila')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN_TENANT')
+  diagnosticoFila() {
+    return this.nfe.diagnosticarFilaBullMQ();
+  }
+
   // ── Reprocessar webhooks pendentes (admin) ────────────────────────────────
   //
   // Chama processarWebhook sincronamente para todos os webhooks do tenant com
