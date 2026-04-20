@@ -1,11 +1,93 @@
 // frontend-web/src/modules/almoxarifado/nfe/pages/NfeDetalhePage.tsx
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ChevronRight, CheckCircle, XCircle, Link2, Zap, AlertTriangle } from 'lucide-react'
+import { ChevronRight, CheckCircle, XCircle, Link2, Zap, AlertTriangle, ArrowRight } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useNfe, useAceitarNfe, useRejeitarNfe, useVincularOcNfe, useConfirmarMatchItem } from '../hooks/useNfe'
 import { useLocais } from '../../locais/hooks/useLocais'
+import { useConversaoPreview } from '../../conversoes/hooks/useConversoes'
 import type { AlmNfeItem, AlmMatchStatus } from '../../_service/almoxarifado.service'
+
+// ── Preview de conversão por item ─────────────────────────────────────────────
+
+function ItemConversaoPreview({ item }: { item: AlmNfeItem }) {
+  const qty = Number(item.quantidade ?? 0)
+  const origem = item.unidade_nfe ?? ''
+  const destino = item.catalogo_unidade_padrao ?? ''
+  const mesmaUm = origem && destino && origem.toUpperCase() === destino.toUpperCase()
+  const semCatalogo = !item.catalogo_id
+  const semUmPadrao = !destino
+
+  const preview = useConversaoPreview({
+    catalogoId: item.catalogo_id,
+    quantidade: qty,
+    unidadeOrigem: origem,
+    unidadeDestino: destino,
+  })
+
+  // Sem catálogo vinculado: não dá pra converter, alerta amarelo
+  if (semCatalogo) {
+    return (
+      <div className="flex items-center gap-1.5 text-[11px] text-[var(--warn)]">
+        <AlertTriangle size={10} />
+        Item sem catálogo — aceite cadastrando catálogo primeiro
+      </div>
+    )
+  }
+
+  // Catálogo sem UM padrão: aceitável, vai entrar com UM da NF
+  if (semUmPadrao) {
+    return (
+      <div className="text-[11px] text-[var(--text-faint)]">
+        UM do catálogo não definida — entrará como <span className="font-mono">{origem || '—'}</span>
+      </div>
+    )
+  }
+
+  // UMs iguais: sem conversão necessária
+  if (mesmaUm) {
+    return (
+      <div className="text-[11px] text-[var(--ok)]">
+        <CheckCircle size={10} className="inline-block mr-1" />
+        UM da NF e do catálogo coincidem ({destino})
+      </div>
+    )
+  }
+
+  if (preview.isLoading) {
+    return <div className="text-[11px] text-[var(--text-faint)]">Calculando…</div>
+  }
+
+  if (preview.isError) {
+    const msg = (preview.error as { response?: { data?: { message?: string } } })?.response?.data?.message
+      ?? 'Conversão não cadastrada'
+    return (
+      <div className="flex items-center gap-1.5 text-[11px] text-[var(--nc)]">
+        <AlertTriangle size={10} />
+        {msg} — cadastre em /almoxarifado/conversoes
+      </div>
+    )
+  }
+
+  if (preview.data) {
+    return (
+      <div className="flex items-center gap-1.5 text-[11px] text-[var(--text-low)]">
+        <span className="font-mono text-[var(--text-high)]">
+          {qty.toLocaleString('pt-BR', { maximumFractionDigits: 3 })} {origem}
+        </span>
+        <ArrowRight size={10} />
+        <span className="font-mono text-[var(--ok)] font-semibold">
+          {preview.data.quantidade.toLocaleString('pt-BR', { maximumFractionDigits: 3 })} {destino}
+        </span>
+        <span className="text-[10px] text-[var(--text-faint)]">
+          (fator {preview.data.fator})
+        </span>
+      </div>
+    )
+  }
+
+  return null
+}
 
 // ── Match badge ────────────────────────────────────────────────────────────────
 
@@ -273,10 +355,17 @@ export function NfeDetalhePage() {
   return (
     <div className="p-6 max-w-[1000px]">
       {showAceitar && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-[var(--bg-surface)] border border-[var(--border-dim)] rounded-md p-5 w-[360px] shadow-xl">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--bg-surface)] border border-[var(--border-dim)] rounded-md p-5 w-[640px] max-w-full max-h-[90vh] overflow-y-auto shadow-xl">
             <p className="text-[14px] font-semibold text-[var(--text-high)] mb-3">Aceitar NF-e</p>
-            <p className="text-[12px] text-[var(--text-low)] mb-4">Selecione o local de destino para entrada dos materiais.</p>
+            <p className="text-[12px] text-[var(--text-low)] mb-4">
+              Selecione o local de destino. Revise abaixo como cada item será convertido
+              da UM do fornecedor para a UM do seu catálogo antes de confirmar.
+            </p>
+
+            <label className="block text-[11px] font-semibold text-[var(--text-low)] uppercase tracking-wider mb-1.5">
+              Local de destino
+            </label>
             <select
               value={localAceitarId}
               onChange={(e) => setLocalAceitarId(e.target.value === '' ? '' : Number(e.target.value))}
@@ -287,6 +376,27 @@ export function NfeDetalhePage() {
                 <option key={l.id} value={l.id}>{l.nome} ({l.tipo})</option>
               ))}
             </select>
+
+            <label className="block text-[11px] font-semibold text-[var(--text-low)] uppercase tracking-wider mb-1.5">
+              Itens e conversões ({itens.length})
+            </label>
+            <div className="bg-[var(--bg-raised)] border border-[var(--border-dim)] rounded-sm divide-y divide-[var(--border-dim)] mb-4 max-h-[280px] overflow-y-auto">
+              {itens.length === 0 ? (
+                <div className="px-3 py-3 text-[12px] text-[var(--text-faint)]">Nenhum item na NF.</div>
+              ) : (
+                itens.map((item) => (
+                  <div key={item.id} className="px-3 py-2.5">
+                    <div className="text-[12px] font-medium text-[var(--text-high)] truncate">
+                      {item.catalogo_nome ?? item.xprod}
+                    </div>
+                    <div className="mt-0.5">
+                      <ItemConversaoPreview item={item} />
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => { setShowAceitar(false); setLocalAceitarId('') }}
