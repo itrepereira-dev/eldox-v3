@@ -1,0 +1,58 @@
+[
+  {
+    "name": "Criar Obra (wizard)",
+    "status": "PULADO",
+    "detail": "Nao identifiquei campo de nome no wizard",
+    "screenshot": "screenshots-flows/criar_obra_wizard_.png",
+    "console_errors": 0,
+    "network_failures": 0
+  },
+  {
+    "name": "Abrir FVS Ficha wizard",
+    "status": "OK",
+    "detail": "Wizard abriu e listou obras",
+    "screenshot": "screenshots-flows/abrir_fvs_ficha_wizard.png",
+    "console_errors": 0,
+    "network_failures": 0
+  },
+  {
+    "name": "Listar NCs + abrir criação",
+    "status": "OK",
+    "detail": "Lista NCs carregou e botao de criacao respondeu ao click",
+    "screenshot": "screenshots-flows/listar_ncs_abrir_cria_o.png",
+    "console_errors": 0,
+    "network_failures": 0
+  },
+  {
+    "name": "FVM grade materiais",
+    "status": "OK",
+    "detail": "Grade FVM renderizou",
+    "screenshot": "screenshots-flows/fvm_grade_materiais.png",
+    "console_errors": 0,
+    "network_failures": 0
+  },
+  {
+    "name": "Diário/RDO da obra",
+    "status": "OK",
+    "detail": "Lista RDOs carregou",
+    "screenshot": "screenshots-flows/di_rio_rdo_da_obra.png",
+    "console_errors": 0,
+    "network_failures": 0
+  },
+  {
+    "name": "Concretagem da obra",
+    "status": "OK",
+    "detail": "Dashboard concretagem carregou",
+    "screenshot": "screenshots-flows/concretagem_da_obra.png",
+    "console_errors": 0,
+    "network_failures": 0
+  },
+  {
+    "name": "Croqui de Rastreabilidade",
+    "status": "OK",
+    "detail": "Lista croquis carregou",
+    "screenshot": "screenshots-flows/croqui_de_rastreabilidade.png",
+    "console_errors": 0,
+    "network_failures": 0
+  }
+]

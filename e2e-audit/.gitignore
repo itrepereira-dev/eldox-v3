@@ -1,0 +1,4 @@
+screenshots/
+screenshots-flows/
+*.pyc
+__pycache__/

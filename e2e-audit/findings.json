@@ -1,0 +1,74 @@
+[
+  {
+    "severity": "CRIT",
+    "modulo": "FVS",
+    "path": "/obras/3/fvs/dashboard",
+    "category": "network",
+    "summary": "Request GET fvs/dashboard/obras/3/dashboard-graficos falhou (500)",
+    "details": "{\"url\": \"https://sistema.eldox.com.br/api/v1/fvs/dashboard/obras/3/dashboard-graficos?data_inicio=2026-03-23&data_fim=2026-04-20&granularidade=semana\", \"method\": \"GET\", \"status\": 500}",
+    "screenshot": "screenshots/obras_3_fvs_dashboard.png"
+  },
+  {
+    "severity": "CRIT",
+    "modulo": "Semaforo",
+    "path": "/obras/3/semaforo",
+    "category": "network",
+    "summary": "Request GET obras/3/semaforo falhou (500)",
+    "details": "{\"url\": \"https://sistema.eldox.com.br/api/v1/obras/3/semaforo\", \"method\": \"GET\", \"status\": 500}",
+    "screenshot": "screenshots/obras_3_semaforo.png"
+  },
+  {
+    "severity": "ALTO",
+    "modulo": "Almoxarifado",
+    "path": "/almoxarifado/ocs",
+    "category": "network",
+    "summary": "Request GET almoxarifado/ordens-compra falhou (404)",
+    "details": "{\"url\": \"https://sistema.eldox.com.br/api/v1/almoxarifado/ordens-compra\", \"method\": \"GET\", \"status\": 404}",
+    "screenshot": "screenshots/almoxarifado_ocs.png"
+  },
+  {
+    "severity": "ALTO",
+    "modulo": "Aprovacoes",
+    "path": "/aprovacoes/templates",
+    "category": "network",
+    "summary": "Request GET aprovacoes/templates falhou (400)",
+    "details": "{\"url\": \"https://sistema.eldox.com.br/api/v1/aprovacoes/templates\", \"method\": \"GET\", \"status\": 400}",
+    "screenshot": "screenshots/aprovacoes_templates.png"
+  },
+  {
+    "severity": "MEDIO",
+    "modulo": "Almoxarifado",
+    "path": "/almoxarifado/ocs",
+    "category": "console",
+    "summary": "console.error: Failed to load resource: the server responded with a status of 404 ()",
+    "details": "Failed to load resource: the server responded with a status of 404 ()",
+    "screenshot": "screenshots/almoxarifado_ocs.png"
+  },
+  {
+    "severity": "MEDIO",
+    "modulo": "Aprovacoes",
+    "path": "/aprovacoes/templates",
+    "category": "console",
+    "summary": "console.error: Failed to load resource: the server responded with a status of 400 ()",
+    "details": "Failed to load resource: the server responded with a status of 400 ()",
+    "screenshot": "screenshots/aprovacoes_templates.png"
+  },
+  {
+    "severity": "MEDIO",
+    "modulo": "FVS",
+    "path": "/obras/3/fvs/dashboard",
+    "category": "console",
+    "summary": "console.error: Failed to load resource: the server responded with a status of 500 ()",
+    "details": "Failed to load resource: the server responded with a status of 500 ()",
+    "screenshot": "screenshots/obras_3_fvs_dashboard.png"
+  },
+  {
+    "severity": "MEDIO",
+    "modulo": "Semaforo",
+    "path": "/obras/3/semaforo",
+    "category": "console",
+    "summary": "console.error: Failed to load resource: the server responded with a status of 500 ()",
+    "details": "Failed to load resource: the server responded with a status of 500 ()",
+    "screenshot": "screenshots/obras_3_semaforo.png"
+  }
+]
