@@ -6,6 +6,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { PrismaModule } from './prisma/prisma.module';
 import { HealthModule } from './health/health.module';
 import { MailModule } from './mail/mail.module';
+import { AuditLogModule } from './common/services/audit-log.service';
 import { AuthModule } from './auth/auth.module';
 import { UsuariosModule } from './usuarios/usuarios.module';
 import { PerfisAcessoModule } from './perfis-acesso/perfis-acesso.module';
@@ -49,6 +50,7 @@ import { PlanosAcaoModule } from './planos-acao/planos-acao.module';
     PrismaModule,
     HealthModule,
     MailModule,
+    AuditLogModule,
     AuthModule,
     UsuariosModule,
     PerfisAcessoModule,

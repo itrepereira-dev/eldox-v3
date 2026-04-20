@@ -1,11 +1,11 @@
-import { IsString, Length, MinLength } from 'class-validator';
+import { IsString, Length } from 'class-validator';
+import { SenhaForte } from '../../common/decorators/senha-forte.decorator';
 
 export class ResetSenhaDto {
   @IsString()
   @Length(64, 64)
   token!: string;
 
-  @IsString()
-  @MinLength(8)
+  @SenhaForte()
   novaSenha!: string;
 }

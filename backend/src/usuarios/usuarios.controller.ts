@@ -46,55 +46,60 @@ export class UsuariosController {
   @HttpCode(HttpStatus.CREATED)
   criar(
     @TenantId() tenantId: number,
-    @CurrentUser() user: { role: string },
+    @CurrentUser() user: { id: number; role: string },
     @Body() dto: CriarUsuarioDto,
   ) {
-    return this.usuarios.criarComConvite(tenantId, user.role, dto);
+    return this.usuarios.criarComConvite(tenantId, user.id, user.role, dto);
   }
 
   @Patch(':id')
   atualizar(
     @TenantId() tenantId: number,
+    @CurrentUser() user: { id: number },
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: AtualizarUsuarioDto,
   ) {
-    return this.usuarios.atualizar(tenantId, id, dto);
+    return this.usuarios.atualizar(tenantId, id, user.id, dto);
   }
 
   @Patch(':id/ativo')
   definirAtivo(
     @TenantId() tenantId: number,
+    @CurrentUser() user: { id: number },
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: DefinirAtivoDto,
   ) {
-    return this.usuarios.definirAtivo(tenantId, id, dto.ativo);
+    return this.usuarios.definirAtivo(tenantId, id, user.id, dto.ativo);
   }
 
   @Patch(':id/perfil')
   atribuirPerfil(
     @TenantId() tenantId: number,
+    @CurrentUser() user: { id: number },
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: AtribuirPerfilDto,
   ) {
-    return this.usuarios.atribuirPerfil(tenantId, id, dto);
+    return this.usuarios.atribuirPerfil(tenantId, id, user.id, dto);
   }
 
   @Post(':id/reenviar-convite')
   @HttpCode(HttpStatus.OK)
   reenviarConvite(
     @TenantId() tenantId: number,
+    @CurrentUser() user: { id: number },
     @Param('id', ParseIntPipe) id: number,
   ) {
-    return this.usuarios.reenviarConvite(tenantId, id);
+    return this.usuarios.reenviarConvite(tenantId, id, user.id);
   }
 
   @Post(':id/reset-senha')
   @HttpCode(HttpStatus.OK)
   resetSenha(
     @TenantId() tenantId: number,
+    @CurrentUser() user: { id: number },
     @Param('id', ParseIntPipe) id: number,
   ) {
-    return this.usuarios.gerarResetSenha(tenantId, id);
+    return this.usuarios.gerarResetSenha(tenantId, id, user.id);
   }
 
   // ─────────────────────────── Obras liberadas
@@ -111,19 +116,21 @@ export class UsuariosController {
   @HttpCode(HttpStatus.CREATED)
   vincularObra(
     @TenantId() tenantId: number,
+    @CurrentUser() user: { id: number },
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: VincularObraDto,
   ) {
-    return this.usuarios.vincularObra(tenantId, id, dto.obraId);
+    return this.usuarios.vincularObra(tenantId, id, user.id, dto.obraId);
   }
 
   @Delete(':id/obras/:obraId')
   desvincularObra(
     @TenantId() tenantId: number,
+    @CurrentUser() user: { id: number },
     @Param('id', ParseIntPipe) id: number,
     @Param('obraId', ParseIntPipe) obraId: number,
   ) {
-    return this.usuarios.desvincularObra(tenantId, id, obraId);
+    return this.usuarios.desvincularObra(tenantId, id, user.id, obraId);
   }
 
   // ─────────────────────────── Overrides de permissão
@@ -149,9 +156,10 @@ export class UsuariosController {
   @Delete(':id/permissoes/:modulo')
   removerOverride(
     @TenantId() tenantId: number,
+    @CurrentUser() user: { id: number },
     @Param('id', ParseIntPipe) id: number,
     @Param('modulo') modulo: string,
   ) {
-    return this.usuarios.removerOverride(tenantId, id, modulo);
+    return this.usuarios.removerOverride(tenantId, id, user.id, modulo);
   }
 }

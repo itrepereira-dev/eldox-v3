@@ -21,6 +21,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     tenantId: number;
     role: string;
     plano: string;
+    v?: number;
   }) {
     const usuario = await this.prisma.usuario.findFirst({
       where: {
@@ -29,10 +30,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         ativo: true,
         deletadoEm: null,
       },
+      select: { id: true, tokenVersion: true },
     });
 
     if (!usuario)
       throw new UnauthorizedException('Usuário não encontrado ou inativo');
+
+    // payload.v ausente = token assinado antes da feature — aceitar (grace).
+    // Quando v presente, exige match com DB.
+    if (payload.v !== undefined && payload.v !== usuario.tokenVersion) {
+      throw new UnauthorizedException('Token revogado — faça login novamente');
+    }
 
     return {
       id: payload.sub,

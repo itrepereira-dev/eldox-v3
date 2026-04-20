@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
+import { AuditLogService } from '../common/services/audit-log.service';
 import * as bcrypt from 'bcryptjs';
 
 // -------------------------------------------------------------------
@@ -123,6 +124,10 @@ describe('AuthService', () => {
       getAppUrl: jest.fn().mockReturnValue('https://test.eldox'),
     };
 
+    const auditMock: Partial<AuditLogService> = {
+      log: jest.fn().mockResolvedValue(undefined),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
@@ -130,6 +135,7 @@ describe('AuthService', () => {
         { provide: JwtService, useValue: jwtService },
         { provide: ConfigService, useValue: configService },
         { provide: MailService, useValue: mailMock },
+        { provide: AuditLogService, useValue: auditMock },
       ],
     }).compile();
 
@@ -174,7 +180,12 @@ describe('AuthService', () => {
         where: { slug: REGISTER_DTO.tenantSlug },
       });
       expect(prisma.usuario.findFirst).toHaveBeenCalledWith({
-        where: { email: REGISTER_DTO.adminEmail },
+        where: {
+          email: {
+            equals: REGISTER_DTO.adminEmail.toLowerCase(),
+            mode: 'insensitive',
+          },
+        },
       });
       expect(prisma.plano.findUnique).toHaveBeenCalledWith({
         where: { nome: 'starter' },
@@ -270,7 +281,10 @@ describe('AuthService', () => {
       expect(prisma.usuario.findFirst).toHaveBeenCalledWith({
         where: {
           tenantId: TENANT_MOCK.id,
-          email: LOGIN_DTO.email,
+          email: {
+            equals: LOGIN_DTO.email.toLowerCase(),
+            mode: 'insensitive',
+          },
           ativo: true,
           deletadoEm: null,
         },

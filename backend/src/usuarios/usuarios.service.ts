@@ -8,6 +8,8 @@ import {
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
+import { AuditLogService } from '../common/services/audit-log.service';
+import { normalizarEmail } from '../common/decorators/senha-forte.decorator';
 import { CriarUsuarioDto } from './dto/criar-usuario.dto';
 import { AtualizarUsuarioDto } from './dto/atualizar-usuario.dto';
 import { AtribuirPerfilDto } from './dto/atribuir-perfil.dto';
@@ -29,6 +31,7 @@ export class UsuariosService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
+    private readonly audit: AuditLogService,
   ) {}
 
   // ───────────────────────────────────────── LISTAR
@@ -74,6 +77,7 @@ export class UsuariosService {
 
   async criarComConvite(
     tenantId: number,
+    convidadoPorId: number,
     convidadoPorRole: string,
     dto: CriarUsuarioDto,
   ) {
@@ -81,8 +85,12 @@ export class UsuariosService {
       throw new ForbiddenException('Apenas SUPER_ADMIN pode criar SUPER_ADMIN');
     }
 
+    const email = normalizarEmail(dto.email);
     const existente = await this.prisma.usuario.findFirst({
-      where: { tenantId, email: dto.email },
+      where: {
+        tenantId,
+        email: { equals: email, mode: 'insensitive' },
+      },
     });
     if (existente) throw new ConflictException('E-mail já cadastrado');
 
@@ -103,7 +111,7 @@ export class UsuariosService {
       data: {
         tenantId,
         nome: dto.nome,
-        email: dto.email,
+        email,
         senhaHash: '', // vazia até aceitar convite
         role: dto.role,
         status: 'PENDENTE',
@@ -121,11 +129,23 @@ export class UsuariosService {
       },
     });
 
-    await this.mail.enviarConvite(dto.email, rawToken);
+    await this.mail.enviarConvite(email, rawToken);
+    await this.audit.log({
+      tenantId,
+      usuarioId: convidadoPorId,
+      acao: 'CONVITE_CRIADO',
+      entidade: 'usuario',
+      entidadeId: usuario.id,
+      dadosDepois: {
+        email: usuario.email,
+        role: usuario.role,
+        perfilAcessoId: dto.perfilAcessoId ?? null,
+      },
+    });
     return usuario;
   }
 
-  async reenviarConvite(tenantId: number, id: number) {
+  async reenviarConvite(tenantId: number, id: number, porUsuarioId: number) {
     const u = await this.prisma.usuario.findFirst({
       where: { id, tenantId, deletadoEm: null },
     });
@@ -145,41 +165,94 @@ export class UsuariosService {
       data: { tokenHash, tokenExp },
     });
     await this.mail.enviarConvite(u.email, rawToken);
+    await this.audit.log({
+      tenantId,
+      usuarioId: porUsuarioId,
+      acao: 'CONVITE_REENVIADO',
+      entidade: 'usuario',
+      entidadeId: id,
+    });
     return { ok: true };
   }
 
   // ───────────────────────────────────────── EDITAR
 
-  async atualizar(tenantId: number, id: number, dto: AtualizarUsuarioDto) {
-    await this.garantirExiste(tenantId, id);
+  async atualizar(
+    tenantId: number,
+    id: number,
+    porUsuarioId: number,
+    dto: AtualizarUsuarioDto,
+  ) {
+    const antes = await this.prisma.usuario.findFirst({
+      where: { id, tenantId, deletadoEm: null },
+      select: { id: true, nome: true, email: true, role: true },
+    });
+    if (!antes) throw new NotFoundException('Usuário não encontrado');
 
-    if (dto.email) {
+    const dtoNormalizado = dto.email
+      ? { ...dto, email: normalizarEmail(dto.email) }
+      : dto;
+    if (dtoNormalizado.email) {
       const outro = await this.prisma.usuario.findFirst({
-        where: { tenantId, email: dto.email, NOT: { id } },
+        where: {
+          tenantId,
+          email: { equals: dtoNormalizado.email, mode: 'insensitive' },
+          NOT: { id },
+        },
       });
       if (outro) throw new ConflictException('E-mail já cadastrado');
     }
 
-    return this.prisma.usuario.update({
+    const atualizado = await this.prisma.usuario.update({
       where: { id },
-      data: dto,
+      data: dtoNormalizado,
       select: { id: true, nome: true, email: true, role: true, status: true },
     });
+    await this.audit.log({
+      tenantId,
+      usuarioId: porUsuarioId,
+      acao: 'USUARIO_ATUALIZADO',
+      entidade: 'usuario',
+      entidadeId: id,
+      dadosAntes: antes,
+      dadosDepois: atualizado,
+    });
+    return atualizado;
   }
 
-  async definirAtivo(tenantId: number, id: number, ativo: boolean) {
+  async definirAtivo(
+    tenantId: number,
+    id: number,
+    porUsuarioId: number,
+    ativo: boolean,
+  ) {
     await this.garantirExiste(tenantId, id);
-    return this.prisma.usuario.update({
+    const atualizado = await this.prisma.usuario.update({
       where: { id },
       data: {
         ativo,
         status: ativo ? 'ATIVO' : 'INATIVO',
+        // Desativação revoga tokens em voo; reativação não precisa.
+        ...(ativo ? {} : { tokenVersion: { increment: 1 } }),
       },
       select: { id: true, ativo: true, status: true },
     });
+    await this.audit.log({
+      tenantId,
+      usuarioId: porUsuarioId,
+      acao: ativo ? 'USUARIO_ATIVADO' : 'USUARIO_DESATIVADO',
+      entidade: 'usuario',
+      entidadeId: id,
+    });
+    return atualizado;
   }
 
-  async atribuirPerfil(tenantId: number, id: number, dto: AtribuirPerfilDto) {
+  async atribuirPerfil(
+    tenantId: number,
+    id: number,
+    porUsuarioId: number,
+    dto: AtribuirPerfilDto,
+  ) {
     await this.garantirExiste(tenantId, id);
     if (dto.perfilAcessoId != null) {
       const p = await this.prisma.perfilAcesso.findFirst({
@@ -187,16 +260,29 @@ export class UsuariosService {
       });
       if (!p) throw new BadRequestException('Perfil de acesso inválido');
     }
-    return this.prisma.usuario.update({
+    const atualizado = await this.prisma.usuario.update({
       where: { id },
       data: { perfilAcessoId: dto.perfilAcessoId ?? null },
       select: { id: true, perfilAcessoId: true },
     });
+    await this.audit.log({
+      tenantId,
+      usuarioId: porUsuarioId,
+      acao: 'PERFIL_ATRIBUIDO',
+      entidade: 'usuario',
+      entidadeId: id,
+      detalhes: { perfilAcessoId: dto.perfilAcessoId ?? null },
+    });
+    return atualizado;
   }
 
   // ───────────────────────────────────────── RESET DE SENHA (admin)
 
-  async gerarResetSenha(tenantId: number, id: number) {
+  async gerarResetSenha(
+    tenantId: number,
+    id: number,
+    porUsuarioId: number,
+  ) {
     const u = await this.prisma.usuario.findFirst({
       where: { id, tenantId, deletadoEm: null },
     });
@@ -212,6 +298,14 @@ export class UsuariosService {
       data: { tokenHash, tokenExp },
     });
     await this.mail.enviarResetSenha(u.email, rawToken);
+    await this.audit.log({
+      tenantId,
+      usuarioId: porUsuarioId,
+      acao: 'RESET_SENHA_SOLICITADO',
+      entidade: 'usuario',
+      entidadeId: id,
+      detalhes: { origem: 'admin' },
+    });
     return { ok: true };
   }
 
@@ -226,25 +320,53 @@ export class UsuariosService {
     });
   }
 
-  async vincularObra(tenantId: number, usuarioId: number, obraId: number) {
+  async vincularObra(
+    tenantId: number,
+    usuarioId: number,
+    porUsuarioId: number,
+    obraId: number,
+  ) {
     await this.garantirExiste(tenantId, usuarioId);
     const obra = await this.prisma.obra.findFirst({
       where: { id: obraId, tenantId, deletadoEm: null },
     });
     if (!obra) throw new BadRequestException('Obra inválida');
+    let row: unknown;
     try {
-      return await this.prisma.usuarioObra.create({
+      row = await this.prisma.usuarioObra.create({
         data: { tenantId, usuarioId, obraId },
       });
     } catch {
       throw new ConflictException('Usuário já tem acesso a esta obra');
     }
+    await this.audit.log({
+      tenantId,
+      usuarioId: porUsuarioId,
+      acao: 'OBRA_LIBERADA',
+      entidade: 'usuario_obra',
+      entidadeId: usuarioId,
+      detalhes: { obraId },
+    });
+    return row;
   }
 
-  async desvincularObra(tenantId: number, usuarioId: number, obraId: number) {
+  async desvincularObra(
+    tenantId: number,
+    usuarioId: number,
+    porUsuarioId: number,
+    obraId: number,
+  ) {
     await this.garantirExiste(tenantId, usuarioId);
     await this.prisma.usuarioObra.deleteMany({
       where: { tenantId, usuarioId, obraId },
+    });
+    await this.audit.log({
+      tenantId,
+      usuarioId: porUsuarioId,
+      acao: 'OBRA_REVOGADA',
+      entidade: 'usuario_obra',
+      entidadeId: usuarioId,
+      detalhes: { obraId },
     });
     return { ok: true };
   }
@@ -269,8 +391,7 @@ export class UsuariosService {
     dto: SalvarOverridesDto,
   ) {
     await this.garantirExiste(tenantId, usuarioId);
-    // Estratégia: substitui todos os overrides do usuário pelo array enviado.
-    return this.prisma.$transaction([
+    const result = await this.prisma.$transaction([
       this.prisma.usuarioPermissaoOverride.deleteMany({
         where: { tenantId, usuarioId },
       }),
@@ -287,16 +408,34 @@ export class UsuariosService {
         }),
       ),
     ]);
+    await this.audit.log({
+      tenantId,
+      usuarioId: concedidoPorId,
+      acao: 'OVERRIDES_SALVOS',
+      entidade: 'usuario',
+      entidadeId: usuarioId,
+      dadosDepois: { overrides: dto.overrides },
+    });
+    return result;
   }
 
   async removerOverride(
     tenantId: number,
     usuarioId: number,
+    porUsuarioId: number,
     modulo: string,
   ) {
     await this.garantirExiste(tenantId, usuarioId);
     await this.prisma.usuarioPermissaoOverride.deleteMany({
       where: { tenantId, usuarioId, modulo: modulo as never },
+    });
+    await this.audit.log({
+      tenantId,
+      usuarioId: porUsuarioId,
+      acao: 'OVERRIDE_REMOVIDO',
+      entidade: 'usuario',
+      entidadeId: usuarioId,
+      detalhes: { modulo },
     });
     return { ok: true };
   }

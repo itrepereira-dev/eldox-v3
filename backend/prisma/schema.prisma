@@ -71,6 +71,11 @@ model Usuario {
   tokenHash  String?   @map("token_hash") @db.Char(64)
   tokenExp   DateTime? @map("token_exp")
 
+  // Versão do JWT — incrementa em troca de senha / desativação para revogar
+  // todos os tokens emitidos antes. Incluída no payload como `v`; JwtStrategy
+  // compara DB vs payload e rejeita se divergir.
+  tokenVersion Int @default(1) @map("token_version")
+
   // Perfil de acesso (nullable — ADMIN_TENANT e SUPER_ADMIN não precisam)
   perfilAcessoId Int?          @map("perfil_acesso_id")
   perfilAcesso   PerfilAcesso? @relation(fields: [perfilAcessoId], references: [id], onDelete: SetNull)
