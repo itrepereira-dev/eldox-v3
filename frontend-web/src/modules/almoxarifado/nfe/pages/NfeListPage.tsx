@@ -1,6 +1,6 @@
 // frontend-web/src/modules/almoxarifado/nfe/pages/NfeListPage.tsx
 import { useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { FileText, Zap } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useNfes } from '../hooks/useNfe'
@@ -98,13 +98,10 @@ function NfeRow({ nfe }: { nfe: AlmNotaFiscal }) {
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export function NfeListPage() {
-  const { obraId } = useParams<{ obraId: string }>()
-  const id = Number(obraId)
-
   const [activeTab, setActiveTab] = useState('')
   const [busca, setBusca]         = useState('')
 
-  const { data: nfes = [], isLoading } = useNfes(id, {
+  const { data: nfes = [], isLoading } = useNfes(undefined, {
     status: activeTab || undefined,
   })
 

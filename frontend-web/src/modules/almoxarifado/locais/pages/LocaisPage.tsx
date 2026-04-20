@@ -198,11 +198,13 @@ export function LocaisPage() {
                 </td>
                 <td style={{ padding: '10px 12px' }}>
                   <button onClick={() => handleEdit(local)}
-                    style={{ marginRight: 8, padding: '4px 10px', borderRadius: 4, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-high)', cursor: 'pointer', fontSize: 13 }}>
-                    Editar
+                    title="Editar dados deste local (nome, endereço, responsável, tipo)"
+                    style={{ marginRight: 8, padding: '4px 10px', borderRadius: 4, border: '1px solid var(--accent)', background: 'transparent', color: 'var(--accent)', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
+                    ✎ Editar
                   </button>
                   {local.ativo && (
                     <button onClick={() => handleDesativar(local)}
+                      title="Marcar como inativo (preserva histórico de movimentações). Para voltar a usar, edite e marque como ativo."
                       style={{ padding: '4px 10px', borderRadius: 4, border: '1px solid var(--warn)', background: 'transparent', color: 'var(--warn)', cursor: 'pointer', fontSize: 13 }}>
                       Desativar
                     </button>

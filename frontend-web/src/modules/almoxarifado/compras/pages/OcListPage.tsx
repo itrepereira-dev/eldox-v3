@@ -1,6 +1,6 @@
 // frontend-web/src/modules/almoxarifado/compras/pages/OcListPage.tsx
 import { useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { Plus, Package } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useOcs } from '../hooks/useCompras'
@@ -83,13 +83,10 @@ function OcRow({ oc }: { oc: AlmOrdemCompra }) {
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export function OcListPage() {
-  const { obraId } = useParams<{ obraId: string }>()
-  const id = Number(obraId)
-
   const [activeTab, setActiveTab] = useState('')
   const [busca, setBusca]         = useState('')
 
-  const { data: ocs = [], isLoading } = useOcs(id, {
+  const { data: ocs = [], isLoading } = useOcs(undefined, {
     status: activeTab || undefined,
   })
 

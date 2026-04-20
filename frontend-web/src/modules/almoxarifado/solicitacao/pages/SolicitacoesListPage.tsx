@@ -1,6 +1,6 @@
 // frontend-web/src/modules/almoxarifado/solicitacao/pages/SolicitacoesListPage.tsx
 import { useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { Plus, AlertTriangle, Clock } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useSolicitacoes } from '../hooks/useSolicitacao'
@@ -95,13 +95,10 @@ function SolicitacaoRow({ sol }: { sol: AlmSolicitacao }) {
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export function SolicitacoesListPage() {
-  const { obraId } = useParams<{ obraId: string }>()
-  const id = Number(obraId)
-
   const [activeTab, setActiveTab] = useState('')
   const [busca, setBusca]         = useState('')
 
-  const { data: solicitacoes = [], isLoading } = useSolicitacoes(id, {
+  const { data: solicitacoes = [], isLoading } = useSolicitacoes(undefined, {
     status: activeTab || undefined,
   })
 

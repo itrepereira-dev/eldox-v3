@@ -1,6 +1,6 @@
 // frontend-web/src/modules/almoxarifado/solicitacao/pages/NovaSolicitacaoPage.tsx
 import { useState, useRef } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { Search, Plus, Trash2, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useCriarSolicitacao } from '../hooks/useSolicitacao'
@@ -21,9 +21,7 @@ interface ItemForm extends CreateSolicitacaoItemPayload {
 }
 
 export function NovaSolicitacaoPage() {
-  const { obraId } = useParams<{ obraId: string }>()
-  const navigate    = useNavigate()
-  const id          = Number(obraId)
+  const navigate = useNavigate()
 
   const { data: locais = [] } = useLocais({ ativo: true })
   const [localDestinoId, setLocalDestinoId] = useState<number | ''>('')
@@ -41,8 +39,8 @@ export function NovaSolicitacaoPage() {
   const [buscando,    setBuscando]    = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const criar    = useCriarSolicitacao(id)
-  const submeter = useSubmeterSolicitacao(id)
+  const criar    = useCriarSolicitacao()
+  const submeter = useSubmeterSolicitacao()
 
   // ── Busca catálogo ──────────────────────────────────────────────────────
 

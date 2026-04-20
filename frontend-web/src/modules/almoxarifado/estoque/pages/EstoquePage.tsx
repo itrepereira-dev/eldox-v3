@@ -1,6 +1,6 @@
 // frontend-web/src/modules/almoxarifado/estoque/pages/EstoquePage.tsx
 import { useState, useRef } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { AlertOctagon, AlertTriangle, CheckCircle, Plus, Upload, X, Search } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { api } from '@/services/api'
@@ -319,20 +319,20 @@ function SaldoRow({ saldo, onMovimentar }: { saldo: AlmEstoqueSaldo; onMovimenta
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export function EstoquePage() {
-  const { obraId } = useParams<{ obraId: string }>()
   const navigate = useNavigate()
-  const id = Number(obraId)
 
   const [nivelFiltro, setNivelFiltro]   = useState('')
+  const [localFiltro, setLocalFiltro]   = useState<number | ''>('')
   const [busca, setBusca]               = useState('')
   const [movimentoOpen, setMovimentoOpen] = useState(false)
   const [saldoParaMovimentar, setSaldoParaMovimentar] = useState<AlmEstoqueSaldo | undefined>(undefined)
   const [importarOpen, setImportarOpen] = useState(false)
 
-  const { data: saldos = [], isLoading } = useSaldoEstoque(id, {
+  const { data: saldos = [], isLoading } = useSaldoEstoque(undefined, {
     nivel: nivelFiltro || undefined,
+    localId: typeof localFiltro === 'number' ? localFiltro : undefined,
   })
-  const { data: locais = [] } = useLocaisEstoque(id)
+  const { data: locais = [] } = useLocaisEstoque()
 
   const filtered = busca
     ? saldos.filter((s) =>
@@ -452,9 +452,13 @@ export function EstoquePage() {
             'h-8 px-3 bg-[var(--bg-raised)] border border-[var(--border-dim)] rounded-sm',
             'text-[12px] text-[var(--text-low)] outline-none',
           )}
+          value={localFiltro}
+          onChange={(e) => setLocalFiltro(e.target.value === '' ? '' : Number(e.target.value))}
         >
-          <option>Todos os locais</option>
-          {locais.map((l: { id: number; nome: string }) => <option key={l.id}>{l.nome}</option>)}
+          <option value="">Todos os locais</option>
+          {locais.map((l: { id: number; nome: string }) => (
+            <option key={l.id} value={l.id}>{l.nome}</option>
+          ))}
         </select>
       </div>
 

@@ -1,6 +1,6 @@
 // frontend-web/src/modules/almoxarifado/compras/pages/NovaOcPage.tsx
 import { useState, useRef } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { Search, Plus, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useCriarOc } from '../hooks/useCompras'
@@ -13,9 +13,7 @@ interface FornecedorItem { id: number; nome_fantasia: string; cnpj: string | nul
 interface ItemForm extends CreateOcItemPayload { catalogo_nome: string }
 
 export function NovaOcPage() {
-  const { obraId } = useParams<{ obraId: string }>()
-  const navigate    = useNavigate()
-  const id          = Number(obraId)
+  const navigate = useNavigate()
 
   const { data: locais = [] } = useLocais({ ativo: true })
   const [localDestinoId, setLocalDestinoId] = useState<number | ''>('')
@@ -42,7 +40,7 @@ export function NovaOcPage() {
   const debForn = useRef<ReturnType<typeof setTimeout> | null>(null)
   const debMat  = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const criar = useCriarOc(id)
+  const criar = useCriarOc()
 
   // ── Busca fornecedor ──────────────────────────────────────────────────────
 
