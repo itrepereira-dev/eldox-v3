@@ -80,6 +80,9 @@ services:
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
       MINIO_BUCKET: ${MINIO_BUCKET:-eldox-ged}
       MINIO_USE_SSL: "false"
+      # Claude API — OCR e classificador do GED (Agent G). Se vazia, os workers
+      # ged.ocr e ged.classify sobem mas rodam como no-op (warn log e segue).
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       # CORS: origem do frontend. main.ts também aceita wildcard *.eldox.com.br,
       # mas deixar explícito garante que mudanças de DOMAIN não quebrem o CORS.
       FRONTEND_URL: https://${DOMAIN}
