@@ -1,5 +1,6 @@
 // backend/src/almoxarifado/sinapi/sinapi.controller.ts
 import {
+  BadRequestException,
   Controller,
   Post,
   Get,
@@ -18,7 +19,8 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { SinapiService } from './sinapi.service';
 
-const SINAPI_MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MB
+// Planilha SINAPI oficial (CAIXA) pode passar de 30 MB. Limite 50 MB.
+const SINAPI_MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 
 @Controller('api/v1/almoxarifado/sinapi')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -32,7 +34,26 @@ export class SinapiController {
    */
   @Post('importar')
   @Roles('SUPER_ADMIN')
-  @UseInterceptors(FileInterceptor('arquivo'))
+  @UseInterceptors(
+    FileInterceptor('arquivo', {
+      limits: { fileSize: SINAPI_MAX_UPLOAD_BYTES },
+      fileFilter: (_req, file, cb) => {
+        const name = file.originalname?.toLowerCase() ?? '';
+        const ok =
+          file.mimetype ===
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+          file.mimetype === 'application/vnd.ms-excel' ||
+          name.endsWith('.xlsx') ||
+          name.endsWith('.xls');
+        cb(
+          ok
+            ? null
+            : new BadRequestException('Planilha SINAPI precisa ser .xlsx'),
+          ok,
+        );
+      },
+    }),
+  )
   async importar(
     @UploadedFile() file: Express.Multer.File,
     @Body('uf') uf: string,

@@ -18,8 +18,11 @@ import {
   BadRequestException,
   UnauthorizedException,
 } from '@nestjs/common';
+import type { RawBodyRequest } from '@nestjs/common';
+import type { Request } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ConfigService } from '@nestjs/config';
+import { createHmac, timingSafeEqual } from 'crypto';
 import { JwtAuthGuard } from '../../common/guards/jwt.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -45,20 +48,45 @@ export class NfeController {
   @HttpCode(HttpStatus.ACCEPTED)
   async receberWebhook(
     @Headers('authorization') authHeader: string,
+    @Headers('x-eldox-signature') signatureHeader: string | undefined,
+    @Req() req: RawBodyRequest<Request>,
     @Body() payload: Record<string, unknown>,
   ) {
-    // Validação mínima por Bearer token
-    // TODO: Quando o Qive fornecer documentação, ajustar para o método de auth deles
-    //       (ex: HMAC-SHA256 no header X-Qive-Signature, ou outro mecanismo)
+    // Autenticação dupla:
+    //   1) Preferencial: HMAC-SHA256 no header X-Eldox-Signature (formato "sha256=<hex>").
+    //      Usa timingSafeEqual para evitar timing attacks.
+    //   2) Fallback: Bearer token no Authorization (compat com webhooks simples tipo Qive).
     const secret = this.config.get<string>('WEBHOOK_NFE_SECRET');
+
     if (!secret) {
       if (process.env.NODE_ENV === 'production') {
         throw new UnauthorizedException('Webhook secret não configurado');
       }
-      // dev/staging: permite, mas loga
+      // dev/staging: permite, mas não valida.
+    } else if (signatureHeader) {
+      // HMAC mode — bytes exatos recebidos (rawBody habilitado em main.ts)
+      const rawBody: Buffer = req.rawBody ?? Buffer.from(JSON.stringify(payload));
+      const expected =
+        'sha256=' + createHmac('sha256', secret).update(rawBody).digest('hex');
+
+      const sigBuf = Buffer.from(signatureHeader);
+      const expectedBuf = Buffer.from(expected);
+
+      if (
+        sigBuf.length !== expectedBuf.length ||
+        !timingSafeEqual(sigBuf, expectedBuf)
+      ) {
+        throw new UnauthorizedException('Assinatura HMAC inválida');
+      }
     } else {
-      const token = authHeader?.replace('Bearer ', '').trim();
-      if (token !== secret) {
+      // Bearer mode (fallback)
+      const token = authHeader?.replace('Bearer ', '').trim() ?? '';
+      const tokenBuf = Buffer.from(token);
+      const secretBuf = Buffer.from(secret);
+      if (
+        tokenBuf.length !== secretBuf.length ||
+        !timingSafeEqual(tokenBuf, secretBuf)
+      ) {
         throw new UnauthorizedException('Webhook secret inválido');
       }
     }

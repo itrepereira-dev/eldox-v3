@@ -4,11 +4,19 @@
 import {
   Controller, Get, Param, Res, NotFoundException, ForbiddenException,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FvsPdfService } from '../pdf/fvs-pdf.service';
 
+// Endpoint público → rate-limit agressivo por IP para frear brute-force em tokens.
+const PORTAL_PUBLICO_THROTTLE = {
+  short: { limit: 10, ttl: 60_000 },
+  long: { limit: 100, ttl: 3_600_000 },
+};
+
 @Controller('fvs-cliente')
+@Throttle(PORTAL_PUBLICO_THROTTLE)
 export class FvsClienteController {
   constructor(
     private readonly prisma: PrismaService,

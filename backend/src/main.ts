@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { WinstonModule } from 'nest-winston';
 import * as winston from 'winston';
@@ -39,6 +40,11 @@ async function bootstrap() {
 
   app.use(cookieParser());
 
+  // Security headers (HSTS, X-Frame-Options, X-Content-Type-Options, etc.)
+  // CSP desabilitado por enquanto (depende de audit do SPA React/Vite).
+  // Habilitar em sprint dedicada.
+  app.use(helmet({ contentSecurityPolicy: false }));
+
   app.useGlobalPipes(new ValidationPipe({
     whitelist: true,
     forbidNonWhitelisted: true,
@@ -63,7 +69,9 @@ async function bootstrap() {
       if (!origin) return callback(null, true);
       if (corsOrigins.includes(origin)) return callback(null, true);
       if (eldoxDomainRe.test(origin)) return callback(null, true);
-      return callback(new Error(`CORS bloqueado: origem "${origin}" não permitida`));
+      // Origem negada: retorna silencioso (sem header ACAO) em vez de lançar erro.
+      // O browser bloqueia a requisição por falta de CORS header, sem gerar HTTP 500.
+      return callback(null, false);
     },
     credentials: true,
   });

@@ -1,11 +1,19 @@
 // backend/src/diario/rdo/rdo-cliente.controller.ts
 // Rota PÚBLICA (sem JWT) para o cliente visualizar o RDO via token
 import { Controller, Get, Param, Res, NotFoundException } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RdoPdfService } from './rdo-pdf.service';
 
+// Endpoint público → rate-limit agressivo por IP para frear brute-force em tokens.
+const PORTAL_PUBLICO_THROTTLE = {
+  short: { limit: 10, ttl: 60_000 },
+  long: { limit: 100, ttl: 3_600_000 },
+};
+
 @Controller('relatorio-cliente')
+@Throttle(PORTAL_PUBLICO_THROTTLE)
 export class RdoClienteController {
   constructor(
     private readonly prisma: PrismaService,
