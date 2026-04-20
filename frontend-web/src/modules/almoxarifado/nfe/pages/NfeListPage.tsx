@@ -130,12 +130,23 @@ export function NfeListPage() {
             </p>
           )}
         </div>
-        <div className={cn(
-          'flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-[11px] font-medium',
-          'bg-[var(--bg-raised)] border border-[var(--border-dim)] text-[var(--text-faint)]',
-        )}>
-          <FileText size={11} />
-          Webhook: <code className="font-mono ml-1">POST /api/v1/almoxarifado/webhooks/nfe</code>
+        <div className="flex items-center gap-2">
+          <Link
+            to="/almoxarifado/nfes/upload"
+            className={cn(
+              'flex items-center gap-1.5 px-3 h-9 rounded-sm text-[13px] font-semibold',
+              'bg-[var(--accent)] text-white hover:opacity-90 transition-opacity',
+            )}
+          >
+            <FileText size={13} /> Upload XML
+          </Link>
+          <div className={cn(
+            'flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-[11px] font-medium',
+            'bg-[var(--bg-raised)] border border-[var(--border-dim)] text-[var(--text-faint)]',
+          )}>
+            <FileText size={11} />
+            Webhook: <code className="font-mono ml-1">POST /api/v1/almoxarifado/webhooks/nfe</code>
+          </div>
         </div>
       </div>
 

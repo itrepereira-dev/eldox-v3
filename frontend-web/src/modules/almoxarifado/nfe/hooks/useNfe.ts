@@ -65,3 +65,14 @@ export function useConfirmarMatchItem(nfeId: number) {
     },
   })
 }
+
+export function useUploadNfeXml() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (file: File) => almoxarifadoService.uploadNfeXml(file),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['alm-nfes'] })
+      qc.invalidateQueries({ queryKey: ['alm-dashboard'] })
+    },
+  })
+}

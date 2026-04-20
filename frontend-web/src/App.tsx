@@ -54,6 +54,7 @@ const OcListPage               = lazy(() => import('./modules/almoxarifado/compr
 const NovaOcPage               = lazy(() => import('./modules/almoxarifado/compras/pages/NovaOcPage').then(m => ({ default: m.NovaOcPage })));
 const OcDetalhePage            = lazy(() => import('./modules/almoxarifado/compras/pages/OcDetalhePage').then(m => ({ default: m.OcDetalhePage })));
 const NfeListPage              = lazy(() => import('./modules/almoxarifado/nfe/pages/NfeListPage').then(m => ({ default: m.NfeListPage })));
+const NfeUploadPage            = lazy(() => import('./modules/almoxarifado/nfe/pages/NfeUploadPage').then(m => ({ default: m.NfeUploadPage })));
 const NfeDetalhePage           = lazy(() => import('./modules/almoxarifado/nfe/pages/NfeDetalhePage').then(m => ({ default: m.NfeDetalhePage })));
 const PlanejamentoPage         = lazy(() => import('./modules/almoxarifado/planejamento/pages/PlanejamentoPage').then(m => ({ default: m.PlanejamentoPage })));
 const InsightsPage             = lazy(() => import('./modules/almoxarifado/ia/pages/InsightsPage').then(m => ({ default: m.InsightsPage })));
@@ -204,6 +205,7 @@ export default function App() {
                 <Route path="/almoxarifado/ocs/nova" element={<NovaOcPage />} />
                 <Route path="/almoxarifado/ocs/:ocId" element={<OcDetalhePage />} />
                 <Route path="/almoxarifado/nfes" element={<NfeListPage />} />
+                <Route path="/almoxarifado/nfes/upload" element={<NfeUploadPage />} />
                 <Route path="/almoxarifado/nfes/:nfeId" element={<NfeDetalhePage />} />
                 <Route path="/almoxarifado/planejamento" element={<PlanejamentoPage />} />
                 <Route path="/almoxarifado/insights" element={<InsightsPage />} />

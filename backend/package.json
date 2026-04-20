@@ -42,6 +42,7 @@
     "class-validator": "^0.15.1",
     "cookie-parser": "^1.4.7",
     "dotenv": "^17.4.0",
+    "fast-xml-parser": "^5.7.1",
     "ioredis": "^5.10.1",
     "minio": "^8.0.7",
     "nest-winston": "^1.10.2",

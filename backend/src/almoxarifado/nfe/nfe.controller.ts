@@ -10,11 +10,15 @@ import {
   Headers,
   ParseIntPipe,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
   HttpCode,
   HttpStatus,
   Req,
+  BadRequestException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from '../../common/guards/jwt.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -60,6 +64,40 @@ export class NfeController {
     }
 
     return this.nfe.receberWebhook(payload);
+  }
+
+  // ── Upload manual de XML (autenticado) ────────────────────────────────────
+  //
+  // Aceita um arquivo XML de NF-e enviado pelo usuário (drag-and-drop na UI).
+  // Reutiliza o pipeline do webhook — grava em alm_nfe_webhooks e enfileira
+  // o job de processamento. Idempotente por chave_nfe.
+  //
+  // Limite de 2MB: uma NF-e típica tem 30-200KB. Raramente passa de 1MB.
+  @Post('nfes/upload-xml')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 2 * 1024 * 1024 },
+      fileFilter: (_req, file, cb) => {
+        const ok =
+          file.mimetype === 'application/xml' ||
+          file.mimetype === 'text/xml' ||
+          file.originalname?.toLowerCase().endsWith('.xml');
+        cb(ok ? null : new BadRequestException('Arquivo precisa ser .xml'), ok);
+      },
+    }),
+  )
+  @HttpCode(HttpStatus.CREATED)
+  async uploadXml(
+    @TenantId() tenantId: number,
+    @UploadedFile() file: Express.Multer.File | undefined,
+  ) {
+    if (!file || !file.buffer) {
+      throw new BadRequestException('Nenhum arquivo enviado');
+    }
+    const xmlContent = file.buffer.toString('utf8');
+    return this.nfe.importarXml(tenantId, xmlContent);
   }
 
   // ── Listagem (autenticada) ────────────────────────────────────────────────
