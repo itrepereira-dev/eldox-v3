@@ -1213,12 +1213,17 @@ export class InspecaoService {
       pastaId = pastaRows[0].id;
     } else {
       const newPasta = await this.prisma.$queryRawUnsafe<{ id: number }[]>(
-        `INSERT INTO ged_pastas (tenant_id, escopo, obra_id, nome, caminho)
-         VALUES ($1, 'OBRA', $2, 'Evidências FVS', '/0/')
+        `INSERT INTO ged_pastas
+           (tenant_id, escopo, obra_id, parent_id, nome, path, nivel, configuracoes, settings_efetivos)
+         VALUES ($1, 'OBRA', $2, NULL, 'Evidências FVS', '', 1, '{}'::jsonb, '{}'::jsonb)
          RETURNING id`,
         tenantId, ficha.obra_id,
       );
       pastaId = newPasta[0].id;
+      await this.prisma.$executeRawUnsafe(
+        `UPDATE ged_pastas SET path = $1 WHERE id = $2`,
+        `/${pastaId}/`, pastaId,
+      );
     }
 
     const gedResult = await this.ged.upload(
