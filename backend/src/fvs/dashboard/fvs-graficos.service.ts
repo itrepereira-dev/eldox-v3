@@ -1,5 +1,5 @@
 // backend/src/fvs/dashboard/fvs-graficos.service.ts
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { DashboardGraficosQueryDto } from './dto/dashboard-graficos-query.dto';
 
@@ -68,6 +68,8 @@ function idToHex(id: number): string {
 
 @Injectable()
 export class FvsGraficosService {
+  private readonly logger = new Logger(FvsGraficosService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async getDashboardGraficos(
@@ -75,12 +77,28 @@ export class FvsGraficosService {
     obraId: number,
     dto: DashboardGraficosQueryDto,
   ): Promise<DashboardGraficosResult> {
-    const [evolucaoRaw, conformidadeRaw, heatmapRaw, funilRaw] = await Promise.all([
+    // Promise.allSettled + fallback por-query: se uma das 4 queries falhar,
+    // o dashboard volta degradado ao invés de virar 500. Também logamos o erro
+    // específico (nome da query) para diagnóstico em produção.
+    const settled = await Promise.allSettled([
       this._queryEvolucao(tenantId, obraId, dto),
       this._queryConformidade(tenantId, obraId, dto),
       this._queryHeatmap(tenantId, obraId, dto),
       this._queryFunil(tenantId, obraId, dto),
     ]);
+    const names = ['_queryEvolucao', '_queryConformidade', '_queryHeatmap', '_queryFunil'];
+    settled.forEach((r, i) => {
+      if (r.status === 'rejected') {
+        this.logger.error(
+          `FVS dashboard-graficos: ${names[i]} falhou (obra=${obraId} tenant=${tenantId}): ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`,
+          r.reason instanceof Error ? r.reason.stack : undefined,
+        );
+      }
+    });
+    const evolucaoRaw     = settled[0].status === 'fulfilled' ? settled[0].value : [];
+    const conformidadeRaw = settled[1].status === 'fulfilled' ? settled[1].value : [];
+    const heatmapRaw      = settled[2].status === 'fulfilled' ? settled[2].value : [];
+    const funilRaw        = settled[3].status === 'fulfilled' ? settled[3].value : [];
 
     return {
       evolucao_temporal: this._transformEvolucao(evolucaoRaw, dto),

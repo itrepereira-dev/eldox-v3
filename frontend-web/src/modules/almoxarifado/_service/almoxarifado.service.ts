@@ -572,14 +572,14 @@ export const almoxarifadoService = {
     if (params?.status)         q.set('status',            params.status);
     if (params?.limit)          q.set('limit',             String(params.limit));
     if (params?.offset)         q.set('offset',            String(params.offset));
-    return api.get(`${BASE}/ordens-compra${q.toString() ? '?' + q : ''}`).then((r: any) => r.data?.data ?? r.data);
+    return api.get(`${BASE}/ocs${q.toString() ? '?' + q : ''}`).then((r: any) => r.data?.data ?? r.data);
   },
 
   getOc: (id: number): Promise<AlmOrdemCompra> =>
     api.get(`${BASE}/ocs/${id}`).then((r: any) => r.data?.data ?? r.data),
 
   criarOc: (payload: CreateOcPayload): Promise<AlmOrdemCompra> =>
-    api.post(`${BASE}/ordens-compra`, payload).then((r: any) => r.data?.data ?? r.data),
+    api.post(`${BASE}/ocs`, payload).then((r: any) => r.data?.data ?? r.data),
 
   confirmarOc: (id: number): Promise<void> =>
     api.patch(`${BASE}/ocs/${id}/confirmar`, {}).then((r: any) => r.data?.data ?? r.data),
