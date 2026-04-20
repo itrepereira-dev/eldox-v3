@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   usuariosService,
@@ -29,7 +29,6 @@ const NIVEIS: NivelPermissao[] = [
 export function UsuarioDetalhePage() {
   const { id: idStr } = useParams();
   const id = parseInt(idStr ?? '0', 10);
-  const navigate = useNavigate();
   const qc = useQueryClient();
   const [aba, setAba] = useState<'dados' | 'obras' | 'permissoes'>('dados');
 
