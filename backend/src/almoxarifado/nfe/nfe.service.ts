@@ -120,6 +120,91 @@ export class NfeService {
   }
 
   /**
+   * Diagnóstico da fila BullMQ "almoxarifado".
+   *
+   * Retorna:
+   *  - Redis: ping + info básica (versão, uptime, connected_clients)
+   *  - Queue counts por estado (waiting/active/completed/failed/delayed)
+   *  - Últimos 5 jobs falhados (com nome, erro, timestamp)
+   *  - Últimos 5 jobs waiting (que ainda não foram processados)
+   *
+   * Útil para diagnosticar por que jobs assíncronos não estão rodando:
+   *  • failedCount > 0 → processor lança exceção (ver failed[].failedReason)
+   *  • waitingCount alto + activeCount=0 → processor não está consumindo
+   *  • Redis ping falha → conectividade
+   */
+  async diagnosticarFilaBullMQ(): Promise<{
+    redis: { ok: boolean; info?: Record<string, string>; error?: string };
+    queue: {
+      name: string;
+      waiting: number;
+      active: number;
+      completed: number;
+      failed: number;
+      delayed: number;
+    };
+    failedJobs: Array<{ id: string | number; name: string; failedReason?: string; attempts: number; timestamp: string }>;
+    waitingJobs: Array<{ id: string | number; name: string; data: unknown; timestamp: string }>;
+    processor: { registered: boolean };
+  }> {
+    // 1. Ping Redis + info
+    const redis: { ok: boolean; info?: Record<string, string>; error?: string } = { ok: false };
+    try {
+      const client = (this.queue as unknown as { client: { ping: () => Promise<string>; info: () => Promise<string> } }).client;
+      const pong = await client.ping();
+      if (pong === 'PONG') {
+        redis.ok = true;
+        const rawInfo = await client.info();
+        const info: Record<string, string> = {};
+        for (const line of rawInfo.split('\r\n')) {
+          const [k, v] = line.split(':');
+          if (['redis_version', 'uptime_in_seconds', 'connected_clients', 'used_memory_human'].includes(k)) {
+            info[k] = v;
+          }
+        }
+        redis.info = info;
+      }
+    } catch (err: unknown) {
+      redis.error = err instanceof Error ? err.message : String(err);
+    }
+
+    // 2. Counts da queue
+    const [waiting, active, completed, failed, delayed] = await Promise.all([
+      this.queue.getWaitingCount().catch(() => -1),
+      this.queue.getActiveCount().catch(() => -1),
+      this.queue.getCompletedCount().catch(() => -1),
+      this.queue.getFailedCount().catch(() => -1),
+      this.queue.getDelayedCount().catch(() => -1),
+    ]);
+
+    // 3. Últimos 5 failed + waiting
+    const failedJobs = (await this.queue.getFailed(0, 4).catch(() => [])).map((j) => ({
+      id: j.id,
+      name: j.name,
+      failedReason: j.failedReason,
+      attempts: j.attemptsMade,
+      timestamp: new Date(j.timestamp ?? 0).toISOString(),
+    }));
+
+    const waitingJobs = (await this.queue.getWaiting(0, 4).catch(() => [])).map((j) => ({
+      id: j.id,
+      name: j.name,
+      data: j.data,
+      timestamp: new Date(j.timestamp ?? 0).toISOString(),
+    }));
+
+    return {
+      redis,
+      queue: { name: this.queue.name, waiting, active, completed, failed, delayed },
+      failedJobs,
+      waitingJobs,
+      // Processor sempre registrado se o módulo subiu. Se não subiu, o endpoint
+      // nem responde. Flag meramente informativa.
+      processor: { registered: true },
+    };
+  }
+
+  /**
    * Processa sincronamente todos os webhooks com status 'pendente' do tenant.
    * Útil como ferramenta admin quando BullMQ estiver indisponível/atrasado ou
    * para re-processar webhooks que falharam.
