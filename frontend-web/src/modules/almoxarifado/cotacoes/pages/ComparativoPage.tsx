@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { CheckCircle, Zap, ShoppingCart, AlertTriangle } from 'lucide-react'
+import { CheckCircle, Zap, ShoppingCart, AlertTriangle, TrendingDown, Info } from 'lucide-react'
 import { almoxarifadoService } from '../../_service/almoxarifado.service'
 import type { AlmComparativoItem, AlmCurvaAbcItem } from '../../_service/almoxarifado.service'
 import { cn } from '@/lib/cn'
@@ -148,8 +148,15 @@ export default function ComparativoPage() {
                       <th className="text-left px-4 py-3 text-xs font-medium text-[var(--text-low)] w-64">Material</th>
                       <th className="text-center px-3 py-3 text-xs font-medium text-[var(--text-low)] w-16">Qtd</th>
                       {fornecedores.map((f) => (
-                        <th key={f.id} className="text-center px-3 py-3 text-xs font-medium text-[var(--text-low)] min-w-32">
-                          {f.nome}
+                        <th
+                          key={f.id}
+                          className="text-center px-3 py-3 text-xs font-medium text-[var(--text-low)] min-w-36"
+                          title="Preço nominal por unidade + Valor Presente (VP) do total do item descontado à taxa de 1,5% a.m. considerando a condição de pagamento"
+                        >
+                          <div className="flex items-center justify-center gap-1">
+                            {f.nome}
+                            <Info size={11} className="text-[var(--text-low)] opacity-60" />
+                          </div>
                         </th>
                       ))}
                       <th className="text-center px-3 py-3 text-xs font-medium text-[var(--text-low)] w-20">Econ.</th>
@@ -176,7 +183,7 @@ export default function ComparativoPage() {
                   <tfoot>
                     <tr className="border-t border-[var(--border)] bg-[var(--off-bg)]">
                       <td className="px-4 py-3 text-xs font-semibold text-[var(--text-high)]" colSpan={2}>
-                        Total (menor preço)
+                        Total nominal
                       </td>
                       {fornecedores.map((f) => {
                         const total = comparativo.reduce((acc, item) => {
@@ -186,6 +193,52 @@ export default function ComparativoPage() {
                         return (
                           <td key={f.id} className="text-center px-3 py-3 text-xs font-semibold text-[var(--text-high)]">
                             {total > 0 ? `R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-'}
+                          </td>
+                        )
+                      })}
+                      <td colSpan={modo === 'manual' ? 2 : 1} />
+                    </tr>
+                    <tr className="border-t border-[var(--border)] bg-[var(--off-bg)]">
+                      <td
+                        className="px-4 py-3 text-xs font-semibold text-[var(--text-high)]"
+                        colSpan={2}
+                        title="Soma dos VPs por item — descontado a 1,5% a.m. conforme a condição de pagamento de cada cotação"
+                      >
+                        <div className="flex items-center gap-1">
+                          Total VP (1,5% a.m.)
+                          <Info size={11} className="text-[var(--text-low)] opacity-60" />
+                        </div>
+                      </td>
+                      {fornecedores.map((f) => {
+                        const totalVp = comparativo.reduce((acc, item) => {
+                          const proposta = item.propostas.find((p) => p.fornecedor_id === f.id)
+                          return acc + (proposta?.valor_presente ?? 0)
+                        }, 0)
+                        // Menor total VP entre fornecedores (para destacar o "melhor por VP" no rodapé)
+                        const totaisVp = fornecedores.map((ff) =>
+                          comparativo.reduce((acc, item) => {
+                            const proposta = item.propostas.find((p) => p.fornecedor_id === ff.id)
+                            return acc + (proposta?.valor_presente ?? 0)
+                          }, 0),
+                        )
+                        const menorTotalVp = Math.min(...totaisVp.filter((v) => v > 0))
+                        const isBestOverall = totalVp > 0 && totalVp === menorTotalVp
+                        return (
+                          <td
+                            key={f.id}
+                            className={cn(
+                              'text-center px-3 py-3 text-xs font-semibold',
+                              isBestOverall ? 'text-[var(--ok)]' : 'text-[var(--text-high)]',
+                            )}
+                          >
+                            {totalVp > 0 ? (
+                              <div className="flex items-center justify-center gap-1">
+                                {isBestOverall && <TrendingDown size={11} className="text-[var(--ok)]" />}
+                                R$ {totalVp.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              </div>
+                            ) : (
+                              '-'
+                            )}
                           </td>
                         )
                       })}
@@ -255,6 +308,11 @@ function ComparativoRow({
       {fornecedores.map((f) => {
         const proposta = item.propostas.find((p) => p.fornecedor_id === f.id)
         const isBest = proposta?.melhor_preco && modo === 'automatico'
+        const isBestVp = !!proposta?.melhor_preco_vp
+        // Só mostra o badge "Melhor por VP" quando ele difere do melhor por preço
+        // nominal — caso contrário seria redundante.
+        const vpBeatsNominal =
+          isBestVp && item.melhor_cotacao_id !== null && item.melhor_cotacao_vp_id !== item.melhor_cotacao_id
 
         return (
           <td key={f.id} className={cn(
@@ -273,8 +331,36 @@ function ComparativoRow({
                   {isBest && <CheckCircle size={11} className="text-[var(--ok)]" />}
                   R$ {proposta.preco_unitario.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </div>
+                {proposta.valor_presente != null && proposta.total_item != null && (
+                  <div
+                    className={cn(
+                      'text-[10px] flex items-center justify-center gap-1',
+                      vpBeatsNominal ? 'text-[var(--ok)] font-semibold' : 'text-[var(--text-low)]',
+                    )}
+                    title={
+                      `VP do item (total ${proposta.total_item.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) ` +
+                      `descontado a 1,5% a.m. — condição: ${proposta.condicao_pgto ?? 'à vista'}`
+                    }
+                  >
+                    {vpBeatsNominal && <TrendingDown size={10} />}
+                    VP R$ {proposta.valor_presente.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </div>
+                )}
+                {vpBeatsNominal && (
+                  <span
+                    className="inline-block mt-0.5 px-1.5 py-0.5 rounded-full bg-[var(--ok-bg)] text-[var(--ok)] text-[9px] font-bold uppercase tracking-wide"
+                    title="Esta cotação é a melhor quando descontada pelo valor presente, apesar de não ter o menor preço nominal"
+                  >
+                    Melhor por VP
+                  </span>
+                )}
                 {proposta.prazo_dias != null && (
-                  <div className="text-[10px] text-[var(--text-low)]">{proposta.prazo_dias}d</div>
+                  <div className="text-[10px] text-[var(--text-low)]">Entrega: {proposta.prazo_dias}d</div>
+                )}
+                {proposta.condicao_pgto && (
+                  <div className="text-[9px] text-[var(--text-low)] opacity-70">
+                    Pgto: {proposta.condicao_pgto}
+                  </div>
                 )}
               </div>
             )}
