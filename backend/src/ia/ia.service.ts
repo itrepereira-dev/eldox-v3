@@ -77,6 +77,113 @@ export class IaService {
     `;
   }
 
+  // ── Chamada pública para workers (sem rate limit, com log e timeout) ─────────
+  // Usado por workers BullMQ (GED OCR/Classifier) onde quem dispara é o sistema
+  // e não o usuário final. Rate limit não faz sentido porque a fila já garante
+  // concurrency=1. Ainda registramos em ai_usage_log pra custo/telemetria.
+
+  async callClaudeForWorker(
+    modelo: string,
+    system: string,
+    userMessage: string,
+    maxTokens: number,
+    tenantId: number,
+    handlerName: string,
+    timeoutMs = 60000,
+  ): Promise<{ text: string; tokensIn: number; tokensOut: number; custoEstimado: number }> {
+    const { text, tokensIn, tokensOut, duracaoMs } = await this.callClaudeWithTimeout(
+      modelo, system, userMessage, maxTokens, timeoutMs,
+    );
+    await this.logUsage(tenantId, 0, handlerName, modelo, tokensIn, tokensOut, duracaoMs);
+    const preco = COST_PER_1K[modelo] ?? { in: 0, out: 0 };
+    const custoEstimado = (tokensIn / 1000) * preco.in + (tokensOut / 1000) * preco.out;
+    return { text, tokensIn, tokensOut, custoEstimado };
+  }
+
+  async callClaudeWithImageForWorker(
+    modelo: string,
+    system: string,
+    userMessage: string,
+    imageBase64: string,
+    mimeType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+    maxTokens: number,
+    tenantId: number,
+    handlerName: string,
+    timeoutMs = 60000,
+  ): Promise<{ text: string; tokensIn: number; tokensOut: number; custoEstimado: number }> {
+    const apiKey = this.config.get<string>('ANTHROPIC_API_KEY');
+    if (!apiKey) throw new InternalServerErrorException('ANTHROPIC_API_KEY não configurada');
+
+    const inicio = Date.now();
+    const callPromise = this.anthropic.messages.create({
+      model: modelo,
+      max_tokens: maxTokens,
+      system,
+      messages: [{
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: { type: 'base64', media_type: mimeType, data: imageBase64 },
+          },
+          { type: 'text', text: userMessage },
+        ],
+      }],
+    });
+
+    const response = await this.withTimeout(callPromise, timeoutMs, handlerName);
+    const duracaoMs = Date.now() - inicio;
+    const text = response.content
+      .filter((b) => b.type === 'text')
+      .map((b) => (b as { type: 'text'; text: string }).text)
+      .join('');
+
+    const tokensIn  = response.usage.input_tokens;
+    const tokensOut = response.usage.output_tokens;
+
+    await this.logUsage(tenantId, 0, handlerName, modelo, tokensIn, tokensOut, duracaoMs);
+
+    const preco = COST_PER_1K[modelo] ?? { in: 0, out: 0 };
+    const custoEstimado = (tokensIn / 1000) * preco.in + (tokensOut / 1000) * preco.out;
+    return { text, tokensIn, tokensOut, custoEstimado };
+  }
+
+  private async callClaudeWithTimeout(
+    modelo: string,
+    system: string,
+    userMessage: string,
+    maxTokens: number,
+    timeoutMs: number,
+  ): Promise<{ text: string; tokensIn: number; tokensOut: number; duracaoMs: number }> {
+    const apiKey = this.config.get<string>('ANTHROPIC_API_KEY');
+    if (!apiKey) throw new InternalServerErrorException('ANTHROPIC_API_KEY não configurada');
+
+    const inicio = Date.now();
+    const callPromise = this.anthropic.messages.create({
+      model: modelo,
+      max_tokens: maxTokens,
+      system,
+      messages: [{ role: 'user', content: userMessage }],
+    });
+
+    const response = await this.withTimeout(callPromise, timeoutMs, modelo);
+    const duracaoMs = Date.now() - inicio;
+    const text = response.content
+      .filter((b) => b.type === 'text')
+      .map((b) => (b as { type: 'text'; text: string }).text)
+      .join('');
+
+    return { text, tokensIn: response.usage.input_tokens, tokensOut: response.usage.output_tokens, duracaoMs };
+  }
+
+  private withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error(`Timeout Claude (${label}) após ${ms}ms`)), ms);
+      p.then((v) => { clearTimeout(t); resolve(v); })
+       .catch((e) => { clearTimeout(t); reject(e instanceof Error ? e : new Error(String(e))); });
+    });
+  }
+
   // ── Chamada pública para agentes de módulos externos (RDO, GED, etc.) ────────
 
   async callClaudeForAgent(

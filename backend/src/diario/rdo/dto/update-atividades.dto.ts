@@ -35,6 +35,12 @@ class AtividadeItemDto {
   @IsNumber()
   @IsOptional()
   etapa_tarefa_id?: number;
+
+  // Agent F (2026-04-20): versão de documento do GED que embasa a execução
+  // (projeto, especificação, procedimento executivo). Opcional.
+  @IsNumber()
+  @IsOptional()
+  ged_versao_id?: number;
 }
 
 export class UpdateAtividadesDto {

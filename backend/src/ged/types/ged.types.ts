@@ -151,8 +151,8 @@ export interface GedWorkflowExecucao {
   criado_em: Date;
 }
 
+// ged_configuracoes usa tenant_id como PK — sem coluna `id`.
 export interface GedConfiguracao {
-  id: number;
   tenant_id: number;
   modo_auditoria: boolean;
   workflow_obrigatorio: boolean;

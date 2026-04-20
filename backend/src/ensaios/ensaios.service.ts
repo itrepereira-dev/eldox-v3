@@ -11,6 +11,8 @@ import type { Queue } from 'bull';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { MinioService } from '../ged/storage/minio.service';
+import { GedService } from '../ged/ged.service';
+import type { UploadDocumentoDto } from '../ged/dto/upload-documento.dto';
 import type { CreateEnsaioDto, ListarEnsaiosQuery } from './dto/create-ensaio.dto';
 
 const MIME_PERMITIDOS = ['application/pdf', 'image/jpeg', 'image/png'] as const;
@@ -49,8 +51,139 @@ export class EnsaiosService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly minio: MinioService,
+    private readonly gedService: GedService,
     @InjectQueue('ensaios') private readonly ensaiosQueue: Queue,
   ) {}
+
+  // ── GED integration helpers ───────────────────────────────────────────────
+
+  /**
+   * Busca o id da categoria "LAUDO" (seed de sistema, tenant_id = 0).
+   * Cacheado por instância — a categoria é criada na migration e não muda.
+   */
+  private _laudoCategoriaIdCache: number | null = null;
+  private async getLaudoCategoriaId(tenantId: number): Promise<number | null> {
+    if (this._laudoCategoriaIdCache != null) return this._laudoCategoriaIdCache;
+    const rows = await this.prisma.$queryRawUnsafe<{ id: number }[]>(
+      `SELECT id FROM ged_categorias
+       WHERE codigo = 'LAUDO' AND tenant_id IN (0, $1)
+       ORDER BY tenant_id DESC
+       LIMIT 1`,
+      tenantId,
+    );
+    if (!rows.length) return null;
+    this._laudoCategoriaIdCache = rows[0].id;
+    return this._laudoCategoriaIdCache;
+  }
+
+  /**
+   * Pasta default "Laudos de Ensaio" por obra — find-or-create.
+   * Segue o padrão de `InspecaoService.createEvidencia` (Evidências FVS).
+   */
+  private async getOrCreateLaudosPasta(tenantId: number, obraId: number): Promise<number | null> {
+    const rows = await this.prisma.$queryRawUnsafe<{ id: number }[]>(
+      `SELECT id FROM ged_pastas
+       WHERE tenant_id = $1 AND obra_id = $2 AND nome = 'Laudos de Ensaio' AND escopo = 'OBRA'
+         AND deleted_at IS NULL
+       LIMIT 1`,
+      tenantId, obraId,
+    );
+    if (rows.length) return rows[0].id;
+
+    try {
+      const inserted = await this.prisma.$queryRawUnsafe<{ id: number }[]>(
+        `INSERT INTO ged_pastas (tenant_id, escopo, obra_id, nome, path, nivel)
+         VALUES ($1, 'OBRA', $2, 'Laudos de Ensaio', '', 0)
+         RETURNING id`,
+        tenantId, obraId,
+      );
+      const pastaId = inserted[0].id;
+      // Atualiza o path materializado (raiz da obra para laudos)
+      await this.prisma.$executeRawUnsafe(
+        `UPDATE ged_pastas SET path = $1 WHERE id = $2`,
+        `/${pastaId}`,
+        pastaId,
+      );
+      return pastaId;
+    } catch (err) {
+      this.logger.warn(`Falha ao criar pasta "Laudos de Ensaio" para obra ${obraId}: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Envia um laudo para o GED como `ged_documento` (categoria LAUDO).
+   * Cria `ged_documentos` + `ged_versoes`, faz upload para MinIO e enfileira
+   * `ged.ocr` automaticamente. Retorna `documentoId` ou null em caso de falha
+   * (fallback: mantém upload direto no ensaio_arquivo legado).
+   *
+   * Observação: GedService.upload expera `Express.Multer.File`. O ensaios
+   * recebe base64; montamos o stub com os campos necessários.
+   */
+  private async uploadLaudoAoGed(params: {
+    tenantId: number;
+    userId: number;
+    obraId: number;
+    ensaioId: number;
+    dataEnsaio: string;
+    tipoNome: string | null;
+    buffer: Buffer;
+    nomeOriginal: string;
+    mimeType: string;
+  }): Promise<number | null> {
+    const { tenantId, userId, obraId, ensaioId, dataEnsaio, tipoNome, buffer, nomeOriginal, mimeType } = params;
+
+    const categoriaId = await this.getLaudoCategoriaId(tenantId);
+    if (categoriaId == null) {
+      this.logger.warn(`Categoria "LAUDO" não configurada para tenant ${tenantId} — fallback para armazenamento legado`);
+      return null;
+    }
+
+    const pastaId = await this.getOrCreateLaudosPasta(tenantId, obraId);
+    if (pastaId == null) {
+      this.logger.warn(`Pasta "Laudos de Ensaio" indisponível para obra ${obraId} — fallback para armazenamento legado`);
+      return null;
+    }
+
+    // Stub de Express.Multer.File — GedService usa apenas buffer/originalname/mimetype/size
+    const multerStub = {
+      buffer,
+      originalname: nomeOriginal,
+      mimetype: mimeType,
+      size: buffer.length,
+      fieldname: 'file',
+      encoding: '7bit',
+      stream: null as unknown,
+      destination: '',
+      filename: nomeOriginal,
+      path: '',
+    } as unknown as Express.Multer.File;
+
+    const titulo = `Laudo — ${tipoNome ?? 'Ensaio'} #${ensaioId} — ${dataEnsaio}`;
+
+    try {
+      const result = await this.gedService.upload(
+        tenantId,
+        userId,
+        obraId,
+        multerStub,
+        {
+          titulo: titulo.substring(0, 255),
+          categoriaId,
+          pastaId,
+          escopo: 'OBRA',
+          disciplina: 'LAB',
+        } as UploadDocumentoDto,
+      );
+      return result.documentoId;
+    } catch (err) {
+      // Não bloqueia o ensaio — laudo fica disponível pelo fluxo legado
+      this.logger.error(
+        `Falha ao enviar laudo ensaio=${ensaioId} para o GED: ${(err as Error).message}. Fallback para armazenamento legado.`,
+      );
+      return null;
+    }
+  }
 
   // ── Audit log ─────────────────────────────────────────────────────────────
 
@@ -142,17 +275,21 @@ export class EnsaiosService {
     try {
       // 7. INSERT ensaio_laboratorial
       // ia_confianca e ia_extraido_em incluídos condicionalmente via CASE WHEN
+      // Agent F (2026-04-20): ged_versao_id_spec é opcional — referência da
+      // especificação técnica (planta/memorial) usada para interpretar o ensaio.
       const ensaioRows = await this.prisma.$queryRawUnsafe<{ id: number }[]>(
         `INSERT INTO ensaio_laboratorial
            (tenant_id, obra_id, fvm_lote_id, laboratorio_id, data_ensaio, nota_fiscal_ref, observacoes, criado_por,
-            ia_confianca, ia_extraido_em)
+            ia_confianca, ia_extraido_em, ged_versao_id_spec)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
                  $9::numeric,
-                 CASE WHEN $9::numeric IS NOT NULL THEN NOW() ELSE NULL END)
+                 CASE WHEN $9::numeric IS NOT NULL THEN NOW() ELSE NULL END,
+                 $10)
          RETURNING id`,
         tenantId, dto.obra_id, dto.fvm_lote_id, dto.laboratorio_id,
         dto.data_ensaio, dto.nota_fiscal_ref ?? null, dto.observacoes ?? null, userId,
         dto.ia_confianca ?? null,
+        dto.ged_versao_id_spec ?? null,
       );
       ensaioId = ensaioRows[0].id;
 
@@ -172,18 +309,39 @@ export class EnsaiosService {
         const buffer = Buffer.from(dto.arquivo.base64, 'base64');
         const ext = MIME_TO_EXT[dto.arquivo.mime_type] ?? '.bin';
         const randomName = crypto.randomBytes(16).toString('hex');
+        // DEPRECATED 2026-04-20: storage_key direto. Mantido como fallback (ver ged_documento_id).
         const storageKey = `ensaios/${tenantId}/${ensaioId}/${randomName}${ext}`;
         const hash = this.minio.calcularChecksum(buffer);
 
         // Pode lançar — se falhar, o catch abaixo faz rollback do ensaio
         const uploadResult = await this.minio.uploadFile(buffer, storageKey, dto.arquivo.mime_type);
 
+        // Integração GED (primary): cria ged_documento + ged_versao + enfileira ged.ocr.
+        // Falha aqui NÃO rola back o ensaio — fica no fluxo legado com ged_documento_id = NULL.
+        const tipoNome = await this.prisma.$queryRawUnsafe<{ nome: string }[]>(
+          `SELECT nome FROM ensaio_tipo WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+          tiposValidados[0].id, tenantId,
+        ).then((rows) => rows[0]?.nome ?? null).catch(() => null);
+
+        const gedDocumentoId = await this.uploadLaudoAoGed({
+          tenantId,
+          userId,
+          obraId: dto.obra_id,
+          ensaioId,
+          dataEnsaio: dto.data_ensaio,
+          tipoNome,
+          buffer,
+          nomeOriginal: dto.arquivo.nome_original,
+          mimeType: dto.arquivo.mime_type,
+        });
+
         await this.prisma.$executeRawUnsafe(
           `INSERT INTO ensaio_arquivo
-             (tenant_id, ensaio_id, nome_original, nome_storage, bucket, content_type, tamanho_bytes, hash, upload_por)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+             (tenant_id, ensaio_id, nome_original, nome_storage, bucket, content_type, tamanho_bytes, hash, upload_por, ged_documento_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
           tenantId, ensaioId, dto.arquivo.nome_original, storageKey,
           uploadResult.bucket, dto.arquivo.mime_type, buffer.length, hash, userId,
+          gedDocumentoId,
         );
       }
 
@@ -278,6 +436,7 @@ export class EnsaiosService {
 
     const where = conditions.join(' AND ');
 
+    // JOIN com GED: LATERAL pega a última versão ativa do documento do laudo (se existir).
     const rows = await this.prisma.$queryRawUnsafe<unknown[]>(
       `SELECT
          e.id, e.obra_id, e.fvm_lote_id, e.laboratorio_id, e.data_ensaio,
@@ -285,6 +444,11 @@ export class EnsaiosService {
          e.observacoes, e.ia_extraido_em, e.ia_confianca, e.criado_por, e.created_at, e.updated_at,
          l.nome AS laboratorio_nome,
          r.id AS revisao_id, r.situacao AS revisao_situacao, r.prioridade AS revisao_prioridade,
+         a.ged_documento_id   AS ged_documento_id,
+         gd.titulo            AS ged_titulo,
+         gd.codigo            AS ged_codigo,
+         gv.status            AS ged_status,
+         gv.version           AS ged_versao,
          CASE
            WHEN e.proximo_ensaio_data IS NOT NULL
            THEN (e.proximo_ensaio_data - NOW()::date)::int
@@ -293,6 +457,21 @@ export class EnsaiosService {
        FROM ensaio_laboratorial e
        JOIN laboratorios l ON l.id = e.laboratorio_id
        LEFT JOIN ensaio_revisao r ON r.ensaio_id = e.id
+       LEFT JOIN LATERAL (
+         SELECT ged_documento_id
+         FROM ensaio_arquivo
+         WHERE ensaio_id = e.id AND tenant_id = e.tenant_id
+         ORDER BY created_at DESC
+         LIMIT 1
+       ) a ON true
+       LEFT JOIN ged_documentos gd ON gd.id = a.ged_documento_id AND gd.deleted_at IS NULL
+       LEFT JOIN LATERAL (
+         SELECT status, version
+         FROM ged_versoes
+         WHERE documento_id = gd.id
+         ORDER BY version DESC
+         LIMIT 1
+       ) gv ON true
        WHERE ${where}
        ORDER BY e.created_at DESC
        LIMIT $${i++} OFFSET $${i++}`,
@@ -349,9 +528,33 @@ export class EnsaiosService {
       id, tenantId,
     );
 
-    // Buscar arquivo e gerar presigned URL se existir
-    const arquivoRows = await this.prisma.$queryRawUnsafe<{ id: number; nome_original: string; nome_storage: string; bucket: string; content_type: string; tamanho_bytes: number; hash: string; upload_por: number; created_at: Date }[]>(
-      `SELECT * FROM ensaio_arquivo WHERE ensaio_id = $1 AND tenant_id = $2 LIMIT 1`,
+    // Buscar arquivo + metadata GED (título, código, status, versão atual)
+    const arquivoRows = await this.prisma.$queryRawUnsafe<{
+      id: number; nome_original: string; nome_storage: string; bucket: string;
+      content_type: string; tamanho_bytes: number; hash: string; upload_por: number;
+      created_at: Date;
+      ged_documento_id: number | null;
+      ged_titulo: string | null;
+      ged_codigo: string | null;
+      ged_status: string | null;
+      ged_versao: number | null;
+    }[]>(
+      `SELECT a.*,
+              gd.titulo  AS ged_titulo,
+              gd.codigo  AS ged_codigo,
+              gv.status  AS ged_status,
+              gv.version AS ged_versao
+       FROM ensaio_arquivo a
+       LEFT JOIN ged_documentos gd ON gd.id = a.ged_documento_id AND gd.deleted_at IS NULL
+       LEFT JOIN LATERAL (
+         SELECT status, version
+         FROM ged_versoes
+         WHERE documento_id = gd.id
+         ORDER BY version DESC
+         LIMIT 1
+       ) gv ON true
+       WHERE a.ensaio_id = $1 AND a.tenant_id = $2
+       LIMIT 1`,
       id, tenantId,
     );
 

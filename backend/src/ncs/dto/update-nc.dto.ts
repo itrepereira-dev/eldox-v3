@@ -60,4 +60,9 @@ export class UpdateNcDto {
   @IsOptional()
   @IsDateString()
   data_fechamento?: string;
+
+  // Referência para ged_versoes.id — evidência rastreável no GED.
+  @IsOptional()
+  @IsInt()
+  gedVersaoId?: number;
 }

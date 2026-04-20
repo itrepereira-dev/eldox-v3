@@ -218,11 +218,13 @@ export class InspecaoService {
         servicosDoTemplate = servicos;
       }
 
+      // Agent F (2026-04-20): gedVersaoIdProjeto é opcional — referência no GED
       const fichas = await tx.$queryRawUnsafe<FichaFvs[]>(
-        `INSERT INTO fvs_fichas (tenant_id, obra_id, nome, regime, status, criado_por, modelo_id, exige_ro, exige_reinspecao, exige_parecer, fotos_obrigatorias, fotos_itens_ids)
-         VALUES ($1, $2, $3, $4, 'rascunho', $5, $6, $7, $8, $9, $10, $11)
+        `INSERT INTO fvs_fichas (tenant_id, obra_id, nome, regime, status, criado_por, modelo_id, exige_ro, exige_reinspecao, exige_parecer, fotos_obrigatorias, fotos_itens_ids, ged_versao_id_projeto)
+         VALUES ($1, $2, $3, $4, 'rascunho', $5, $6, $7, $8, $9, $10, $11, $12)
          RETURNING *`,
         tenantId, dto.obraId, dto.nome, regime, userId, modeloId, exigeRo, exigeReinspecao, exigeParecer, fotosObrigatorias, fotosItensIds,
+        dto.gedVersaoIdProjeto ?? null,
       );
       const ficha = fichas[0];
 

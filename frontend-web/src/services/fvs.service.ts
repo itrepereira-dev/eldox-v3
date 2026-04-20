@@ -180,6 +180,8 @@ export interface FichaFvs {
   risco_score?: number | null;
   token_cliente?: string | null;
   token_cliente_expires_at?: string | null;
+  /** Versão GED do projeto de referência da ficha (opcional). */
+  ged_versao_id_projeto?: number | null;
 }
 
 export interface FichaDetalhada extends FichaFvs {
@@ -363,6 +365,8 @@ export interface CreateFichaPayload {
   localIds?: number[];  // locais para todos os serviços do template
   regime?: 'pbqph' | 'norma_tecnica' | 'livre';
   servicos?: { servicoId: number; localIds: number[]; itensExcluidos?: number[] }[];
+  /** Versão GED usada como projeto de referência (planta aprovada, memorial). Opcional. */
+  gedVersaoIdProjeto?: number;
 }
 
 export interface PaginatedFichas {

@@ -3,19 +3,21 @@ import { useQuery } from '@tanstack/react-query';
 import { useParams, Link } from 'react-router-dom';
 import {
   ChevronRight,
-  Download,
   AlertTriangle,
   ShieldCheck,
   ChevronDown,
   ChevronUp,
   FileText,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { obrasService } from '../../services/obras.service';
 import { gedService, type GedListaMestraItem } from '../../services/ged.service';
+import { api } from '../../services/api';
 
 export function GedListaMestraPage() {
   const { id } = useParams<{ id: string }>();
   const obraId = parseInt(id!);
+  const [exportando, setExportando] = useState<null | 'pdf' | 'xlsx'>(null);
 
   const { data: obra, isLoading: obraLoading } = useQuery({
     queryKey: ['obra', obraId],
@@ -27,6 +29,27 @@ export function GedListaMestraPage() {
     queryFn: () => gedService.getListaMestra(obraId),
     enabled: !!obra,
   });
+
+  async function handleExport(tipo: 'pdf' | 'xlsx') {
+    try {
+      setExportando(tipo);
+      const resp = await api.get(
+        `/obras/${obraId}/ged/lista-mestra/export/${tipo}`,
+        { responseType: 'blob' },
+      );
+      const url = URL.createObjectURL(resp.data as Blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `lista-mestra-obra-${obraId}.${tipo}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Falha ao exportar lista mestra:', err);
+      alert('Falha ao exportar lista mestra. Tente novamente.');
+    } finally {
+      setExportando(null);
+    }
+  }
 
   if (obraLoading || isLoading) {
     return (
@@ -124,37 +147,64 @@ export function GedListaMestraPage() {
           </p>
         </div>
 
-        <button
-          disabled
-          title="Em breve"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            background: 'var(--bg-raised)',
-            border: '1px solid var(--border)',
-            borderRadius: '8px',
-            padding: '9px 16px',
-            cursor: 'not-allowed',
-            color: 'var(--text-faint)',
-            fontSize: '14px',
-            opacity: 0.6,
-          }}
-        >
-          <Download size={15} />
-          Exportar PDF/XLSX
-          <span
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            onClick={() => handleExport('pdf')}
+            disabled={exportando !== null}
+            title="Baixar lista mestra em PDF"
             style={{
-              fontSize: '10px',
-              padding: '1px 5px',
-              background: 'var(--bg-hover)',
-              borderRadius: '4px',
-              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              background: 'var(--bg-raised)',
+              border: '1px solid var(--border)',
+              borderRadius: '8px',
+              padding: '9px 16px',
+              cursor: exportando ? 'wait' : 'pointer',
+              color: 'var(--text-high)',
+              fontSize: '14px',
+              opacity: exportando === 'pdf' ? 0.6 : 1,
+              transition: 'background var(--transition-fast)',
+            }}
+            onMouseEnter={(e) => {
+              if (!exportando) e.currentTarget.style.background = 'var(--bg-hover)';
+            }}
+            onMouseLeave={(e) => {
+              if (!exportando) e.currentTarget.style.background = 'var(--bg-raised)';
             }}
           >
-            EM BREVE
-          </span>
-        </button>
+            <FileText size={15} />
+            {exportando === 'pdf' ? 'Gerando...' : 'Exportar PDF'}
+          </button>
+          <button
+            onClick={() => handleExport('xlsx')}
+            disabled={exportando !== null}
+            title="Baixar lista mestra em XLSX"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              background: 'var(--bg-raised)',
+              border: '1px solid var(--border)',
+              borderRadius: '8px',
+              padding: '9px 16px',
+              cursor: exportando ? 'wait' : 'pointer',
+              color: 'var(--text-high)',
+              fontSize: '14px',
+              opacity: exportando === 'xlsx' ? 0.6 : 1,
+              transition: 'background var(--transition-fast)',
+            }}
+            onMouseEnter={(e) => {
+              if (!exportando) e.currentTarget.style.background = 'var(--bg-hover)';
+            }}
+            onMouseLeave={(e) => {
+              if (!exportando) e.currentTarget.style.background = 'var(--bg-raised)';
+            }}
+          >
+            <FileSpreadsheet size={15} />
+            {exportando === 'xlsx' ? 'Gerando...' : 'Exportar XLSX'}
+          </button>
+        </div>
       </div>
 
       {/* Stats */}

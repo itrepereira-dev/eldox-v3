@@ -49,6 +49,12 @@ export class CreateFichaDto {
   @ValidateNested({ each: true })
   @Type(() => ServicoFichaDto)
   servicos?: ServicoFichaDto[];
+
+  // Agent F (2026-04-20): versão de documento do GED usada como projeto de
+  // referência da inspeção (planta aprovada, memorial etc). Opcional.
+  @IsOptional()
+  @IsNumber()
+  gedVersaoIdProjeto?: number;
 }
 
 export type CreateFichaDtoServico = ServicoFichaDto;

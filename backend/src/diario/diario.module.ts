@@ -3,6 +3,8 @@ import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bull';
 import { PrismaModule } from '../prisma/prisma.module';
 import { IaModule } from '../ia/ia.module';
+import { GedModule } from '../ged/ged.module';
+import { AprovacoesModule } from '../aprovacoes/aprovacoes.module';
 import { RdoController } from './rdo/rdo.controller';
 import { RdoClienteController } from './rdo/rdo-cliente.controller';
 import { RdoService } from './rdo/rdo.service';
@@ -23,6 +25,13 @@ import { AgenteCampo } from '../ai/agents/rdo/agente-campo';
   imports: [
     PrismaModule,
     IaModule,
+    // GedModule — exportado GedService/MinioService, usado pelo RdoFotosService
+    // para roteamento de upload de fotos via GED (Agent A, 2026-04-20).
+    GedModule,
+    // AprovacoesModule — exportado AprovacoesService, usado pelo RdoService
+    // para solicitar aprovação quando RDO vai para status "revisao" e para
+    // consumir eventos APROVACAO_DECIDIDA via @OnEvent (Agent A, 2026-04-20).
+    AprovacoesModule,
     BullModule.registerQueue({
       name: 'diario',
       // Configuração de Redis via variável de ambiente REDIS_URL

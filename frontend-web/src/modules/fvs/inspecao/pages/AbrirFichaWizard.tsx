@@ -9,6 +9,8 @@ import type { RegimeFicha } from '../../../../services/fvs.service';
 import { obrasService } from '../../../../services/obras.service';
 import { cn } from '@/lib/cn';
 import { Hash } from 'lucide-react';
+// Agent F (2026-04-20): referência opcional a versão do GED (projeto de ref)
+import { GedDocSelector } from '../../../ged/components/GedDocSelector';
 
 interface ServicoComLocais {
   servicoId: number;
@@ -53,6 +55,8 @@ export function AbrirFichaWizard({ obras: obrasProp = [], locaisPorObra = {} }: 
   const [modeloId, setModeloId]   = useState<number | null>(null);
   const [localIdsSelecionados, setLocalIdsSelecionados] = useState<number[]>([]);
   const [servicosSelecionados, setServicosSelecionados] = useState<ServicoComLocais[]>([]);
+  // Agent F (2026-04-20): versão GED opcional (planta aprovada, memorial)
+  const [gedVersaoIdProjeto, setGedVersaoIdProjeto] = useState<number | null>(null);
   const [error, setError]         = useState('');
 
   const { data: modelosDisponiveis = [] } = useModelosByObra(obraId ?? 0);
@@ -117,7 +121,10 @@ export function AbrirFichaWizard({ obras: obrasProp = [], locaisPorObra = {} }: 
         return;
       }
       try {
-        const ficha = await createFicha.mutateAsync({ obraId, nome, modeloId, localIds: localIdsSelecionados });
+        const ficha = await createFicha.mutateAsync({
+          obraId, nome, modeloId, localIds: localIdsSelecionados,
+          gedVersaoIdProjeto: gedVersaoIdProjeto ?? undefined,
+        });
         navigate(`/fvs/fichas/${ficha.id}`);
       } catch (e: any) {
         setError(e?.response?.data?.message ?? 'Erro ao criar inspeção');
@@ -131,7 +138,10 @@ export function AbrirFichaWizard({ obras: obrasProp = [], locaisPorObra = {} }: 
       return;
     }
     try {
-      const ficha = await createFicha.mutateAsync({ obraId, nome, regime, servicos: servicosComLocais });
+      const ficha = await createFicha.mutateAsync({
+        obraId, nome, regime, servicos: servicosComLocais,
+        gedVersaoIdProjeto: gedVersaoIdProjeto ?? undefined,
+      });
       navigate(`/fvs/fichas/${ficha.id}`);
     } catch (e: any) {
       setError(e?.response?.data?.message ?? 'Erro ao criar inspeção');
@@ -315,6 +325,24 @@ export function AbrirFichaWizard({ obras: obrasProp = [], locaisPorObra = {} }: 
           </div>
         )}
 
+        {/* Agent F (2026-04-20): projeto de referência opcional via GED */}
+        {obraId && (
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-[var(--text-mid)] mb-1.5">
+              Projeto de referência (GED) <span className="text-[var(--text-faint)] font-normal">— opcional</span>
+            </label>
+            <GedDocSelector
+              obraId={obraId}
+              value={gedVersaoIdProjeto}
+              onChange={(id) => setGedVersaoIdProjeto(id)}
+              placeholder="Planta aprovada, memorial descritivo..."
+            />
+            <p className="text-xs text-[var(--text-faint)] mt-1">
+              Somente documentos vigentes (IFC/IFP/AS_BUILT) aparecem na busca.
+            </p>
+          </div>
+        )}
+
         {error && (
           <p className="text-sm text-[var(--nc-text)] px-3 py-2 rounded-md bg-[var(--nc-bg)] border border-[var(--nc-border)] mb-4">
             {error}
@@ -424,6 +452,24 @@ export function AbrirFichaWizard({ obras: obrasProp = [], locaisPorObra = {} }: 
             );
           })}
         </div>
+
+        {/* Agent F (2026-04-20): projeto de referência opcional via GED */}
+        {obraId && (
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-[var(--text-mid)] mb-1.5">
+              Projeto de referência (GED) <span className="text-[var(--text-faint)] font-normal">— opcional</span>
+            </label>
+            <GedDocSelector
+              obraId={obraId}
+              value={gedVersaoIdProjeto}
+              onChange={(id) => setGedVersaoIdProjeto(id)}
+              placeholder="Planta aprovada, memorial descritivo..."
+            />
+            <p className="text-xs text-[var(--text-faint)] mt-1">
+              Somente documentos vigentes (IFC/IFP/AS_BUILT) aparecem na busca.
+            </p>
+          </div>
+        )}
 
         {error && (
           <p className="text-sm text-[var(--nc-text)] px-3 py-2 rounded-md bg-[var(--nc-bg)] border border-[var(--nc-border)] mb-4">

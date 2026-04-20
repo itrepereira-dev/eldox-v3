@@ -138,6 +138,10 @@ export interface CreateEnsaioPayload {
     nome_original: string;
     mime_type: string;
   };
+  /** Confiança retornada pela EldoX.IA (0..1) quando laudo veio via extração automática. */
+  ia_confianca?: number;
+  /** Versão GED usada como especificação técnica do ensaio. Opcional. */
+  ged_versao_id_spec?: number;
 }
 
 // ─── Tipos: Revisões de Laudos ────────────────────────────────────────────────

@@ -35,6 +35,26 @@ export class GedPastasService {
   }
 
   /**
+   * Lista apenas pastas de escopo EMPRESA (obra_id IS NULL). Usado pela tela
+   * GedAdminPage para upload de documentos corporativos — o pasta_id informado
+   * no DTO de upload precisa vir deste conjunto.
+   */
+  async listarPastasEmpresa(tenantId: number): Promise<GedPasta[]> {
+    return this.prisma.$queryRawUnsafe<GedPasta[]>(
+      `SELECT
+         id, tenant_id, escopo, obra_id, parent_id, nome,
+         path, nivel, configuracoes, settings_efetivos
+       FROM ged_pastas
+       WHERE tenant_id = $1
+         AND escopo = 'EMPRESA'
+         AND obra_id IS NULL
+         AND deleted_at IS NULL
+       ORDER BY path`,
+      tenantId,
+    );
+  }
+
+  /**
    * Busca uma pasta por ID, validando tenant.
    */
   async findById(tenantId: number, pastaId: number): Promise<GedPasta> {

@@ -1,11 +1,12 @@
 // frontend-web/src/modules/ncs/pages/NcsListPage.tsx
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useNcsPorObra, useDeleteNc, useCreateNc } from '../hooks/useNcs';
 import type { NaoConformidade, NcStatus, NcCategoria, NcCriticidade } from '../../../services/ncs.service';
 import { RelatorioBotao } from '../../fvs/relatorios/components/RelatorioBotao';
+import { gedService, type GedDocumento } from '../../../services/ged.service';
 
 // ─── Badges de Status ─────────────────────────────────────────────────────────
 
@@ -47,11 +48,44 @@ function NovaNCModal({ obraId, onClose }: NovaNCModalProps) {
   const [descricao, setDescricao] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [prazo, setPrazo] = useState('');
+  // Autocomplete de documento GED vinculado (opcional)
+  const [gedQuery, setGedQuery] = useState('');
+  const [gedSelecionado, setGedSelecionado] = useState<GedDocumento | null>(null);
+  const [gedResultados, setGedResultados] = useState<GedDocumento[]>([]);
+  const [gedBuscando, setGedBuscando] = useState(false);
+
+  // Debounce simples na busca do GED
+  useEffect(() => {
+    if (gedSelecionado || gedQuery.trim().length < 2) {
+      setGedResultados([]);
+      return;
+    }
+    const t = setTimeout(async () => {
+      setGedBuscando(true);
+      try {
+        const r = await gedService.listar(obraId, { q: gedQuery.trim(), limit: 8 });
+        setGedResultados(r.items ?? []);
+      } catch {
+        setGedResultados([]);
+      } finally {
+        setGedBuscando(false);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [gedQuery, gedSelecionado, obraId]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     createNc.mutate(
-      { titulo, categoria, criticidade, descricao: descricao || undefined, observacoes: observacoes || undefined, prazo: prazo || undefined },
+      {
+        titulo,
+        categoria,
+        criticidade,
+        descricao: descricao || undefined,
+        observacoes: observacoes || undefined,
+        prazo: prazo || undefined,
+        gedVersaoId: gedSelecionado?.versaoAtual?.id ?? undefined,
+      },
       { onSuccess: onClose },
     );
   };
@@ -119,6 +153,65 @@ function NovaNCModal({ obraId, onClose }: NovaNCModalProps) {
               onChange={(e) => setPrazo(e.target.value)}
               className="w-full px-3 py-2 text-sm border border-[var(--border-dim)] rounded-md bg-[var(--bg-base)] text-[var(--text-high)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
             />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-faint)] mb-1">
+              Documento vinculado (GED) <span className="text-[var(--text-faint)] font-normal">— opcional</span>
+            </label>
+            {gedSelecionado ? (
+              <div className="flex items-center justify-between gap-2 px-3 py-2 text-sm border border-[var(--border-dim)] rounded-md bg-[var(--bg-raised)]">
+                <div className="truncate">
+                  <span className="font-mono text-xs text-[var(--text-faint)]">{gedSelecionado.codigo}</span>
+                  <span className="mx-2 text-[var(--text-faint)]">·</span>
+                  <span className="text-[var(--text-high)]">{gedSelecionado.titulo}</span>
+                  {gedSelecionado.versaoAtual && (
+                    <span className="ml-2 text-xs text-[var(--text-faint)]">
+                      (rev {gedSelecionado.versaoAtual.numeroRevisao} · {gedSelecionado.versaoAtual.status})
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setGedSelecionado(null); setGedQuery(''); }}
+                  className="text-xs text-[var(--text-faint)] hover:text-[var(--text-mid)]"
+                >
+                  Remover
+                </button>
+              </div>
+            ) : (
+              <div className="relative">
+                <input
+                  type="text"
+                  value={gedQuery}
+                  onChange={(e) => setGedQuery(e.target.value)}
+                  placeholder="Buscar código ou título do documento..."
+                  className="w-full px-3 py-2 text-sm border border-[var(--border-dim)] rounded-md bg-[var(--bg-base)] text-[var(--text-high)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                />
+                {(gedBuscando || gedResultados.length > 0) && (
+                  <div className="absolute z-10 left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-[var(--bg-base)] border border-[var(--border-dim)] rounded-md shadow-lg">
+                    {gedBuscando && (
+                      <div className="px-3 py-2 text-xs text-[var(--text-faint)]">Buscando...</div>
+                    )}
+                    {!gedBuscando && gedResultados.length === 0 && gedQuery.trim().length >= 2 && (
+                      <div className="px-3 py-2 text-xs text-[var(--text-faint)]">Nenhum documento encontrado.</div>
+                    )}
+                    {gedResultados.map((doc) => (
+                      <button
+                        key={doc.id}
+                        type="button"
+                        onClick={() => { setGedSelecionado(doc); setGedResultados([]); }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-hover)] border-b border-[var(--border-dim)] last:border-0"
+                      >
+                        <span className="font-mono text-xs text-[var(--text-faint)]">{doc.codigo}</span>
+                        <span className="mx-2 text-[var(--text-faint)]">·</span>
+                        <span className="text-[var(--text-high)]">{doc.titulo}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div>

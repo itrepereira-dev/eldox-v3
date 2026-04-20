@@ -68,6 +68,11 @@ export interface GedDocumento {
 
 export interface GedVersaoDetalhe extends GedVersaoResumo {
   documentoId: number;
+  // `titulo` e `codigo` vêm do documento-pai (ged.service.ts getVersaoDetalhe
+  // no backend faz JOIN ged_documentos). Incluídos aqui para consumidores
+  // como GedDocSelector não precisarem fazer cast leve.
+  titulo: string;
+  codigo: string;
   storageKey: string;
   nomeOriginal: string;
   ocrTexto?: string;
@@ -182,6 +187,12 @@ export const gedService = {
     return data.data ?? data;
   },
 
+  // Pastas empresa (escopo EMPRESA, obra_id NULL)
+  async getPastasEmpresa(): Promise<GedPasta[]> {
+    const { data } = await api.get('/ged/pastas');
+    return data.data ?? data;
+  },
+
   async criarPasta(obraId: number, payload: GedCriarPastaPayload): Promise<GedPasta> {
     const { data } = await api.post(`/obras/${obraId}/ged/pastas`, payload);
     return data.data ?? data;
@@ -206,6 +217,25 @@ export const gedService = {
     onProgress?: (pct: number) => void,
   ): Promise<GedUploadResult> {
     const { data } = await api.post(`/obras/${obraId}/ged/documentos`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: (e) => {
+        if (onProgress && e.total) {
+          onProgress(Math.round((e.loaded * 100) / e.total));
+        }
+      },
+    });
+    return data.data ?? data;
+  },
+
+  // Upload empresa (sem obra — POST /ged/documentos). A pasta e a categoria
+  // no FormData devem ser de escopo EMPRESA.
+  async uploadEmpresa(
+    formData: FormData,
+    onProgress?: (pct: number) => void,
+  ): Promise<GedUploadResult> {
+    // Garante escopo EMPRESA mesmo se o FormData não trouxer.
+    if (!formData.has('escopo')) formData.append('escopo', 'EMPRESA');
+    const { data } = await api.post('/ged/documentos', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress: (e) => {
         if (onProgress && e.total) {

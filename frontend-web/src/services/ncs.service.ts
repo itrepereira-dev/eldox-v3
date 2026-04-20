@@ -28,6 +28,13 @@ export interface NaoConformidade {
   data_fechamento: string | null;
   evidencia_url: string | null;
   observacoes: string | null;
+  // Vinculação ao GED (nullable por compat com NCs antigas que usam evidencia_url)
+  ged_versao_id: number | null;
+  // Enriquecimento via LEFT JOIN no backend — presente quando ged_versao_id != null
+  ged_codigo?: string | null;
+  ged_titulo?: string | null;
+  ged_versao_status?: string | null;
+  ged_numero_revisao?: string | null;
   deleted_at: string | null;
   created_at: string;
   updated_at: string;
@@ -58,6 +65,8 @@ export interface CreateNcPayload {
   responsavel_id?: number;
   prazo?: string;
   observacoes?: string;
+  /** id de `ged_versoes` — documento rastreável do GED. */
+  gedVersaoId?: number;
 }
 
 export interface UpdateNcPayload extends Partial<CreateNcPayload> {

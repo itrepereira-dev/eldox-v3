@@ -12,6 +12,8 @@ import { useListarLaboratorios } from '../../laboratorios/hooks/useLaboratorios'
 import { useListarTipos } from '../../tipos/hooks/useTiposEnsaio';
 import { ensaiosService } from '@/services/ensaios.service';
 import type { TipoEnsaio, ExtrairLaudoResult } from '@/services/ensaios.service';
+// Agent F (2026-04-20): referência opcional à especificação técnica via GED
+import { GedDocSelector } from '@/modules/ged/components/GedDocSelector';
 
 // ── Schema Zod ────────────────────────────────────────────────────────────────
 
@@ -148,6 +150,9 @@ export function EnsaioModal({ obraId, fvmLoteId, onClose }: Props) {
   const [iaErro, setIaErro] = useState<string | null>(null);
   const [iaExtraido, setIaExtraido] = useState<ExtrairLaudoResult | null>(null);
 
+  // Agent F (2026-04-20): versão GED da especificação técnica (opcional)
+  const [gedVersaoIdSpec, setGedVersaoIdSpec] = useState<number | null>(null);
+
   const {
     register,
     control,
@@ -267,6 +272,7 @@ export function EnsaioModal({ obraId, fvmLoteId, onClose }: Props) {
         ? { base64: arquivoInfo.base64, nome_original: arquivoInfo.nome, mime_type: arquivoInfo.mime }
         : undefined,
       ia_confianca: iaExtraido?.confianca,
+      ged_versao_id_spec: gedVersaoIdSpec ?? undefined,
     };
 
     criarEnsaio.mutate(payload, {
@@ -384,6 +390,22 @@ export function EnsaioModal({ obraId, fvmLoteId, onClose }: Props) {
                       placeholder="Observações gerais sobre o ensaio..."
                       className={cn(INPUT_CLS, 'resize-none')}
                     />
+                  </div>
+
+                  {/* Agent F (2026-04-20): especificação técnica opcional via GED */}
+                  <div>
+                    <label className={LABEL_CLS}>
+                      Especificação (GED) <span className="opacity-60">— opcional</span>
+                    </label>
+                    <GedDocSelector
+                      obraId={obraId}
+                      value={gedVersaoIdSpec}
+                      onChange={(id) => setGedVersaoIdSpec(id)}
+                      placeholder="Planta, memorial ou especificação técnica..."
+                    />
+                    <p className="text-[10px] text-[var(--text-faint)] mt-1">
+                      Documento que define os parâmetros esperados do ensaio (vigentes — IFC/IFP/AS_BUILT).
+                    </p>
                   </div>
                 </div>
               </section>

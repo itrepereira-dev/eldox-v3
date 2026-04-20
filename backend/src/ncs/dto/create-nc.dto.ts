@@ -52,4 +52,10 @@ export class CreateNcDto {
   @IsOptional()
   @IsString()
   observacoes?: string;
+
+  // Referência para ged_versoes.id — evidência rastreável no GED.
+  // Opcional: NC pode existir sem evidência GED (evidencia_url continua válida por compat).
+  @IsOptional()
+  @IsInt()
+  gedVersaoId?: number;
 }

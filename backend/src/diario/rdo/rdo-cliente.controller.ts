@@ -44,12 +44,12 @@ export class RdoClienteController {
         rdo.id,
       ),
       this.prisma.$queryRawUnsafe<any[]>(
-        `SELECT descricao, pavimento, servico, percentual_executado
+        `SELECT descricao, hora_inicio, hora_fim, progresso_pct, ordem
          FROM rdo_atividades WHERE rdo_id = $1 ORDER BY ordem`,
         rdo.id,
       ),
       this.prisma.$queryRawUnsafe<any[]>(
-        `SELECT tipo, descricao, grau_impacto, acao_tomada
+        `SELECT descricao, tags
          FROM rdo_ocorrencias WHERE rdo_id = $1`,
         rdo.id,
       ),

@@ -8,8 +8,11 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
+import { OnEvent } from '@nestjs/event-emitter';
 import type { Queue } from 'bull';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AprovacoesService, APROVACAO_DECIDIDA_EVENT } from '../../aprovacoes/aprovacoes.service';
+import type { AprovacaoDecididaPayload } from '../../aprovacoes/aprovacoes.service';
 import type { CreateRdoDto } from './dto/create-rdo.dto';
 import type { UpdateRdoDto } from './dto/update-rdo.dto';
 import type { UpdateClimaDto } from './dto/update-clima.dto';
@@ -58,6 +61,7 @@ export class RdoService {
   constructor(
     private readonly prisma: PrismaService,
     @InjectQueue('diario') private readonly diarioQueue: Queue,
+    private readonly aprovacoes: AprovacoesService,
   ) {}
 
   // ─── Helper: buscar RDO com validação de tenant ───────────────────────────
@@ -669,6 +673,47 @@ export class RdoService {
       ]);
     }
 
+    // Integração com Aprovações: ao passar preenchendo → revisao, cria uma
+    // instância de aprovação para o workflow configurado em RDO (template de
+    // sistema default). Try/catch para não bloquear a transição se o módulo
+    // de aprovações estiver temporariamente indisponível ou não houver
+    // template ativo — o RDO ainda vai para revisao, só não propaga para o
+    // inbox de aprovação.
+    if (rdo.status === 'preenchendo' && dto.status === 'revisao') {
+      // A coluna `numero` é gravada em rdos (ver create()) mas o tipo Rdo
+      // tem `numero_sequencial` — cast pontual para ler o campo real do DB
+      // sem alterar o tipo compartilhado (evita colisão com outros agents).
+      const rdoAny = rdo as unknown as Record<string, unknown>;
+      const numero = rdoAny.numero ?? rdo.numero_sequencial ?? rdoId;
+      try {
+        const snapshot: Record<string, unknown> = {
+          rdo_id: rdoId,
+          obra_id: rdo.obra_id,
+          numero,
+          data: rdo.data,
+          status_anterior: rdo.status,
+        };
+        await this.aprovacoes.solicitar(tenantId, usuarioId, {
+          modulo: 'RDO' as const,
+          entidadeId: rdoId,
+          entidadeTipo: 'rdo',
+          titulo: `RDO #${numero} — obra ${rdo.obra_id}`,
+          obraId: rdo.obra_id,
+          snapshotJson: snapshot,
+        });
+      } catch (e) {
+        this.logger.warn(
+          JSON.stringify({
+            level: 'warn',
+            action: 'rdo.status.aprovacoes.solicitar.fail',
+            rdo_id: rdoId,
+            tenant_id: tenantId,
+            erro: e instanceof Error ? e.message : String(e),
+          }),
+        );
+      }
+    }
+
     const ms = Date.now() - start;
     this.logger.log(
       JSON.stringify({
@@ -836,10 +881,12 @@ export class RdoService {
       );
 
       for (const item of dto.itens) {
+        // Agent F (2026-04-20): ged_versao_id é opcional — referência a
+        // versão de documento (projeto/especificação) que embasa a execução.
         await tx.$executeRawUnsafe(
           `INSERT INTO rdo_atividades
-             (rdo_id, tenant_id, descricao, etapa_tarefa_id, hora_inicio, hora_fim, progresso_pct, ordem)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+             (rdo_id, tenant_id, descricao, etapa_tarefa_id, hora_inicio, hora_fim, progresso_pct, ordem, ged_versao_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
           rdoId, tenantId,
           item.descricao,
           (item as any).etapa_tarefa_id ?? null,
@@ -847,6 +894,7 @@ export class RdoService {
           (item as any).hora_fim ?? null,
           (item as any).progresso_pct ?? 0,
           (item as any).ordem ?? 0,
+          (item as any).ged_versao_id ?? null,
         );
       }
 
@@ -1019,6 +1067,90 @@ export class RdoService {
         error: 'Não é possível editar seções de um RDO aprovado',
         code: 'RDO_003',
       });
+    }
+  }
+
+  // ─── Listener de Aprovações ──────────────────────────────────────────────
+  //
+  // Consome APROVACAO_DECIDIDA_EVENT emitido por AprovacoesService. Só reage
+  // a decisões do módulo RDO — outros módulos (NC, FVS...) têm seus próprios
+  // listeners. async:true faz o handler rodar fora da stack de quem emitiu,
+  // evitando bloquear o fluxo de decisão caso haja I/O pesado aqui.
+
+  @OnEvent(APROVACAO_DECIDIDA_EVENT, { async: true })
+  async onAprovacaoDecidida(payload: AprovacaoDecididaPayload): Promise<void> {
+    if (payload.modulo !== 'RDO') return; // ignora outros módulos
+    const { tenantId, entidadeId: rdoId, statusFinal, usuarioId } = payload;
+
+    try {
+      if (statusFinal === 'APROVADO') {
+        // Aprovação chegou — avança RDO para "aprovado" e dispara jobs pós-aprovação
+        await this.prisma.$executeRawUnsafe(
+          `UPDATE rdos
+              SET status = 'aprovado'::rdo_status,
+                  aprovado_por = $1,
+                  aprovado_em = NOW(),
+                  updated_at = NOW()
+            WHERE id = $2 AND tenant_id = $3 AND status != 'aprovado'`,
+          usuarioId,
+          rdoId,
+          tenantId,
+        );
+
+        const jobResumo: JobGerarResumoIa = { rdoId, tenantId };
+        const jobPdf: JobGerarPdf = { rdoId, tenantId };
+        await Promise.all([
+          this.diarioQueue.add('gerar-resumo-ia', jobResumo, {
+            attempts: 3,
+            backoff: { type: 'exponential', delay: 3000 },
+          }),
+          this.diarioQueue.add('gerar-pdf', jobPdf, {
+            attempts: 3,
+            backoff: { type: 'exponential', delay: 2000 },
+          }),
+        ]);
+
+        this.logger.log(
+          JSON.stringify({
+            level: 'info',
+            action: 'rdo.onAprovacaoDecidida.aprovado',
+            rdo_id: rdoId,
+            tenant_id: tenantId,
+          }),
+        );
+      } else {
+        // REJEITADO — volta o RDO para "preenchendo" para o autor corrigir.
+        // Não enfileira jobs; aguarda nova submissão.
+        await this.prisma.$executeRawUnsafe(
+          `UPDATE rdos
+              SET status = 'preenchendo'::rdo_status,
+                  updated_at = NOW()
+            WHERE id = $1 AND tenant_id = $2 AND status = 'revisao'`,
+          rdoId,
+          tenantId,
+        );
+
+        this.logger.log(
+          JSON.stringify({
+            level: 'info',
+            action: 'rdo.onAprovacaoDecidida.rejeitado',
+            rdo_id: rdoId,
+            tenant_id: tenantId,
+          }),
+        );
+      }
+    } catch (e) {
+      this.logger.error(
+        JSON.stringify({
+          level: 'error',
+          action: 'rdo.onAprovacaoDecidida.fail',
+          rdo_id: rdoId,
+          tenant_id: tenantId,
+          status_final: statusFinal,
+          erro: e instanceof Error ? e.message : String(e),
+        }),
+      );
+      // não propaga — listener em bus assíncrono não deve crashar o emitter
     }
   }
 }

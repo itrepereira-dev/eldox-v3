@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
   FileText,
@@ -18,6 +18,7 @@ import {
 } from '../../services/ged.service';
 import { obrasService, type Obra } from '../../services/obras.service';
 import { useAuthStore } from '../../store/auth.store';
+import { GedUploadEmpresaModal } from './components/GedUploadEmpresaModal';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -75,10 +76,13 @@ export function GedAdminPage() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
 
+  const queryClient = useQueryClient();
   const [statusFiltro, setStatusFiltro] = useState<GedStatus | 'TODOS'>('TODOS');
   const [disciplinaFiltro, setDisciplinaFiltro] = useState<string>('');
   const [busca, setBusca] = useState('');
-  const [_uploadOpen, setUploadOpen] = useState(false);
+  // Upload direto em escopo EMPRESA via POST /api/v1/ged/documentos (sem
+  // obraId). Usa pastas/categorias corporativas.
+  const [uploadAberto, setUploadAberto] = useState(false);
 
   const [page, setPage] = useState(1);
   const [abaAtiva, setAbaAtiva] = useState<'documentos' | 'compartilhamento'>('documentos');
@@ -145,7 +149,7 @@ export function GedAdminPage() {
 
         {user?.role === 'ADMIN_TENANT' && (
           <button
-            onClick={() => setUploadOpen(true)}
+            onClick={() => setUploadAberto(true)}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -520,7 +524,61 @@ export function GedAdminPage() {
           )}
         </div>
       )}
+
+      {/* Upload escopo EMPRESA — endpoint direto POST /ged/documentos */}
+      {uploadAberto && (
+        <GedUploadEmpresaWrapper
+          onClose={() => setUploadAberto(false)}
+          onSuccess={() => {
+            setUploadAberto(false);
+            queryClient.invalidateQueries({ queryKey: ['ged-empresa-documentos'] });
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+// ─── Wrapper que carrega pastas/categorias EMPRESA antes de abrir o modal ──
+
+function GedUploadEmpresaWrapper({
+  onClose,
+  onSuccess,
+}: {
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const { data: pastas = [], isLoading: pastasLoading } = useQuery({
+    queryKey: ['ged-pastas-empresa'],
+    queryFn: () => gedService.getPastasEmpresa(),
+  });
+  const { data: categorias = [], isLoading: categoriasLoading } = useQuery({
+    queryKey: ['ged-categorias-empresa'],
+    queryFn: () => gedService.getCategoriasEmpresa(),
+  });
+
+  if (pastasLoading || categoriasLoading) {
+    return (
+      <div
+        style={{
+          position: 'fixed', inset: 0, zIndex: 1000,
+          background: 'rgba(0,0,0,0.55)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center',
+          color: 'var(--text-mid)', fontSize: 14,
+        }}
+      >
+        Carregando pastas e categorias...
+      </div>
+    );
+  }
+
+  return (
+    <GedUploadEmpresaModal
+      pastas={pastas}
+      categorias={categorias}
+      onClose={onClose}
+      onSuccess={onSuccess}
+    />
   );
 }
 

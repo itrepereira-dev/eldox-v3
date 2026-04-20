@@ -1,10 +1,11 @@
 // frontend-web/src/modules/ncs/pages/NcDetalhePage.tsx
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Save, FileText } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useNc, useUpdateNc } from '../hooks/useNcs';
 import type { NcStatus, NcCriticidade, NcCategoria } from '../../../services/ncs.service';
+import { gedService, type GedDocumento } from '../../../services/ged.service';
 
 // ─── Badges ───────────────────────────────────────────────────────────────────
 
@@ -62,6 +63,34 @@ export function NcDetalhePage() {
   const [observacoes, setObservacoes] = useState('');
   const [evidenciaUrl, setEvidenciaUrl] = useState('');
   const [prazo, setPrazo] = useState('');
+  // GED autocomplete state
+  const [gedVersaoId, setGedVersaoId] = useState<number | null>(null);
+  const [gedSelecionado, setGedSelecionado] = useState<GedDocumento | null>(null);
+  const [gedQuery, setGedQuery] = useState('');
+  const [gedResultados, setGedResultados] = useState<GedDocumento[]>([]);
+  const [gedBuscando, setGedBuscando] = useState(false);
+
+  // Debounced GED search (só roda em editMode)
+  useEffect(() => {
+    if (!editMode || gedSelecionado || gedQuery.trim().length < 2) {
+      setGedResultados([]);
+      return;
+    }
+    const obraNum = Number(obraId);
+    if (!obraNum) return;
+    const t = setTimeout(async () => {
+      setGedBuscando(true);
+      try {
+        const r = await gedService.listar(obraNum, { q: gedQuery.trim(), limit: 8 });
+        setGedResultados(r.items ?? []);
+      } catch {
+        setGedResultados([]);
+      } finally {
+        setGedBuscando(false);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [editMode, gedQuery, gedSelecionado, obraId]);
 
   const enterEdit = () => {
     if (!nc) return;
@@ -73,10 +102,38 @@ export function NcDetalhePage() {
     setObservacoes(nc.observacoes ?? '');
     setEvidenciaUrl(nc.evidencia_url ?? '');
     setPrazo(nc.prazo ? nc.prazo.substring(0, 10) : '');
+    setGedVersaoId(nc.ged_versao_id ?? null);
+    // Hidrata "GedDocumento-lite" a partir dos campos enriquecidos no response
+    if (nc.ged_versao_id && nc.ged_codigo) {
+      setGedSelecionado({
+        id: 0, // placeholder — não usado no submit
+        titulo: nc.ged_titulo ?? '',
+        codigo: nc.ged_codigo,
+        escopo: 'OBRA',
+        pastaId: 0,
+        categoriaId: 0,
+        categoria: { id: 0, nome: '', codigo: '', escopoPadrao: 'OBRA', requerAprovacao: false },
+        versaoAtual: {
+          id: nc.ged_versao_id,
+          numeroRevisao: nc.ged_numero_revisao ?? '0',
+          version: 1,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          status: (nc.ged_versao_status as any) ?? 'RASCUNHO',
+          tamanhoBytes: 0,
+          mimeType: '',
+        },
+      });
+    } else {
+      setGedSelecionado(null);
+    }
+    setGedQuery('');
+    setGedResultados([]);
     setEditMode(true);
   };
 
   const handleSave = () => {
+    // Detecta mudança explícita no vínculo GED (inclui "removido": de X para null)
+    const gedChanged = (nc?.ged_versao_id ?? null) !== gedVersaoId;
     updateNc.mutate(
       {
         titulo,
@@ -87,6 +144,7 @@ export function NcDetalhePage() {
         observacoes: observacoes || undefined,
         evidencia_url: evidenciaUrl || undefined,
         prazo: prazo || undefined,
+        ...(gedChanged ? { gedVersaoId: gedVersaoId ?? undefined } : {}),
       },
       { onSuccess: () => setEditMode(false) },
     );
@@ -234,6 +292,69 @@ export function NcDetalhePage() {
               </div>
 
               <div>
+                <label className="block text-xs font-semibold text-[var(--text-faint)] uppercase tracking-wide mb-1">
+                  Documento vinculado (GED)
+                </label>
+                {gedSelecionado ? (
+                  <div className="flex items-center justify-between gap-2 px-3 py-2 text-sm border border-[var(--border-dim)] rounded-md bg-[var(--bg-raised)]">
+                    <div className="truncate">
+                      <span className="font-mono text-xs text-[var(--text-faint)]">{gedSelecionado.codigo}</span>
+                      <span className="mx-2 text-[var(--text-faint)]">·</span>
+                      <span className="text-[var(--text-high)]">{gedSelecionado.titulo}</span>
+                      {gedSelecionado.versaoAtual && (
+                        <span className="ml-2 text-xs text-[var(--text-faint)]">
+                          (rev {gedSelecionado.versaoAtual.numeroRevisao} · {gedSelecionado.versaoAtual.status})
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setGedSelecionado(null); setGedVersaoId(null); setGedQuery(''); }}
+                      className="text-xs text-[var(--text-faint)] hover:text-[var(--text-mid)]"
+                    >
+                      Remover
+                    </button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={gedQuery}
+                      onChange={(e) => setGedQuery(e.target.value)}
+                      placeholder="Buscar código ou título..."
+                      className="w-full px-3 py-2 text-sm border border-[var(--border-dim)] rounded-md bg-[var(--bg-base)] text-[var(--text-high)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                    />
+                    {(gedBuscando || gedResultados.length > 0) && (
+                      <div className="absolute z-10 left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-[var(--bg-base)] border border-[var(--border-dim)] rounded-md shadow-lg">
+                        {gedBuscando && (
+                          <div className="px-3 py-2 text-xs text-[var(--text-faint)]">Buscando...</div>
+                        )}
+                        {!gedBuscando && gedResultados.length === 0 && gedQuery.trim().length >= 2 && (
+                          <div className="px-3 py-2 text-xs text-[var(--text-faint)]">Nenhum documento encontrado.</div>
+                        )}
+                        {gedResultados.map((doc) => (
+                          <button
+                            key={doc.id}
+                            type="button"
+                            onClick={() => {
+                              setGedSelecionado(doc);
+                              setGedVersaoId(doc.versaoAtual?.id ?? null);
+                              setGedResultados([]);
+                            }}
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-hover)] border-b border-[var(--border-dim)] last:border-0"
+                          >
+                            <span className="font-mono text-xs text-[var(--text-faint)]">{doc.codigo}</span>
+                            <span className="mx-2 text-[var(--text-faint)]">·</span>
+                            <span className="text-[var(--text-high)]">{doc.titulo}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div>
                 <label className="block text-xs font-semibold text-[var(--text-faint)] uppercase tracking-wide mb-1">Observações</label>
                 <textarea
                   rows={2}
@@ -286,6 +407,26 @@ export function NcDetalhePage() {
                     {nc.evidencia_url}
                   </a>
                 ) : '—'}
+              </FieldRow>
+              <FieldRow label="Documento GED">
+                {nc.ged_versao_id && nc.ged_codigo ? (
+                  <a
+                    href={`/obras/${obraId}/ged/documentos?q=${encodeURIComponent(nc.ged_codigo)}`}
+                    className="inline-flex items-center gap-1.5 text-[var(--accent)] hover:underline text-sm"
+                  >
+                    <FileText size={14} />
+                    <span className="font-mono text-xs">{nc.ged_codigo}</span>
+                    <span className="text-[var(--text-faint)]">·</span>
+                    <span>{nc.ged_titulo ?? '—'}</span>
+                    {nc.ged_numero_revisao && (
+                      <span className="text-xs text-[var(--text-faint)]">
+                        (rev {nc.ged_numero_revisao}{nc.ged_versao_status ? ` · ${nc.ged_versao_status}` : ''})
+                      </span>
+                    )}
+                  </a>
+                ) : (
+                  <span className="text-[var(--text-faint)] italic">—</span>
+                )}
               </FieldRow>
               <FieldRow label="Observações">
                 {nc.observacoes ? (

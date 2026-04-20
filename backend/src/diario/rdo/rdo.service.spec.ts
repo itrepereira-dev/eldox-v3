@@ -48,8 +48,15 @@ const mockQueue = {
   add: jest.fn().mockResolvedValue({ id: 'job-1' }),
 };
 
+// Mock mínimo de AprovacoesService — só o método usado por updateStatus.
+// `solicitar` devolve sucesso por padrão; testes específicos podem
+// sobrescrever via mockAprovacoes.solicitar.mockRejectedValueOnce(...).
+const mockAprovacoes = {
+  solicitar: jest.fn().mockResolvedValue({ status: 'success', data: { id: 1 } }),
+};
+
 function makeService(): RdoService {
-  return new (RdoService as any)(mockPrisma, mockQueue);
+  return new (RdoService as any)(mockPrisma, mockQueue, mockAprovacoes);
 }
 
 // ─── Suite ────────────────────────────────────────────────────────────────────
