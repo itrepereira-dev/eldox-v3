@@ -74,3 +74,17 @@ export function useDeleteNc() {
     },
   });
 }
+
+// ── Upload de evidência ──────────────────────────────────────────────────────
+
+export function useUploadNcEvidencia(ncId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => ncsService.uploadEvidencia(ncId, file),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['ncs', 'detalhe', ncId] });
+      qc.invalidateQueries({ queryKey: ['ncs', 'obra'] });
+      qc.invalidateQueries({ queryKey: ['ncs', 'global'] });
+    },
+  });
+}

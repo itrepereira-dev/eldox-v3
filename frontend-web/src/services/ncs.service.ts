@@ -101,4 +101,28 @@ export const ncsService = {
   // Soft delete
   deletar: (ncId: number): Promise<{ status: 'success'; data: { id: number; deleted: boolean } }> =>
     api.delete(`/ncs/${ncId}`).then((r) => r.data),
+
+  // Upload de evidência (foto/PDF) direto na NC. Persiste no GED e
+  // atualiza nao_conformidades.ged_versao_id + evidencia_url.
+  uploadEvidencia: (
+    ncId: number,
+    file: File,
+  ): Promise<{
+    status: 'success';
+    data: {
+      ged_versao_id: number;
+      ged_codigo: string;
+      ged_titulo: string;
+      storage_key: string;
+      presigned_url: string;
+    };
+  }> => {
+    const form = new FormData();
+    form.append('file', file);
+    return api
+      .post(`/ncs/${ncId}/evidencia/upload`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then((r) => r.data);
+  },
 };

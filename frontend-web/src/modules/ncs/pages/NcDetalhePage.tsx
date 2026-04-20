@@ -1,9 +1,9 @@
 // frontend-web/src/modules/ncs/pages/NcDetalhePage.tsx
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, FileText } from 'lucide-react';
+import { ArrowLeft, Save, FileText, Upload, AlertCircle, CheckCircle } from 'lucide-react';
 import { cn } from '@/lib/cn';
-import { useNc, useUpdateNc } from '../hooks/useNcs';
+import { useNc, useUpdateNc, useUploadNcEvidencia } from '../hooks/useNcs';
 import type { NcStatus, NcCriticidade, NcCategoria } from '../../../services/ncs.service';
 import { gedService, type GedDocumento } from '../../../services/ged.service';
 
@@ -50,8 +50,53 @@ export function NcDetalhePage() {
 
   const { data, isLoading } = useNc(ncIdNum);
   const updateNc = useUpdateNc(ncIdNum);
+  const uploadEvidencia = useUploadNcEvidencia(ncIdNum);
 
   const nc = data?.data;
+
+  // Upload de evidência (drag-and-drop)
+  const [dragActive, setDragActive] = useState(false);
+  const [uploadOk, setUploadOk] = useState<string | null>(null);
+  const [uploadErro, setUploadErro] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  async function handleUploadFile(file: File) {
+    setUploadOk(null);
+    setUploadErro(null);
+    // Validação client-side (backend re-valida)
+    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf'];
+    if (!allowed.includes(file.type)) {
+      setUploadErro(`Tipo não permitido: ${file.type}. Use JPG, PNG, WebP, HEIC ou PDF.`);
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setUploadErro(`Arquivo muito grande (${(file.size / 1024 / 1024).toFixed(1)} MB). Máximo: 10 MB.`);
+      return;
+    }
+    try {
+      const r = await uploadEvidencia.mutateAsync(file);
+      setUploadOk(`Evidência anexada: ${r.data.ged_codigo}`);
+      // Limpa após 4s
+      setTimeout(() => setUploadOk(null), 4000);
+    } catch (e) {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
+        ?? 'Erro ao enviar arquivo. Tente novamente.';
+      setUploadErro(msg);
+    }
+  }
+
+  function onDrop(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    setDragActive(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleUploadFile(file);
+  }
+
+  function onInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) handleUploadFile(file);
+    e.target.value = '';
+  }
 
   // Estado do formulário de edição inline
   const [editMode, setEditMode] = useState(false);
@@ -289,6 +334,56 @@ export function NcDetalhePage() {
                     className="w-full px-3 py-2 text-sm border border-[var(--border-dim)] rounded-md bg-[var(--bg-base)] text-[var(--text-high)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                   />
                 </div>
+              </div>
+
+              {/* ── Upload direto de foto/PDF (gera documento GED automaticamente) ── */}
+              <div>
+                <label className="block text-xs font-semibold text-[var(--text-faint)] uppercase tracking-wide mb-1">
+                  Enviar foto / PDF de evidência
+                </label>
+                <div
+                  onDragEnter={(e) => { e.preventDefault(); setDragActive(true); }}
+                  onDragLeave={() => setDragActive(false)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={onDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={cn(
+                    'rounded-md border-2 border-dashed px-4 py-6 text-center cursor-pointer transition-colors',
+                    dragActive
+                      ? 'border-[var(--accent)] bg-[var(--accent-bg,rgba(88,166,255,0.06))]'
+                      : 'border-[var(--border-dim)] hover:border-[var(--border)] bg-[var(--bg-raised)]',
+                    uploadEvidencia.isPending && 'opacity-60 cursor-not-allowed pointer-events-none',
+                  )}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf"
+                    onChange={onInputChange}
+                    className="hidden"
+                  />
+                  <Upload size={22} className={cn('mx-auto mb-1.5', dragActive ? 'text-[var(--accent)]' : 'text-[var(--text-faint)]')} />
+                  <p className="text-xs font-medium text-[var(--text-high)]">
+                    {uploadEvidencia.isPending
+                      ? 'Enviando…'
+                      : dragActive
+                        ? 'Solte o arquivo aqui'
+                        : 'Arraste/solte ou clique para selecionar'}
+                  </p>
+                  <p className="text-[10px] text-[var(--text-faint)] mt-0.5">JPG, PNG, WebP, HEIC ou PDF · máx 10 MB</p>
+                </div>
+                {uploadOk && (
+                  <div className="mt-2 flex items-start gap-1.5 text-xs text-[var(--ok,#22c55e)]">
+                    <CheckCircle size={13} className="flex-shrink-0 mt-0.5" />
+                    <span>{uploadOk}</span>
+                  </div>
+                )}
+                {uploadErro && (
+                  <div className="mt-2 flex items-start gap-1.5 text-xs text-[var(--nc,#ef4444)]">
+                    <AlertCircle size={13} className="flex-shrink-0 mt-0.5" />
+                    <span>{uploadErro}</span>
+                  </div>
+                )}
               </div>
 
               <div>
