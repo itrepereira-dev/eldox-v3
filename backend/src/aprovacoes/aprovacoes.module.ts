@@ -13,7 +13,10 @@ import { EscalacaoProcessor } from './escalacao.processor';
     PrismaModule,
     BullModule.registerQueue({ name: 'aprovacoes-escalacao' }),
   ],
-  controllers: [AprovacoesController, WorkflowTemplatesController],
+  // WorkflowTemplatesController antes de AprovacoesController: o match de
+  // GET /aprovacoes/templates bate em /aprovacoes/:id (ParseIntPipe) se
+  // o :id for registrado primeiro → 400 "numeric string is expected".
+  controllers: [WorkflowTemplatesController, AprovacoesController],
   providers: [
     AprovacoesService,
     WorkflowTemplatesService,
