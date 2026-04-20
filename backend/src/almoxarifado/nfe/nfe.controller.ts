@@ -105,11 +105,23 @@ export class NfeController {
   // Retorna ping do Redis, contagens por estado da queue 'almoxarifado' e os
   // últimos jobs failed/waiting. Útil para entender por que jobs assíncronos
   // não estão rodando (Redis down, processor travado, failedReason específico).
+  //
+  // Escopo:
+  //   - ADMIN_TENANT → vê counts globais + failed/waiting filtrados pelo tenant
+  //   - SUPER_ADMIN  → vê queue inteira, cross-tenant (diagnóstico de plataforma)
+  //
+  // A queue 'almoxarifado' é global (não por tenant) por design. O filtro por
+  // tenant evita vazamento de webhookId/nfeId de outros tenants para ADMIN_TENANT
+  // comprometido.
   @Get('nfes/diagnostico-fila')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN_TENANT')
-  diagnosticoFila() {
-    return this.nfe.diagnosticarFilaBullMQ();
+  @Roles('ADMIN_TENANT', 'SUPER_ADMIN')
+  diagnosticoFila(
+    @TenantId() tenantId: number,
+    @Req() req: { user?: { role?: string } },
+  ) {
+    const isSuperAdmin = req.user?.role === 'SUPER_ADMIN';
+    return this.nfe.diagnosticarFilaBullMQ(tenantId, isSuperAdmin);
   }
 
   // ── Reprocessar webhooks pendentes (admin) ────────────────────────────────

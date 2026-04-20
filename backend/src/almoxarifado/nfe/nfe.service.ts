@@ -124,16 +124,24 @@ export class NfeService {
    *
    * Retorna:
    *  - Redis: ping + info básica (versão, uptime, connected_clients)
-   *  - Queue counts por estado (waiting/active/completed/failed/delayed)
-   *  - Últimos 5 jobs falhados (com nome, erro, timestamp)
-   *  - Últimos 5 jobs waiting (que ainda não foram processados)
+   *  - Queue counts por estado (waiting/active/completed/failed/delayed) — GLOBAIS
+   *  - Últimos 5 jobs falhados e waiting — FILTRADOS por tenant do requisitante
+   *    (exceto para SUPER_ADMIN, que vê a queue inteira para diagnóstico cross-tenant)
+   *
+   * Filtro de tenant:
+   *  • Job com `data.tenantId` → comparação direta
+   *  • Job `processar-nfe` (só tem `webhookId`) → resolve tenant via SELECT em alm_nfe_webhooks
+   *  • Job sem tenant identificável → oculto de ADMIN_TENANT (mostrado para SUPER_ADMIN)
    *
    * Útil para diagnosticar por que jobs assíncronos não estão rodando:
    *  • failedCount > 0 → processor lança exceção (ver failed[].failedReason)
    *  • waitingCount alto + activeCount=0 → processor não está consumindo
    *  • Redis ping falha → conectividade
    */
-  async diagnosticarFilaBullMQ(): Promise<{
+  async diagnosticarFilaBullMQ(
+    tenantId: number,
+    isSuperAdmin = false,
+  ): Promise<{
     redis: { ok: boolean; info?: Record<string, string>; error?: string };
     queue: {
       name: string;
@@ -146,6 +154,7 @@ export class NfeService {
     failedJobs: Array<{ id: string | number; name: string; failedReason?: string; attempts: number; timestamp: string }>;
     waitingJobs: Array<{ id: string | number; name: string; data: unknown; timestamp: string }>;
     processor: { registered: boolean };
+    scope: 'tenant' | 'global';
   }> {
     // 1. Ping Redis + info
     const redis: { ok: boolean; info?: Record<string, string>; error?: string } = { ok: false };
@@ -168,7 +177,7 @@ export class NfeService {
       redis.error = err instanceof Error ? err.message : String(err);
     }
 
-    // 2. Counts da queue
+    // 2. Counts da queue — globais (contagens agregadas não vazam detalhes sensíveis)
     const [waiting, active, completed, failed, delayed] = await Promise.all([
       this.queue.getWaitingCount().catch(() => -1),
       this.queue.getActiveCount().catch(() => -1),
@@ -177,30 +186,80 @@ export class NfeService {
       this.queue.getDelayedCount().catch(() => -1),
     ]);
 
-    // 3. Últimos 5 failed + waiting
-    const failedJobs = (await this.queue.getFailed(0, 4).catch(() => [])).map((j) => ({
-      id: j.id,
-      name: j.name,
-      failedReason: j.failedReason,
-      attempts: j.attemptsMade,
-      timestamp: new Date(j.timestamp ?? 0).toISOString(),
-    }));
+    // 3. Failed + waiting filtrados por tenant (ou global para SUPER_ADMIN).
+    //    Buscamos janela maior (20) e filtramos para conseguir devolver até 5
+    //    jobs do tenant mesmo quando a queue tem muitos jobs de outros tenants.
+    const JANELA = isSuperAdmin ? 5 : 20;
+    const LIMITE_RETORNO = 5;
 
-    const waitingJobs = (await this.queue.getWaiting(0, 4).catch(() => [])).map((j) => ({
-      id: j.id,
-      name: j.name,
-      data: j.data,
-      timestamp: new Date(j.timestamp ?? 0).toISOString(),
-    }));
+    const rawFailed = await this.queue.getFailed(0, JANELA - 1).catch(() => []);
+    const rawWaiting = await this.queue.getWaiting(0, JANELA - 1).catch(() => []);
+
+    // Resolve tenantId do job — vê direto em data.tenantId, ou busca no webhook
+    // (job processar-nfe só tem webhookId). Jobs sem tenant identificável
+    // retornam null e são ocultos de ADMIN_TENANT.
+    const resolveTenantDoJob = async (
+      job: { name: string; data: unknown },
+    ): Promise<number | null> => {
+      const data = job.data as Record<string, unknown> | null | undefined;
+      if (typeof data?.tenantId === 'number') return data.tenantId;
+      if (job.name === 'processar-nfe' && typeof data?.webhookId === 'number') {
+        const rows = await this.prisma.$queryRawUnsafe<{ tenant_id: number }[]>(
+          `SELECT tenant_id FROM alm_nfe_webhooks WHERE id = $1`,
+          data.webhookId,
+        );
+        return rows[0]?.tenant_id ?? null;
+      }
+      return null;
+    };
+
+    const mapFailed = async (jobs: Array<{ id: unknown; name: string; data: unknown; failedReason?: string; attemptsMade: number; timestamp: number | null }>) => {
+      const out: Array<{ id: string | number; name: string; failedReason?: string; attempts: number; timestamp: string }> = [];
+      for (const j of jobs) {
+        if (!isSuperAdmin) {
+          const jobTenant = await resolveTenantDoJob(j);
+          if (jobTenant !== tenantId) continue;
+        }
+        out.push({
+          id: (j.id as string | number) ?? '',
+          name: j.name,
+          failedReason: j.failedReason,
+          attempts: j.attemptsMade,
+          timestamp: new Date(j.timestamp ?? 0).toISOString(),
+        });
+        if (out.length >= LIMITE_RETORNO) break;
+      }
+      return out;
+    };
+
+    const mapWaiting = async (jobs: Array<{ id: unknown; name: string; data: unknown; timestamp: number | null }>) => {
+      const out: Array<{ id: string | number; name: string; data: unknown; timestamp: string }> = [];
+      for (const j of jobs) {
+        if (!isSuperAdmin) {
+          const jobTenant = await resolveTenantDoJob(j);
+          if (jobTenant !== tenantId) continue;
+        }
+        out.push({
+          id: (j.id as string | number) ?? '',
+          name: j.name,
+          data: j.data,
+          timestamp: new Date(j.timestamp ?? 0).toISOString(),
+        });
+        if (out.length >= LIMITE_RETORNO) break;
+      }
+      return out;
+    };
+
+    const failedJobs = await mapFailed(rawFailed as never);
+    const waitingJobs = await mapWaiting(rawWaiting as never);
 
     return {
       redis,
       queue: { name: this.queue.name, waiting, active, completed, failed, delayed },
       failedJobs,
       waitingJobs,
-      // Processor sempre registrado se o módulo subiu. Se não subiu, o endpoint
-      // nem responde. Flag meramente informativa.
       processor: { registered: true },
+      scope: isSuperAdmin ? 'global' : 'tenant',
     };
   }
 
