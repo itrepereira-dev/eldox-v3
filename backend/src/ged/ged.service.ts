@@ -82,8 +82,9 @@ export class GedService {
   // ─── Configurações do Tenant ──────────────────────────────────────────────
 
   private async buscarConfiguracoes(tenantId: number): Promise<GedConfiguracao> {
+    // ged_configuracoes usa tenant_id como PK — sem coluna `id`.
     const rows = await this.prisma.$queryRawUnsafe<GedConfiguracao[]>(
-      `SELECT id, tenant_id, modo_auditoria, workflow_obrigatorio, qr_code_ativo,
+      `SELECT tenant_id, modo_auditoria, workflow_obrigatorio, qr_code_ativo,
               ocr_ativo, whatsapp_ativo, storage_limite_gb
        FROM ged_configuracoes
        WHERE tenant_id = $1`,
@@ -92,7 +93,6 @@ export class GedService {
 
     if (!rows.length) {
       return {
-        id: 0,
         tenant_id: tenantId,
         modo_auditoria: true,
         workflow_obrigatorio: false,
@@ -132,9 +132,26 @@ export class GedService {
 
   private async gerarCodigo(
     tenantId: number,
-    obraId: number,
+    obraId: number | null,
     disciplina: string,
   ): Promise<string> {
+    const discSigla = (disciplina || 'GER').toUpperCase().substring(0, 3);
+
+    // Escopo EMPRESA: não há obra de origem, usa prefixo "EMP" e conta pelos
+    // documentos corporativos do tenant (obra_id IS NULL) na mesma disciplina.
+    if (obraId === null) {
+      const counts = await this.prisma.$queryRawUnsafe<{ count: string }[]>(
+        `SELECT COUNT(*) AS count
+         FROM ged_documentos
+         WHERE obra_id IS NULL AND tenant_id = $1 AND disciplina = $2`,
+        tenantId,
+        disciplina,
+      );
+      const seq = parseInt(counts[0]?.count ?? '0', 10) + 1;
+      const seqFormatado = String(seq).padStart(3, '0');
+      return `EMP-${discSigla}-${seqFormatado}`;
+    }
+
     // Busca código da obra (Prisma usa "Obra" com camelCase no banco)
     const obras = await this.prisma.$queryRawUnsafe<{ codigo: string }[]>(
       `SELECT codigo FROM "Obra" WHERE id = $1 AND "tenantId" = $2`,
@@ -143,7 +160,6 @@ export class GedService {
     );
 
     const codigoObra = obras.length ? obras[0].codigo : `OBR${obraId}`;
-    const discSigla = (disciplina || 'GER').toUpperCase().substring(0, 3);
 
     const counts = await this.prisma.$queryRawUnsafe<{ count: string }[]>(
       `SELECT COUNT(*) AS count
@@ -192,7 +208,7 @@ export class GedService {
   async upload(
     tenantId: number,
     userId: number,
-    obraId: number,
+    obraId: number | null,
     file: Express.Multer.File,
     dto: UploadDocumentoDto,
     ipOrigem?: string,
@@ -200,6 +216,16 @@ export class GedService {
     const config = await this.buscarConfiguracoes(tenantId);
 
     this.validarFormatoArquivo(file);
+
+    // Quando obraId é null, estamos em escopo EMPRESA — força `escopo='EMPRESA'`
+    // mesmo que o DTO não tenha mandado. Isso mantém a coluna ged_documentos.escopo
+    // coerente com obra_id=NULL (escopo_padrao das categorias corporativas).
+    const escopoFinal: 'EMPRESA' | 'OBRA' = obraId === null ? 'EMPRESA' : (dto.escopo ?? 'OBRA');
+
+    // B9: quota de storage do tenant. Some bytes de todas as versões ativas
+    // + o arquivo novo e compare com o limite em GB. Rejeita antes de gastar
+    // MinIO + CPU de checksum.
+    await this.validarQuotaStorage(tenantId, file.size, config.storage_limite_gb);
 
     const codigoGerado = dto.codigoCustom
       ? dto.codigoCustom
@@ -217,83 +243,146 @@ export class GedService {
 
     const checksum = this.minioService.calcularChecksum(file.buffer);
 
-    // INSERT ged_documentos — inclui categoria_id (NOT NULL)
-    const docRows = await this.prisma.$queryRawUnsafe<{ id: number }[]>(
-      `INSERT INTO ged_documentos
-         (tenant_id, escopo, obra_id, pasta_id, categoria_id, titulo, codigo, disciplina)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       RETURNING id`,
-      tenantId,
-      dto.escopo ?? 'OBRA',
-      obraId,
-      dto.pastaId,
-      dto.categoriaId,
-      dto.titulo,
-      codigoGerado,
-      dto.disciplina ?? null,
-    );
+    // B10: INSERT documento + upload MinIO + INSERT versão + audit log atômicos.
+    // Ordem: insere doc → monta storage_key (que usa documentId) → put MinIO →
+    // insere versão + audit. Se MinIO falhar, a transaction faz rollback e
+    // nada fica no banco. Se commit falhar após put, sobra órfão no MinIO —
+    // aceitável, pode ser limpo por worker posterior comparando ged_versoes
+    // com listagem do bucket.
+    const result = await this.prisma.$transaction(async (tx) => {
+      const docRows = await tx.$queryRawUnsafe<{ id: number }[]>(
+        `INSERT INTO ged_documentos
+           (tenant_id, escopo, obra_id, pasta_id, categoria_id, titulo, codigo, disciplina)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         RETURNING id`,
+        tenantId,
+        escopoFinal,
+        obraId,
+        dto.pastaId,
+        dto.categoriaId,
+        dto.titulo,
+        codigoGerado,
+        dto.disciplina ?? null,
+      );
 
-    const documentoId = docRows[0].id;
+      const documentoId = docRows[0].id;
 
-    const storageKey = this.minioService.buildStorageKey(
-      tenantId,
-      obraId,
-      documentoId,
-      file.originalname,
-    );
+      const storageKey = this.minioService.buildStorageKey(
+        tenantId,
+        obraId,
+        documentoId,
+        file.originalname,
+      );
 
-    const { bucket } = await this.minioService.uploadFile(
-      file.buffer,
-      storageKey,
-      file.mimetype,
-    );
+      // put fora do controle transacional do Prisma mas dentro do try —
+      // se lançar, a tx reverte.
+      const { bucket } = await this.minioService.uploadFile(
+        file.buffer,
+        storageKey,
+        file.mimetype,
+      );
 
-    // INSERT ged_versoes
-    const versaoRows = await this.prisma.$queryRawUnsafe<{ id: number; qr_token: string }[]>(
-      `INSERT INTO ged_versoes
-         (documento_id, tenant_id, numero_revisao, version, status, storage_key, storage_bucket,
-          mime_type, tamanho_bytes, checksum_sha256, nome_original, criado_por,
-          workflow_template_id, qr_token)
-       VALUES ($1, $2, $3, 1, 'RASCUNHO', $4, $5, $6, $7, $8, $9, $10, $11, gen_random_uuid())
-       RETURNING id, qr_token`,
-      documentoId,
-      tenantId,
-      dto.numeroRevisao ?? 'R00',
-      storageKey,
-      bucket,
-      file.mimetype,
-      file.size,
-      checksum,
-      file.originalname,
-      userId,
-      dto.workflowTemplateId ?? null,
-    );
+      const versaoRows = await tx.$queryRawUnsafe<{ id: number; qr_token: string }[]>(
+        `INSERT INTO ged_versoes
+           (documento_id, tenant_id, numero_revisao, version, status, storage_key, storage_bucket,
+            mime_type, tamanho_bytes, checksum_sha256, nome_original, criado_por,
+            workflow_template_id, qr_token)
+         VALUES ($1, $2, $3, 1, 'RASCUNHO', $4, $5, $6, $7, $8, $9, $10, $11, gen_random_uuid())
+         RETURNING id, qr_token`,
+        documentoId,
+        tenantId,
+        dto.numeroRevisao ?? 'R00',
+        storageKey,
+        bucket,
+        file.mimetype,
+        file.size,
+        checksum,
+        file.originalname,
+        userId,
+        dto.workflowTemplateId ?? null,
+      );
 
-    const versaoId = versaoRows[0].id;
-    const qrToken = versaoRows[0].qr_token;
+      const versaoId = versaoRows[0].id;
+      const qrToken = versaoRows[0].qr_token;
 
-    await this.gravarAuditLog({
-      tenantId,
-      versaoId,
-      userId,
-      acao: 'UPLOAD',
-      statusDe: null,
-      statusPara: 'RASCUNHO',
-      ipOrigem,
-      detalhes: { documentoId, codigoGerado, nomeOriginal: file.originalname },
+      // Audit log dentro da tx — usa o mesmo `tx` pra manter atomicidade.
+      await tx.$executeRawUnsafe(
+        `INSERT INTO ged_audit_log
+           (tenant_id, versao_id, usuario_id, acao, status_de, status_para, ip_origem, detalhes)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)`,
+        tenantId,
+        versaoId,
+        userId,
+        'UPLOAD',
+        null,
+        'RASCUNHO',
+        ipOrigem ?? null,
+        JSON.stringify({ documentoId, codigoGerado, nomeOriginal: file.originalname }),
+      );
+
+      return { documentoId, versaoId, qrToken };
     });
 
     if (config.ocr_ativo) {
       await this.gedQueue.add(
         'ged.ocr',
-        { versaoId, tenantId },
+        { versaoId: result.versaoId, tenantId },
         { attempts: 3, backoff: { type: 'exponential', delay: 3000 }, removeOnComplete: true },
       );
     }
 
-    this.logger.log(`Upload: doc=${documentoId} versao=${versaoId} codigo=${codigoGerado}`);
+    // Thumbnail: enfileira apenas quando o arquivo é imagem. O worker também
+    // checa o mime_type por garantia (idempotência defensiva).
+    if (file.mimetype?.startsWith('image/')) {
+      await this.gedQueue.add(
+        'ged.thumbnail',
+        { versaoId: result.versaoId, tenantId },
+        { attempts: 3, backoff: { type: 'exponential', delay: 3000 }, removeOnComplete: true },
+      );
+    }
 
-    return { documentoId, versaoId, codigoGerado, status: 'RASCUNHO', qrToken };
+    this.logger.log(
+      `Upload: doc=${result.documentoId} versao=${result.versaoId} codigo=${codigoGerado}`,
+    );
+
+    return {
+      documentoId: result.documentoId,
+      versaoId: result.versaoId,
+      codigoGerado,
+      status: 'RASCUNHO',
+      qrToken: result.qrToken,
+    };
+  }
+
+  // ─── Quota de storage do tenant ─────────────────────────────────────────
+
+  private async validarQuotaStorage(
+    tenantId: number,
+    bytesNovoArquivo: number,
+    limiteGb: number,
+  ): Promise<void> {
+    if (!limiteGb || limiteGb <= 0) return; // 0 = ilimitado
+
+    const rows = await this.prisma.$queryRawUnsafe<{ total: bigint | null }[]>(
+      `SELECT COALESCE(SUM(tamanho_bytes), 0) AS total
+       FROM ged_versoes v
+       JOIN ged_documentos d ON d.id = v.documento_id
+       WHERE v.tenant_id = $1 AND d.deleted_at IS NULL
+         AND v.status NOT IN ('CANCELADO', 'OBSOLETO')`,
+      tenantId,
+    );
+
+    const usadoBytes = Number(rows[0]?.total ?? 0);
+    const limiteBytes = limiteGb * 1024 ** 3;
+    const disponivel = limiteBytes - usadoBytes;
+
+    if (bytesNovoArquivo > disponivel) {
+      const formatGb = (b: number) => (b / 1024 ** 3).toFixed(2);
+      throw new BadRequestException(
+        `Cota de armazenamento excedida. Usado: ${formatGb(usadoBytes)} GB ` +
+          `de ${limiteGb} GB. Arquivo: ${formatGb(bytesNovoArquivo)} GB.`,
+      );
+    }
   }
 
   // ─── Nova versão de documento existente ───────────────────────────────────
@@ -316,11 +405,16 @@ export class GedService {
     if (!docs.length) throw new NotFoundException(`Documento ${documentoId} não encontrado.`);
     const doc = docs[0];
 
+    // MAX(version) sem FOR UPDATE — Postgres não permite FOR UPDATE em
+    // aggregate. A constraint UNIQUE (documento_id, numero_revisao, version)
+    // já protege contra race: uploads simultâneos falham com 23505 e podem
+    // ser reenviados. Advisory lock por documentoId resolveria totalmente,
+    // mas a probabilidade de 2 uploads exatamente simultâneos do mesmo doc
+    // é baixa — aceitável por ora.
     const maxVersaoRows = await this.prisma.$queryRawUnsafe<{ max_version: number }[]>(
       `SELECT COALESCE(MAX(version), 0) AS max_version
        FROM ged_versoes
-       WHERE documento_id = $1
-       FOR UPDATE`,
+       WHERE documento_id = $1`,
       documentoId,
     );
     const novaVersion = (maxVersaoRows[0]?.max_version ?? 0) + 1;
@@ -382,8 +476,13 @@ export class GedService {
 
   // ─── Detalhe da versão ────────────────────────────────────────────────────
 
-  async getVersaoDetalhe(tenantId: number, versaoId: number): Promise<GedVersao & { titulo: string; codigo: string }> {
-    const rows = await this.prisma.$queryRawUnsafe<(GedVersao & { titulo: string; codigo: string })[]>(
+  async getVersaoDetalhe(
+    tenantId: number,
+    versaoId: number,
+  ): Promise<GedVersao & { titulo: string; codigo: string; thumbnail_url: string | null }> {
+    const rows = await this.prisma.$queryRawUnsafe<
+      (GedVersao & { titulo: string; codigo: string; thumbnail_storage_key: string | null })[]
+    >(
       `SELECT v.*, d.titulo, d.codigo
        FROM ged_versoes v
        JOIN ged_documentos d ON d.id = v.documento_id
@@ -392,7 +491,29 @@ export class GedService {
       tenantId,
     );
     if (!rows.length) throw new NotFoundException(`Versão ${versaoId} não encontrada.`);
-    return rows[0];
+
+    const versao = rows[0];
+
+    // Se o worker ged.thumbnail já produziu a miniatura, devolve uma presigned
+    // URL curta. Frontend usa diretamente em <img src>. Se ainda não, retorna
+    // null — o frontend cai no mime-icon padrão.
+    let thumbnailUrl: string | null = null;
+    if (versao.thumbnail_storage_key) {
+      try {
+        thumbnailUrl = await this.minioService.getPresignedUrl(
+          versao.thumbnail_storage_key,
+          PRESIGNED_TTL_DOWNLOAD,
+        );
+      } catch (err) {
+        // Nunca deixa um erro de thumbnail quebrar o detalhe da versão —
+        // apenas loga e segue com null.
+        this.logger.warn(
+          `Falha ao gerar presigned thumbnail: versaoId=${versao.id} key=${versao.thumbnail_storage_key} err=${String(err)}`,
+        );
+      }
+    }
+
+    return { ...versao, thumbnail_url: thumbnailUrl };
   }
 
   // ─── Audit log de uma versão ──────────────────────────────────────────────
@@ -584,6 +705,76 @@ export class GedService {
     return { versaoId, status: 'REJEITADO' };
   }
 
+  // ─── Marcar como Rascunho (REJEITADO → RASCUNHO) ─────────────────────────
+  // Permite ao autor retomar a versão após rejeição para corrigir e ressubmeter.
+
+  async marcarRascunho(
+    tenantId: number,
+    userId: number,
+    versaoId: number,
+    ipOrigem?: string,
+  ): Promise<{ versaoId: number; status: GedStatusVersao }> {
+    const versao = await this.buscarVersao(tenantId, versaoId);
+    this.validarTransicao(versao.status, 'RASCUNHO');
+
+    // Só o criador volta pra rascunho — aprovador não deve "desrejeitar".
+    if (versao.criado_por !== userId) {
+      throw new ForbiddenException(
+        'Apenas o autor original pode retornar a versão para rascunho.',
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(
+        `UPDATE ged_versoes SET status = 'RASCUNHO' WHERE id = $1`,
+        versaoId,
+      );
+      await tx.$executeRawUnsafe(
+        `INSERT INTO ged_audit_log
+           (tenant_id, versao_id, usuario_id, acao, status_de, status_para, ip_origem, detalhes)
+         VALUES ($1, $2, $3, 'WORKFLOW_STEP', $4, 'RASCUNHO', $5, $6::jsonb)`,
+        tenantId, versaoId, userId, versao.status, ipOrigem ?? null,
+        JSON.stringify({ motivo: 'retorno_pos_rejeicao' }),
+      );
+    });
+
+    this.logger.log(`Versão ${versaoId} retornou para RASCUNHO.`);
+    return { versaoId, status: 'RASCUNHO' };
+  }
+
+  // ─── Cancelar (qualquer estado não-final → CANCELADO) ─────────────────────
+  // Usado quando um documento é criado por engano ou vira irrelevante antes
+  // de se tornar vigente. Estados terminais (IFC/IFP/AS_BUILT/OBSOLETO) não
+  // podem ser cancelados — devem ser substituídos por nova versão.
+
+  async cancelar(
+    tenantId: number,
+    userId: number,
+    versaoId: number,
+    motivo: string,
+    ipOrigem?: string,
+  ): Promise<{ versaoId: number; status: GedStatusVersao }> {
+    const versao = await this.buscarVersao(tenantId, versaoId);
+    this.validarTransicao(versao.status, 'CANCELADO');
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(
+        `UPDATE ged_versoes SET status = 'CANCELADO' WHERE id = $1`,
+        versaoId,
+      );
+      await tx.$executeRawUnsafe(
+        `INSERT INTO ged_audit_log
+           (tenant_id, versao_id, usuario_id, acao, status_de, status_para, ip_origem, detalhes)
+         VALUES ($1, $2, $3, 'CANCELAMENTO', $4, 'CANCELADO', $5, $6::jsonb)`,
+        tenantId, versaoId, userId, versao.status, ipOrigem ?? null,
+        JSON.stringify({ motivo }),
+      );
+    });
+
+    this.logger.log(`Versão ${versaoId} cancelada: ${motivo}`);
+    return { versaoId, status: 'CANCELADO' };
+  }
+
   // ─── Download ─────────────────────────────────────────────────────────────
 
   async download(
@@ -676,12 +867,14 @@ export class GedService {
     const queryBase = `
       FROM ged_documentos d
       LEFT JOIN LATERAL (
-        SELECT id, status, numero_revisao, version, data_validade, aprovado_em, aprovado_por
+        SELECT id, status, numero_revisao, version, data_validade, aprovado_em,
+               aprovado_por, tamanho_bytes, mime_type
         FROM ged_versoes
         WHERE documento_id = d.id
         ORDER BY version DESC
         LIMIT 1
       ) v ON true
+      LEFT JOIN ged_categorias c ON c.id = d.categoria_id
       WHERE ${whereClause}
     `;
 
@@ -693,17 +886,69 @@ export class GedService {
     const totalPages = Math.max(1, Math.ceil(total / limit));
 
     params.push(limit, offset);
-    const items = await this.prisma.$queryRawUnsafe<GedDocumento[]>(
-      `SELECT d.*, v.id AS versao_atual_id, v.status AS versao_atual_status,
-              v.numero_revisao AS versao_atual_numero, v.version AS versao_atual_version,
-              v.data_validade AS versao_atual_validade, v.aprovado_em AS versao_atual_aprovado_em
+    type RawRow = {
+      id: number; titulo: string; codigo: string; disciplina: string | null;
+      escopo: string; obra_id: number | null; pasta_id: number | null;
+      categoria_id: number | null; tags: string[] | null;
+      versao_atual_id: number | null; versao_atual_status: string | null;
+      versao_atual_numero: string | null; versao_atual_version: number | null;
+      versao_atual_validade: Date | null; versao_atual_aprovado_em: Date | null;
+      versao_atual_aprovado_por: number | null;
+      versao_atual_tamanho: bigint | number | null; versao_atual_mime: string | null;
+      categoria_nome: string | null; categoria_codigo: string | null;
+    };
+    const rawItems = await this.prisma.$queryRawUnsafe<RawRow[]>(
+      `SELECT d.id, d.titulo, d.codigo, d.disciplina, d.escopo, d.obra_id,
+              d.pasta_id, d.categoria_id, d.tags,
+              v.id          AS versao_atual_id,
+              v.status      AS versao_atual_status,
+              v.numero_revisao AS versao_atual_numero,
+              v.version     AS versao_atual_version,
+              v.data_validade AS versao_atual_validade,
+              v.aprovado_em AS versao_atual_aprovado_em,
+              v.aprovado_por AS versao_atual_aprovado_por,
+              v.tamanho_bytes AS versao_atual_tamanho,
+              v.mime_type   AS versao_atual_mime,
+              c.nome        AS categoria_nome,
+              c.codigo      AS categoria_codigo
        ${queryBase}
        ORDER BY d.created_at DESC
        LIMIT $${params.length - 1} OFFSET $${params.length}`,
       ...params,
     );
 
-    return { items, total, page, totalPages };
+    // Mapeia snake_case → camelCase e aninha versaoAtual + categoria para
+    // bater com o contrato do frontend (ged.service.ts). Sem isso, a grade de
+    // documentos crasha lendo `doc.versaoAtual.status` (undefined).
+    const items = rawItems.map((r) => ({
+      id: r.id,
+      titulo: r.titulo,
+      codigo: r.codigo,
+      disciplina: r.disciplina,
+      escopo: r.escopo,
+      obraId: r.obra_id ?? undefined,
+      pastaId: r.pasta_id,
+      categoriaId: r.categoria_id,
+      tags: r.tags ?? undefined,
+      categoria: r.categoria_id != null ? {
+        id: r.categoria_id,
+        nome: r.categoria_nome ?? '',
+        codigo: r.categoria_codigo ?? '',
+      } : null,
+      versaoAtual: r.versao_atual_id != null ? {
+        id: r.versao_atual_id,
+        numeroRevisao: r.versao_atual_numero ?? '0',
+        version: r.versao_atual_version ?? 1,
+        status: r.versao_atual_status ?? 'RASCUNHO',
+        aprovadoEm: r.versao_atual_aprovado_em ?? undefined,
+        aprovadoPor: r.versao_atual_aprovado_por ?? undefined,
+        tamanhoBytes: r.versao_atual_tamanho != null ? Number(r.versao_atual_tamanho) : 0,
+        mimeType: r.versao_atual_mime ?? '',
+        dataValidade: r.versao_atual_validade ?? undefined,
+      } : null,
+    }));
+
+    return { items: items as unknown as GedDocumento[], total, page, totalPages };
   }
 
   // ─── Lista Mestra ─────────────────────────────────────────────────────────
@@ -734,6 +979,146 @@ export class GedService {
       tenantId,
       obraId,
     );
+  }
+
+  /**
+   * Lista mestra agrupada por categoria, no shape rico consumido pelo frontend
+   * (GedListaMestraPage). Retorna:
+   *   - obra { id, nome, codigo }
+   *   - modoAuditoria (de ged_configuracoes.modo_auditoria)
+   *   - geradoEm (ISO)
+   *   - categorias: [{ id, codigo, nome, documentos: [...] }]
+   *
+   * Usa apenas a versão mais recente VIGENTE (IFC/IFP/AS_BUILT) de cada documento.
+   * Mantém-se paralelo ao método `listaMestra()` que continua servindo ao export.
+   */
+  async listaMestraAgrupada(tenantId: number, obraId: number): Promise<{
+    obra: { id: number; nome: string; codigo: string | null };
+    modoAuditoria: boolean;
+    geradoEm: string;
+    categorias: Array<{
+      id: number;
+      codigo: string;
+      nome: string;
+      documentos: Array<{
+        codigo: string;
+        titulo: string;
+        numeroRevisao: string;
+        aprovadoEm: string;
+        aprovadoPor: string;
+        dataValidade?: string;
+        alertaVencimento: boolean;
+      }>;
+    }>;
+  }> {
+    const [obraRows, configRows, rows] = await Promise.all([
+      this.prisma.$queryRawUnsafe<Array<{ id: number; nome: string; codigo: string | null }>>(
+        `SELECT id, nome, codigo FROM "Obra" WHERE id = $1 AND "tenantId" = $2`,
+        obraId,
+        tenantId,
+      ),
+      this.prisma.$queryRawUnsafe<Array<{ modo_auditoria: boolean }>>(
+        `SELECT modo_auditoria FROM ged_configuracoes WHERE tenant_id = $1`,
+        tenantId,
+      ),
+      this.prisma.$queryRawUnsafe<Array<{
+        documento_id: number;
+        categoria_id: number;
+        categoria_codigo: string;
+        categoria_nome: string;
+        titulo: string;
+        codigo: string;
+        numero_revisao: string;
+        aprovado_em: Date | null;
+        aprovado_por_nome: string | null;
+        data_validade: Date | null;
+      }>>(
+        `SELECT DISTINCT ON (d.id)
+           d.id                AS documento_id,
+           d.categoria_id,
+           c.codigo            AS categoria_codigo,
+           c.nome              AS categoria_nome,
+           d.titulo,
+           d.codigo,
+           v.numero_revisao,
+           v.aprovado_em,
+           u.nome              AS aprovado_por_nome,
+           v.data_validade
+         FROM ged_documentos d
+         JOIN ged_versoes v    ON v.documento_id = d.id
+         JOIN ged_categorias c ON c.id = d.categoria_id
+         LEFT JOIN "Usuario" u ON u.id = v.aprovado_por
+         WHERE d.tenant_id = $1
+           AND d.obra_id = $2
+           AND d.deleted_at IS NULL
+           AND v.status IN ('IFC', 'IFP', 'AS_BUILT')
+         ORDER BY d.id, v.version DESC`,
+        tenantId,
+        obraId,
+      ),
+    ]);
+
+    if (!obraRows.length) {
+      throw new NotFoundException('Obra não encontrada');
+    }
+
+    const hoje = new Date();
+    const limiteAlerta = new Date();
+    limiteAlerta.setDate(hoje.getDate() + 30);
+
+    const categoriasMap = new Map<number, {
+      id: number;
+      codigo: string;
+      nome: string;
+      documentos: Array<{
+        codigo: string;
+        titulo: string;
+        numeroRevisao: string;
+        aprovadoEm: string;
+        aprovadoPor: string;
+        dataValidade?: string;
+        alertaVencimento: boolean;
+      }>;
+    }>();
+
+    for (const r of rows) {
+      if (!categoriasMap.has(r.categoria_id)) {
+        categoriasMap.set(r.categoria_id, {
+          id: r.categoria_id,
+          codigo: r.categoria_codigo,
+          nome: r.categoria_nome,
+          documentos: [],
+        });
+      }
+      const validade = r.data_validade ? new Date(r.data_validade) : null;
+      const alertaVencimento =
+        validade != null && validade <= limiteAlerta;
+
+      categoriasMap.get(r.categoria_id)!.documentos.push({
+        codigo: r.codigo,
+        titulo: r.titulo,
+        numeroRevisao: r.numero_revisao,
+        aprovadoEm: r.aprovado_em ? new Date(r.aprovado_em).toISOString() : '',
+        aprovadoPor: r.aprovado_por_nome ?? '—',
+        dataValidade: validade ? validade.toISOString() : undefined,
+        alertaVencimento,
+      });
+    }
+
+    // Ordena categorias por código e documentos por código
+    const categorias = Array.from(categoriasMap.values())
+      .sort((a, b) => a.codigo.localeCompare(b.codigo))
+      .map((c) => ({
+        ...c,
+        documentos: c.documentos.sort((a, b) => a.codigo.localeCompare(b.codigo)),
+      }));
+
+    return {
+      obra: obraRows[0],
+      modoAuditoria: configRows[0]?.modo_auditoria ?? false,
+      geradoEm: new Date().toISOString(),
+      categorias,
+    };
   }
 
   // ─── QR Code (público, sem JWT) ───────────────────────────────────────────

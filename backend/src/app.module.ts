@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { BullModule } from '@nestjs/bull';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { PrismaModule } from './prisma/prisma.module';
 import { HealthModule } from './health/health.module';
@@ -46,6 +47,16 @@ import { PlanosAcaoModule } from './planos-acao/planos-acao.module';
         port: parseInt(process.env.REDIS_PORT ?? '6379', 10),
         password: process.env.REDIS_PASSWORD ?? undefined,
       },
+    }),
+
+    // EventEmitter — bus in-process para reações cross-módulo
+    // (ex.: RDO ouvindo aprovação decidida). wildcard=false para exigir
+    // event-name exato; maxListeners=20 suporta crescimento sem warning.
+    EventEmitterModule.forRoot({
+      wildcard: false,
+      delimiter: '.',
+      maxListeners: 20,
+      verboseMemoryLeak: true,
     }),
 
     PrismaModule,

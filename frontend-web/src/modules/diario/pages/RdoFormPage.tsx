@@ -15,6 +15,8 @@ import {
   type CondicaoClima,
   type TipoMaoObra,
 } from '../../../services/rdo.service';
+// Agent F (2026-04-20): seletor de versão de documento GED por atividade
+import { GedDocSelector } from '../../ged/components/GedDocSelector';
 
 // ── SVG icons ─────────────────────────────────────────────────────────────────
 
@@ -883,6 +885,8 @@ interface AtividadeLocal {
   hora_inicio: string;
   hora_fim: string;
   ordem: number;
+  // Agent F (2026-04-20): versão GED de referência (projeto/especificação). Opcional.
+  ged_versao_id: number | null;
 }
 
 let atKey = 0;
@@ -897,16 +901,20 @@ function atividadesFromApi(data: RdoAtividade[]): AtividadeLocal[] {
     hora_inicio: item.hora_inicio ?? '',
     hora_fim: item.hora_fim ?? '',
     ordem: item.ordem,
+    ged_versao_id: item.ged_versao_id ?? null,
   }));
 }
 
 function AtividadesSection({
   rdoId,
+  obraId,
   inicial,
   readonly,
   onSaved,
 }: {
   rdoId: number;
+  // Agent F (2026-04-20): obraId usado pelo GedDocSelector para filtrar documentos da obra
+  obraId: number;
   inicial: RdoAtividade[];
   readonly: boolean;
   onSaved: (msg: string) => void;
@@ -928,6 +936,7 @@ function AtividadesSection({
       hora_inicio: '',
       hora_fim: '',
       ordem: prev.length + 1,
+      ged_versao_id: null,
     }]);
   }
 
@@ -967,6 +976,7 @@ function AtividadesSection({
             hora_inicio: row[2] != null ? String(row[2]).trim() : '',
             hora_fim: row[3] != null ? String(row[3]).trim() : '',
             ordem: idx + 1,
+            ged_versao_id: null,
           }));
 
         if (importadas.length > 0) {
@@ -993,6 +1003,7 @@ function AtividadesSection({
           ordem: idx + 1,
           hora_inicio: r.hora_inicio || undefined,
           hora_fim: r.hora_fim || undefined,
+          ged_versao_id: r.ged_versao_id ?? undefined,
         })),
       });
       onSaved('Atividades salvas com sucesso');
@@ -1099,6 +1110,22 @@ function AtividadesSection({
                   disabled={readonly}
                   onChange={e => update(row._key, { hora_fim: e.target.value })}
                   style={{ ...inputStyle, width: 120 }}
+                />
+              </div>
+            </div>
+
+            {/* Agent F (2026-04-20): referência opcional a versão GED (projeto/especificação) */}
+            <div style={{ marginTop: 10 }}>
+              <label style={{ fontSize: 11, color: 'var(--text-faint)', fontFamily: 'var(--font-ui)', display: 'block', marginBottom: 4 }}>
+                Projeto/Especificação (GED) — opcional
+              </label>
+              <div style={{ pointerEvents: readonly ? 'none' : 'auto', opacity: readonly ? 0.6 : 1 }}>
+                <GedDocSelector
+                  obraId={obraId}
+                  value={row.ged_versao_id}
+                  onChange={(id) => update(row._key, { ged_versao_id: id })}
+                  disabled={readonly}
+                  placeholder="Documento de referência (planta, procedimento)..."
                 />
               </div>
             </div>
@@ -2254,6 +2281,7 @@ export function RdoFormPage() {
             >
               <AtividadesSection
                 rdoId={rdoIdNum}
+                obraId={Number(obraId)}
                 inicial={rdo.atividades}
                 readonly={readonly}
                 onSaved={msg => showToast(msg, 'ok')}

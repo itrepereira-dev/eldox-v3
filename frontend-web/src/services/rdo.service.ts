@@ -65,6 +65,8 @@ export interface RdoAtividade {
   ordem: number;
   hora_inicio: string | null;
   hora_fim: string | null;
+  /** Versão GED vinculada à atividade (projeto/especificação). Opcional. */
+  ged_versao_id?: number | null;
 }
 
 export interface RdoOcorrencia {
@@ -149,6 +151,8 @@ export interface UpdateAtividadesDto {
     ordem: number;
     hora_inicio?: string;
     hora_fim?: string;
+    /** Versão GED de projeto/especificação que embasa a atividade. Opcional. */
+    ged_versao_id?: number;
   }>;
 }
 

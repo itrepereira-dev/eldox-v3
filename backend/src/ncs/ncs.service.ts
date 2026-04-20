@@ -48,10 +48,30 @@ export interface NcRow {
   data_fechamento: Date | null;
   evidencia_url: string | null;
   observacoes: string | null;
+  ged_versao_id: number | null;
   deleted_at: Date | null;
   created_at: Date;
   updated_at: Date;
+  // Campos enriquecidos via LEFT JOIN com ged_versoes + ged_documentos
+  ged_codigo?: string | null;
+  ged_titulo?: string | null;
+  ged_versao_status?: string | null;
+  ged_numero_revisao?: string | null;
 }
+
+// Colunas SELECT padronizadas (NC + join GED). Usado em listar() e buscar().
+const NC_SELECT_WITH_GED = `
+  nc.*,
+  gd.codigo          AS ged_codigo,
+  gd.titulo          AS ged_titulo,
+  gv.status          AS ged_versao_status,
+  gv.numero_revisao  AS ged_numero_revisao
+`;
+
+const NC_JOINS_GED = `
+  LEFT JOIN ged_versoes   gv ON gv.id = nc.ged_versao_id
+  LEFT JOIN ged_documentos gd ON gd.id = gv.documento_id
+`;
 
 @Injectable()
 export class NcsService {
@@ -69,31 +89,32 @@ export class NcsService {
     const { status, categoria, criticidade, search, page = 1, limit = 20 } = filtros;
     const offset = (page - 1) * limit;
 
+    // Todas as condições são sobre colunas de `nao_conformidades` (alias `nc`).
     const conditions: string[] = [
-      'tenant_id = $1',
-      'deleted_at IS NULL',
+      'nc.tenant_id = $1',
+      'nc.deleted_at IS NULL',
     ];
     const params: unknown[] = [tenantId];
     let idx = 2;
 
     if (obraId) {
-      conditions.push(`obra_id = $${idx++}`);
+      conditions.push(`nc.obra_id = $${idx++}`);
       params.push(obraId);
     }
     if (status) {
-      conditions.push(`status = $${idx++}::"NcStatus"`);
+      conditions.push(`nc.status = $${idx++}::"NcStatus"`);
       params.push(status);
     }
     if (categoria) {
-      conditions.push(`categoria = $${idx++}::"NcCategoria"`);
+      conditions.push(`nc.categoria = $${idx++}::"NcCategoria"`);
       params.push(categoria);
     }
     if (criticidade) {
-      conditions.push(`criticidade = $${idx++}::"NcCriticidade"`);
+      conditions.push(`nc.criticidade = $${idx++}::"NcCriticidade"`);
       params.push(criticidade);
     }
     if (search) {
-      conditions.push(`(titulo ILIKE $${idx} OR numero ILIKE $${idx})`);
+      conditions.push(`(nc.titulo ILIKE $${idx} OR nc.numero ILIKE $${idx})`);
       params.push(`%${search}%`);
       idx++;
     }
@@ -101,7 +122,7 @@ export class NcsService {
     const where = conditions.join(' AND ');
 
     const countRows = await this.prisma.$queryRawUnsafe<{ total: number }[]>(
-      `SELECT COUNT(*)::int AS total FROM nao_conformidades WHERE ${where}`,
+      `SELECT COUNT(*)::int AS total FROM nao_conformidades nc WHERE ${where}`,
       ...params,
     );
 
@@ -109,9 +130,12 @@ export class NcsService {
     const offsetIdx = idx + 1;
 
     const rows = await this.prisma.$queryRawUnsafe<NcRow[]>(
-      `SELECT * FROM nao_conformidades WHERE ${where}
-       ORDER BY created_at DESC
-       LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+      `SELECT ${NC_SELECT_WITH_GED}
+         FROM nao_conformidades nc
+         ${NC_JOINS_GED}
+        WHERE ${where}
+        ORDER BY nc.created_at DESC
+        LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
       ...params,
       limit,
       offset,
@@ -130,7 +154,10 @@ export class NcsService {
 
   async buscar(tenantId: number, ncId: number) {
     const rows = await this.prisma.$queryRawUnsafe<NcRow[]>(
-      `SELECT * FROM nao_conformidades WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
+      `SELECT ${NC_SELECT_WITH_GED}
+         FROM nao_conformidades nc
+         ${NC_JOINS_GED}
+        WHERE nc.tenant_id = $1 AND nc.id = $2 AND nc.deleted_at IS NULL`,
       tenantId,
       ncId,
     );
@@ -144,6 +171,11 @@ export class NcsService {
     const categoria = dto.categoria ?? 'GERAL';
     const criticidade = dto.criticidade ?? 'MEDIA';
 
+    // Valida (se informado) que a versão GED pertence ao tenant — evita vazamento cross-tenant.
+    if (dto.gedVersaoId != null) {
+      await this.assertGedVersaoBelongsToTenant(tenantId, dto.gedVersaoId);
+    }
+
     // Geração de número atômica: usa o id SERIAL como sequência (evita race condition)
     // Insere com número temporário → atualiza com id real após INSERT
     const abrev = CAT_ABREV[categoria] ?? 'GER';
@@ -151,9 +183,9 @@ export class NcsService {
     const rows = await this.prisma.$queryRawUnsafe<{ id: number }[]>(
       `INSERT INTO nao_conformidades
          (tenant_id, obra_id, numero, categoria, criticidade, titulo, descricao,
-          status, aberta_por, responsavel_id, prazo, observacoes, updated_at)
+          status, aberta_por, responsavel_id, prazo, observacoes, ged_versao_id, updated_at)
        VALUES ($1,$2,'TEMP',$3::"NcCategoria",$4::"NcCriticidade",$5,$6,
-               'ABERTA'::"NcStatus",$7,$8,$9,$10,NOW())
+               'ABERTA'::"NcStatus",$7,$8,$9,$10,$11,NOW())
        RETURNING id`,
       tenantId,
       obraId,
@@ -165,6 +197,7 @@ export class NcsService {
       dto.responsavel_id ?? null,
       dto.prazo ? new Date(dto.prazo) : null,
       dto.observacoes ?? null,
+      dto.gedVersaoId ?? null,
     );
 
     const ncId = rows[0].id;
@@ -234,6 +267,13 @@ export class NcsService {
       sets.push(`data_fechamento = $${idx++}`);
       params.push(dto.data_fechamento ? new Date(dto.data_fechamento) : null);
     }
+    if (dto.gedVersaoId !== undefined) {
+      if (dto.gedVersaoId != null) {
+        await this.assertGedVersaoBelongsToTenant(tenantId, dto.gedVersaoId);
+      }
+      sets.push(`ged_versao_id = $${idx++}`);
+      params.push(dto.gedVersaoId);
+    }
 
     await this.prisma.$executeRawUnsafe(
       `UPDATE nao_conformidades SET ${sets.join(', ')} WHERE tenant_id = $1 AND id = $2`,
@@ -268,6 +308,24 @@ export class NcsService {
   }
 
   // ── Helper privado ─────────────────────────────────────────────────────────
+
+  // Garante que a versão GED pertence ao mesmo tenant da NC (defesa multi-tenant).
+  // Sem FK dura no banco, é a única barreira de consistência.
+  private async assertGedVersaoBelongsToTenant(
+    tenantId: number,
+    gedVersaoId: number,
+  ): Promise<void> {
+    const rows = await this.prisma.$queryRawUnsafe<{ id: number }[]>(
+      `SELECT id FROM ged_versoes WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+      gedVersaoId,
+      tenantId,
+    );
+    if (!rows[0]) {
+      throw new BadRequestException(
+        `ged_versao_id ${gedVersaoId} inválido ou não pertence ao tenant`,
+      );
+    }
+  }
 
   private async getNcOuFalhar(tenantId: number, ncId: number): Promise<NcRow> {
     const rows = await this.prisma.$queryRawUnsafe<NcRow[]>(

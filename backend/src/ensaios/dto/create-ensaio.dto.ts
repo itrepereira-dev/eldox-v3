@@ -57,6 +57,11 @@ export class CreateEnsaioDto {
 
   @IsOptional() @IsNumber() @Min(0) @Max(1)
   ia_confianca?: number;
+
+  // Agent F (2026-04-20): versão de documento do GED que define a especificação
+  // técnica do ensaio (parâmetros esperados, norma aplicável). Opcional.
+  @IsOptional() @IsInt() @IsPositive()
+  ged_versao_id_spec?: number;
 }
 
 export class ListarEnsaiosQuery {

@@ -5,6 +5,7 @@ import {
   BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
 import { AprovacoesNotifierService } from './aprovacoes-notifier.service';
 import { CreateAprovacaoDto } from './dto/create-aprovacao.dto';
@@ -13,11 +14,28 @@ import { DelegarAprovacaoDto } from './dto/delegar-aprovacao.dto';
 import { ListAprovacoesDto } from './dto/list-aprovacoes.dto';
 import {
   AprovacaoInstancia,
+  AprovacaoModulo,
   WorkflowTemplateEtapa,
   Prisma,
 } from '@prisma/client';
 
 type SnapshotJson = Record<string, unknown>;
+
+// ── Contrato de evento público ────────────────────────────────────────────
+// Outros módulos (RDO, NC, Ensaios, FVS...) escutam com @OnEvent(APROVACAO_DECIDIDA_EVENT)
+// e reagem conforme `payload.modulo` + `statusFinal`. Centralizar aqui evita
+// string literals duplicadas pelo codebase.
+export const APROVACAO_DECIDIDA_EVENT = 'aprovacao.decidida';
+
+export interface AprovacaoDecididaPayload {
+  tenantId: number;
+  instanciaId: number;
+  modulo: AprovacaoModulo;
+  entidadeId: number;
+  entidadeTipo: string;
+  statusFinal: 'APROVADO' | 'REJEITADO';
+  usuarioId: number;
+}
 
 @Injectable()
 export class AprovacoesService {
@@ -26,6 +44,7 @@ export class AprovacoesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifier: AprovacoesNotifierService,
+    private readonly events: EventEmitter2,
   ) {}
 
   // ── Solicitar aprovação ────────────────────────────────────────────────────
@@ -229,6 +248,20 @@ export class AprovacoesService {
         .catch((e: unknown) =>
           this.logger.error(`notificarDecisao falhou: ${e}`),
         );
+
+      // Emite evento APROVADO apenas quando não há próxima etapa — ou seja,
+      // só em aprovação final. Etapas intermediárias seguem silenciosas.
+      if (!proximaEtapa) {
+        this.emitirDecidido({
+          tenantId,
+          instanciaId,
+          modulo: instancia.modulo,
+          entidadeId: instancia.entidadeId,
+          entidadeTipo: instancia.entidadeTipo,
+          statusFinal: 'APROVADO',
+          usuarioId: userId,
+        });
+      }
     } else {
       // REPROVADO — executa acaoRejeicao da etapa atual
       await this.executarAcaoRejeicao(
@@ -244,6 +277,26 @@ export class AprovacoesService {
         .catch((e: unknown) =>
           this.logger.error(`notificarDecisao falhou: ${e}`),
         );
+
+      // Após executarAcaoRejeicao o status pode ficar REPROVADO (RETORNAR_SOLICITANTE,
+      // BLOQUEAR) OU EM_APROVACAO (RETORNAR_ETAPA_1, RETORNAR_ETAPA_ANTERIOR).
+      // Só emitimos quando o ciclo de decisão realmente terminou — ou seja, o
+      // status atualizado é REPROVADO. Precisamos buscar a instância do banco
+      // porque o objeto `instancia` local é snapshot pré-transação.
+      const atualizada = await this.prisma.aprovacaoInstancia.findUnique({
+        where: { id: instanciaId },
+      });
+      if (atualizada?.status === 'REPROVADO') {
+        this.emitirDecidido({
+          tenantId,
+          instanciaId,
+          modulo: instancia.modulo,
+          entidadeId: instancia.entidadeId,
+          entidadeTipo: instancia.entidadeTipo,
+          statusFinal: 'REJEITADO',
+          usuarioId: userId,
+        });
+      }
     }
 
     return this.buscar(tenantId, instanciaId, userId, userRole);
@@ -674,6 +727,22 @@ export class AprovacoesService {
   }
 
   // ── Helpers privados ───────────────────────────────────────────────────────
+
+  /**
+   * Emite evento de decisão final (APROVADO ou REJEITADO) para outros
+   * módulos reagirem via @OnEvent. Isolamos num helper para garantir que
+   * qualquer exceção do listener síncrono não derrube a transação de
+   * aprovação — listeners críticos devem usar `async: true` no @OnEvent.
+   */
+  private emitirDecidido(payload: AprovacaoDecididaPayload): void {
+    try {
+      this.events.emit(APROVACAO_DECIDIDA_EVENT, payload);
+    } catch (e) {
+      this.logger.error(
+        `Falha ao emitir ${APROVACAO_DECIDIDA_EVENT} para instância ${payload.instanciaId}: ${String(e)}`,
+      );
+    }
+  }
 
   private encontrarProximaEtapa(
     etapas: WorkflowTemplateEtapa[],

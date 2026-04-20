@@ -3,7 +3,7 @@
 // Variáveis de ambiente necessárias:
 //   MINIO_ENDPOINT, MINIO_PORT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, MINIO_BUCKET, MINIO_USE_SSL
 
-import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Logger, OnModuleInit } from '@nestjs/common';
 import * as crypto from 'crypto';
 
 // Tipagem mínima para evitar erro de compilação sem o pacote instalado.
@@ -18,10 +18,11 @@ export interface MinioUploadResult {
 }
 
 @Injectable()
-export class MinioService {
+export class MinioService implements OnModuleInit {
   private readonly logger = new Logger(MinioService.name);
   private client: MinioClient;
   private readonly bucket: string;
+  private readonly region: string;
 
   constructor() {
     // TODO: após npm install minio, substituir por:
@@ -31,6 +32,7 @@ export class MinioService {
     const Minio = require('minio');
 
     this.bucket = process.env.MINIO_BUCKET ?? 'eldox-ged';
+    this.region = process.env.MINIO_REGION ?? 'us-east-1';
 
     this.client = new Minio.Client({
       endPoint: process.env.MINIO_ENDPOINT ?? 'localhost',
@@ -39,6 +41,32 @@ export class MinioService {
       accessKey: process.env.MINIO_ACCESS_KEY ?? '',
       secretKey: process.env.MINIO_SECRET_KEY ?? '',
     });
+  }
+
+  /**
+   * Garante que o bucket existe ao subir o módulo. Sem isso, deploys limpos
+   * quebravam com NoSuchBucket no primeiro upload (o docker-compose sobe o
+   * MinIO vazio e nenhum seed cria o bucket).
+   *
+   * Fail-fast intencional: se o MinIO está inacessível ou as credenciais
+   * estão erradas, o app não deve subir. Descobrir em produção via 500 no
+   * upload é pior do que refusar start.
+   */
+  async onModuleInit(): Promise<void> {
+    try {
+      const exists = await this.client.bucketExists(this.bucket);
+      if (exists) {
+        this.logger.log(`MinIO bucket ok: ${this.bucket}`);
+        return;
+      }
+      await this.client.makeBucket(this.bucket, this.region);
+      this.logger.log(`MinIO bucket criado: ${this.bucket} (region=${this.region})`);
+    } catch (err) {
+      this.logger.error(
+        `MinIO bootstrap falhou (bucket=${this.bucket}): ${String(err)}`,
+      );
+      throw err;
+    }
   }
 
   /**
@@ -107,6 +135,40 @@ export class MinioService {
   }
 
   /**
+   * Baixa o arquivo do MinIO como Buffer.
+   *
+   * Usado pelos workers (OCR, Classificador, Thumbnail) que precisam processar
+   * o conteúdo do arquivo em memória. Não usa URL pré-assinada — fluxo
+   * server-to-server direto, sem expor URL pública.
+   *
+   * Para arquivos > 100 MB isso aloca muita memória; o worker roda com
+   * concurrency 1 e os uploads já estão limitados a 100 MB via Multer.
+   */
+  async getFileBuffer(key: string): Promise<Buffer> {
+    try {
+      // minio client retorna um Readable stream via getObject
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const stream: AsyncIterable<any> = await this.client.getObject(this.bucket, key);
+      const chunks: Buffer[] = [];
+      for await (const chunk of stream) {
+        // chunk pode vir como Buffer, Uint8Array ou string dependendo do encoding
+        if (Buffer.isBuffer(chunk)) {
+          chunks.push(chunk);
+        } else if (typeof chunk === 'string') {
+          chunks.push(Buffer.from(chunk));
+        } else {
+          // Uint8Array / ArrayBuffer / fallback
+          chunks.push(Buffer.from(chunk as Uint8Array));
+        }
+      }
+      return Buffer.concat(chunks);
+    } catch (err) {
+      this.logger.error(`Erro ao baixar arquivo MinIO: ${key}`, err);
+      throw new InternalServerErrorException('Falha ao ler arquivo do storage.');
+    }
+  }
+
+  /**
    * Calcula checksum SHA-256 de um buffer.
    */
   calcularChecksum(buffer: Buffer): string {
@@ -115,16 +177,22 @@ export class MinioService {
 
   /**
    * Monta a storage_key padrão do GED.
-   * Formato: {tenantId}/{obraId}/{documentoId}/{nomeOriginal}
+   * Formato para escopo OBRA:    {tenantId}/{obraId}/{documentoId}/{nomeOriginal}
+   * Formato para escopo EMPRESA: {tenantId}/EMPRESA/{documentoId}/{nomeOriginal}
+   *
+   * Quando obraId é null, o documento é corporativo (escopo EMPRESA) — usa o
+   * literal "EMPRESA" no lugar do obra_id numérico para manter uma hierarquia
+   * clara no bucket (facilita browsing manual e limpeza posterior).
    */
   buildStorageKey(
     tenantId: number,
-    obraId: number,
+    obraId: number | null,
     documentoId: number,
     nomeOriginal: string,
   ): string {
     // Sanitiza o nome do arquivo para evitar path traversal
     const nomeSanitizado = nomeOriginal.replace(/[^a-zA-Z0-9._-]/g, '_');
-    return `${tenantId}/${obraId}/${documentoId}/${Date.now()}_${nomeSanitizado}`;
+    const scopeSegment = obraId === null ? 'EMPRESA' : String(obraId);
+    return `${tenantId}/${scopeSegment}/${documentoId}/${Date.now()}_${nomeSanitizado}`;
   }
 }
