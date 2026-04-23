@@ -1,5 +1,6 @@
 // backend/src/almoxarifado/orcamento/orcamento.controller.ts
 import {
+  BadRequestException,
   Controller, Get, Post, Patch, Delete,
   Body, Param, Query, ParseIntPipe,
   UseGuards, UseInterceptors, UploadedFile,
@@ -31,7 +32,26 @@ export class OrcamentoController {
   @Post('obras/:obraId/orcamentos/import')
   @Roles('ADMIN_TENANT', 'ENGENHEIRO')
   @HttpCode(HttpStatus.CREATED)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB
+      fileFilter: (_req, file, cb) => {
+        const name = file.originalname?.toLowerCase() ?? '';
+        const ok =
+          file.mimetype ===
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+          file.mimetype === 'application/vnd.ms-excel' ||
+          name.endsWith('.xlsx') ||
+          name.endsWith('.xls');
+        cb(
+          ok
+            ? null
+            : new BadRequestException('Orçamento precisa ser .xlsx'),
+          ok,
+        );
+      },
+    }),
+  )
   async importarXlsx(
     @TenantId() tenantId: number,
     @Param('obraId', ParseIntPipe) obraId: number,

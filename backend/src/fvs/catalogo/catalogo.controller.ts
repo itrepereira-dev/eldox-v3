@@ -98,7 +98,30 @@ export class CatalogoController {
   // IMPORTANT: /servicos/importar must come BEFORE /servicos/:id/clonar
   @Post('servicos/importar')
   @Roles('ADMIN_TENANT')
-  @UseInterceptors(FileInterceptor('arquivo'))
+  @UseInterceptors(
+    FileInterceptor('arquivo', {
+      limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+      fileFilter: (_req, file, cb) => {
+        const name = file.originalname?.toLowerCase() ?? '';
+        const ok =
+          file.mimetype === 'text/csv' ||
+          file.mimetype === 'application/csv' ||
+          file.mimetype === 'application/vnd.ms-excel' ||
+          file.mimetype ===
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+          file.mimetype === 'application/pdf' ||
+          name.endsWith('.csv') ||
+          name.endsWith('.xlsx') ||
+          name.endsWith('.pdf');
+        cb(
+          ok
+            ? null
+            : new BadRequestException('Arquivo precisa ser .csv, .xlsx ou .pdf'),
+          ok,
+        );
+      },
+    }),
+  )
   importarCsv(
     @TenantId() tenantId: number,
     @UploadedFile() file: Express.Multer.File,

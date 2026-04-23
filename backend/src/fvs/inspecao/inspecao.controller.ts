@@ -181,7 +181,29 @@ export class InspecaoController {
   @Post('registros/:id/evidencias')
   @Roles('ADMIN_TENANT', 'ENGENHEIRO', 'TECNICO')
   @HttpCode(HttpStatus.CREATED)
-  @UseInterceptors(FileInterceptor('arquivo'))
+  @UseInterceptors(
+    FileInterceptor('arquivo', {
+      limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+      fileFilter: (_req, file, cb) => {
+        const name = file.originalname?.toLowerCase() ?? '';
+        const ok =
+          file.mimetype.startsWith('image/') ||
+          file.mimetype === 'application/pdf' ||
+          name.endsWith('.jpg') ||
+          name.endsWith('.jpeg') ||
+          name.endsWith('.png') ||
+          name.endsWith('.webp') ||
+          name.endsWith('.heic') ||
+          name.endsWith('.pdf');
+        cb(
+          ok
+            ? null
+            : new BadRequestException('Evidência precisa ser imagem ou PDF'),
+          ok,
+        );
+      },
+    }),
+  )
   createEvidencia(
     @TenantId() tenantId: number,
     @CurrentUser() user: JwtUser,

@@ -13,9 +13,17 @@ import {
   Body,
   HttpCode,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { CotacoesService } from './cotacoes.service';
 
+// Endpoint público → rate-limit agressivo por IP para frear brute-force em tokens.
+const PORTAL_PUBLICO_THROTTLE = {
+  short: { limit: 10, ttl: 60_000 },
+  long: { limit: 100, ttl: 3_600_000 },
+};
+
 @Controller('portal/cotacao')
+@Throttle(PORTAL_PUBLICO_THROTTLE)
 export class PortalFornecedorController {
   constructor(private readonly cotacoes: CotacoesService) {}
 

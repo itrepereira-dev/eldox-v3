@@ -16,6 +16,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -334,9 +335,14 @@ export class GedController {
   }
 
   // ─── QR Code (público, sem JWT) ───────────────────────────────────────────
+  // Rate-limit agressivo por IP para frear brute-force no qrToken.
 
   @Get('ged/qr/:qrToken')
   @UseGuards()
+  @Throttle({
+    short: { limit: 10, ttl: 60_000 },
+    long: { limit: 100, ttl: 3_600_000 },
+  })
   async consultaQr(
     @Param('qrToken') qrToken: string,
     @Req() req: Request,
